@@ -29,7 +29,7 @@ jobs:
           --health-retries 10
     env:
       DATABASE_URL: postgresql+asyncpg://aeon:aeon@localhost:5432/aeon
-      TELEGRAM_BOT_TOKEN: "12345:TEST_TOKEN_FOR_CI"
+      BOT_TOKEN: "12345:TEST_TOKEN_FOR_CI"
     steps:
       - uses: actions/checkout@v4
       - uses: hadolint/hadolint-action@v3.1.0

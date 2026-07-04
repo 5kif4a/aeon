@@ -11,7 +11,7 @@ import pytest
 TEST_BOT_TOKEN = "12345:TEST_TOKEN_FOR_CI"
 TEST_USER_ID = 900_000_001
 
-os.environ.setdefault("TELEGRAM_BOT_TOKEN", TEST_BOT_TOKEN)
+os.environ.setdefault("BOT_TOKEN", TEST_BOT_TOKEN)
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://aeon:aeon@localhost:5432/aeon")
 
 
@@ -20,7 +20,7 @@ def build_init_data(user_id: int = TEST_USER_ID, name: str = "Tester") -> str:
     data = {"auth_date": str(int(time.time())), "query_id": "AAE", "user": user}
     check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
     secret = hmac.new(
-        b"WebAppData", os.environ["TELEGRAM_BOT_TOKEN"].encode(), hashlib.sha256
+        b"WebAppData", os.environ["BOT_TOKEN"].encode(), hashlib.sha256
     ).digest()
     data["hash"] = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
     return urlencode(data)

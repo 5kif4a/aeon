@@ -9,7 +9,7 @@ from app.core.config import get_settings
 
 def build_webapp_url(view: str = "home") -> str:
     settings = get_settings()
-    base = settings.webapp_url
+    base = settings.mini_app_url
     if not base:
         return ""
     separator = "&" if "?" in base else "?"

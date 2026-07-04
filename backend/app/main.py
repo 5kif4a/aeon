@@ -29,18 +29,20 @@ async def lifespan(app: FastAPI):
     settings = get_settings()
 
     application = None
-    if settings.telegram_bot_token:
+    if settings.bot_token:
         application = build_application()
         await application.initialize()
         runtime.set_application(application)
 
         if settings.bot_mode == "webhook":
-            public_url = settings.public_url or settings.webapp_url
-            if not public_url:
-                raise RuntimeError("BOT_MODE=webhook requires PUBLIC_URL (or WEBAPP_URL) to be set")
+            webhook_base_url = settings.webhook_base_url or settings.mini_app_url
+            if not webhook_base_url:
+                raise RuntimeError(
+                    "BOT_MODE=webhook requires WEBHOOK_BASE_URL (or MINI_APP_URL) to be set"
+                )
             _webhook_secret = settings.webhook_secret or secrets.token_urlsafe(32)
             await application.bot.set_webhook(
-                url=f"{public_url.rstrip('/')}{WEBHOOK_PATH}",
+                url=f"{webhook_base_url.rstrip('/')}{WEBHOOK_PATH}",
                 secret_token=_webhook_secret,
                 allowed_updates=Update.ALL_TYPES,
             )
@@ -52,7 +54,7 @@ async def lifespan(app: FastAPI):
             await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
             logger.info("Telegram bot started in polling mode")
     else:
-        logger.warning("TELEGRAM_BOT_TOKEN is not set; running API without the bot")
+        logger.warning("BOT_TOKEN is not set; running API without the bot")
 
     yield
 

@@ -82,7 +82,7 @@ docker compose up -d postgres redis
 
 ```bash
 cd backend
-cp ../.env.example .env   # fill in TELEGRAM_BOT_TOKEN, GEMINI_API_KEY
+cp ../.env.example .env   # fill in BOT_TOKEN, GEMINI_API_KEY
 # for local dev use: DATABASE_URL=postgresql+asyncpg://aeon:aeon@localhost:5432/aeon
 #                    REDIS_URL=redis://localhost:6379/0
 uv sync
@@ -102,7 +102,7 @@ pnpm dev
 
 ```bash
 ngrok http 5173
-# put the https URL into backend .env as WEBAPP_URL, restart the backend
+# put the https URL into backend .env as MINI_APP_URL, restart the backend
 ```
 
 With `BOT_MODE=polling` (default) no public URL is needed for the bot itself — only for the Mini App button.
@@ -156,7 +156,7 @@ Backend runs on **Railway** (the root `Dockerfile`), frontend on **Vercel** (sta
 Two supported ways for the Vercel frontend to reach the Railway backend:
 
 1. **Vercel rewrites (default).** `frontend/vercel.json` proxies `/api/*` to the Railway domain, so the browser makes same-origin requests and CORS is not involved. Replace the placeholder domain with your Railway URL and leave `VITE_API_URL` unset.
-2. **Direct + CORS (alternative).** Set `VITE_API_URL=https://<railway-domain>` on Vercel; the frontend then calls Railway directly. The backend allows the Vercel origin automatically once `WEBAPP_URL` (and/or `CORS_ORIGINS`) is set.
+2. **Direct + CORS (alternative).** Set `VITE_API_URL=https://<railway-domain>` on Vercel; the frontend then calls Railway directly. The backend allows the Vercel origin automatically once `MINI_APP_URL` (and/or `CORS_ORIGINS`) is set.
 
 ### Railway environment variables
 
@@ -164,11 +164,11 @@ Required:
 
 | Variable | Value |
 | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | bot token from BotFather |
+| `BOT_TOKEN` | bot token from BotFather |
 | `BOT_USERNAME` | bot username without `@` |
 | `BOT_MODE` | `webhook` |
-| `PUBLIC_URL` | the Railway public domain (used for the Telegram webhook) |
-| `WEBAPP_URL` | the Vercel frontend URL (also allowed by CORS) |
+| `WEBHOOK_BASE_URL` | the Railway public domain (used for the Telegram webhook) |
+| `MINI_APP_URL` | the Vercel frontend URL (also allowed by CORS) |
 | `GEMINI_API_KEY` | Gemini API key |
 | `DATABASE_URL` | reference the Railway Postgres plugin: `${{ Postgres.DATABASE_URL }}` |
 
@@ -177,7 +177,7 @@ Optional (have defaults):
 | Variable | Notes |
 | --- | --- |
 | `WEBHOOK_SECRET` | auto-generated if empty |
-| `CORS_ORIGINS` | extra browser origins (CSV) beyond `WEBAPP_URL`, e.g. Vercel preview domains |
+| `CORS_ORIGINS` | extra browser origins (CSV) beyond `MINI_APP_URL`, e.g. Vercel preview domains |
 | `REDIS_URL` | `${{ Redis.REDIS_URL }}` to enable per-agent dialogue history |
 | `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `INIT_DATA_MAX_AGE` | tuning |
 
@@ -202,13 +202,13 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `TELEGRAM_BOT_TOKEN` | — | bot token from BotFather |
+| `BOT_TOKEN` | — | bot token from BotFather |
 | `BOT_USERNAME` | resolved via `getMe` | bot username without `@` |
 | `BOT_MODE` | `polling` | `polling` or `webhook` |
 | `WEBHOOK_SECRET` | random | webhook secret token (webhook mode) |
-| `WEBAPP_URL` | — | public HTTPS URL of the Mini App (Vercel) |
-| `PUBLIC_URL` | falls back to `WEBAPP_URL` | public HTTPS URL of the backend (Railway), used for the webhook |
-| `CORS_ORIGINS` | — | extra browser origins (CSV) allowed by CORS, in addition to `WEBAPP_URL` |
+| `MINI_APP_URL` | — | public HTTPS URL of the Mini App (Vercel) |
+| `WEBHOOK_BASE_URL` | falls back to `MINI_APP_URL` | public HTTPS URL of the backend (Railway), used for the webhook |
+| `CORS_ORIGINS` | — | extra browser origins (CSV) allowed by CORS, in addition to `MINI_APP_URL` |
 | `VITE_API_URL` (frontend) | — | backend base URL for direct API calls; empty uses same-origin / Vercel rewrites |
 | `GEMINI_API_KEY` | — | Gemini API key |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |

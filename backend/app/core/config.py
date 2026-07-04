@@ -6,15 +6,16 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    telegram_bot_token: str = ""
+    bot_token: str = ""
     bot_username: str = ""
     bot_mode: str = "polling"  # polling | webhook
     webhook_secret: str = ""
-    webapp_url: str = ""
+    # Public HTTPS URL of the Mini App frontend (Vercel). Also allowed by CORS.
+    mini_app_url: str = ""
     # Public HTTPS URL of this backend (Railway domain). Used for the Telegram
-    # webhook; falls back to webapp_url when the frontend is served by the backend.
-    public_url: str = ""
-    # Extra browser origins allowed by CORS (CSV), in addition to webapp_url.
+    # webhook; falls back to mini_app_url when the frontend is served by the backend.
+    webhook_base_url: str = ""
+    # Extra browser origins allowed by CORS (CSV), in addition to mini_app_url.
     # Needed when the frontend is hosted separately (e.g. Vercel).
     cors_origins: str = ""
 
@@ -35,9 +36,9 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_list(self) -> list[str]:
-        """Allowed browser origins: webapp_url plus any CORS_ORIGINS entries."""
+        """Allowed browser origins: mini_app_url plus any CORS_ORIGINS entries."""
         origins: list[str] = []
-        for value in (self.webapp_url, *self.cors_origins.split(",")):
+        for value in (self.mini_app_url, *self.cors_origins.split(",")):
             origin = value.strip().rstrip("/")
             if origin and origin not in origins:
                 origins.append(origin)

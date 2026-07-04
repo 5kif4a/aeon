@@ -13,7 +13,7 @@ from app.core.config import get_settings
 
 def build_application() -> Application:
     settings = get_settings()
-    builder = ApplicationBuilder().token(settings.telegram_bot_token)
+    builder = ApplicationBuilder().token(settings.bot_token)
     if settings.bot_mode == "webhook":
         builder = builder.updater(None)
     application = builder.build()
