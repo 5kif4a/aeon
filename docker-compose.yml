@@ -4,23 +4,38 @@ services:
     container_name: aeon-app
     restart: unless-stopped
     ports:
-      - "5173:5173"
-    environment:
-      WEB_PORT: "5173"
-      DATABASE_URL: "postgresql://aeon:aeon@postgres:5432/aeon"
-      POSTGRES_USERS_TABLE: "${POSTGRES_USERS_TABLE:-registrations}"
+      - "8000:8000"
+    environment: &app-env
+      DATABASE_URL: "postgresql+asyncpg://aeon:aeon@postgres:5432/aeon"
       REDIS_URL: "redis://redis:6379/0"
       REDIS_AGENT_HISTORY_TTL: "${REDIS_AGENT_HISTORY_TTL:-2592000}"
       TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN:-}"
       BOT_USERNAME: "${BOT_USERNAME:-}"
-      WEBAPP_URL: "${WEBAPP_URL:-https://example.com}"
+      BOT_MODE: "${BOT_MODE:-polling}"
+      WEBHOOK_SECRET: "${WEBHOOK_SECRET:-}"
+      WEBAPP_URL: "${WEBAPP_URL:-}"
+      PUBLIC_URL: "${PUBLIC_URL:-}"
       GEMINI_API_KEY: "${GEMINI_API_KEY:-}"
       GEMINI_MODEL: "${GEMINI_MODEL:-gemini-2.5-flash}"
       GEMINI_MAX_OUTPUT_TOKENS: "${GEMINI_MAX_OUTPUT_TOKENS:-2500}"
       REMINDER_HOUR: "${REMINDER_HOUR:-9}"
+      REMINDER_TZ: "${REMINDER_TZ:-UTC}"
     depends_on:
-      - postgres
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  migrate:
+    build: .
+    container_name: aeon-migrate
+    command: ["alembic", "upgrade", "head"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
 
   postgres:
     image: postgres:16-alpine
@@ -34,6 +49,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U aeon -d aeon"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   redis:
     image: redis:7-alpine

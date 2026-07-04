@@ -18,3 +18,14 @@ ENV/
 .idea/
 Thumbs.db
 .DS_Store
+node_modules/
+frontend/dist/
+frontend/node_modules/
+frontend/
+node_modules/
+backend/tests/
+backend/.ruff_cache/
+.github/
+*.md
+railway.toml
+docker-compose.yml

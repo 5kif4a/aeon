@@ -1,222 +1,179 @@
 # aeon
 
-`aeon` is a Telegram Mini App for the AI mentor "Marcus Aurelius": a dark premium interface with philosophical agents, a Memento Mori diary, goals, and a personal cabinet.
+`aeon` is a Telegram bot + Mini App with three AI mentors — Marcus Aurelius, Machiavelli, and Carl Jung — each a distinct philosophical personality you can talk to. A dark premium interface wraps the mentors together with a Memento Mori diary, life goals with daily reminders, and a personal cabinet.
 
-The app is designed as a personal cabinet for goals, Memento Mori notes, and AI mentor dialogues.
+## Architecture
+
+One backend service with two "frontends" — the Telegram bot and the Mini App — sharing the same services and database:
+
+```
+Mini App (React SPA)          Telegram
+      │                           │
+      ▼ /api/* (initData auth)    ▼ /tg/webhook (or polling)
+┌──────────────────────────────────────────┐
+│  Backend: FastAPI + python-telegram-bot  │
+│  ├─ api/          Mini App REST routes   │
+│  ├─ bot/          handlers, onboarding,  │
+│  │                agent chat, reminders  │
+│  ├─ services/     shared business logic  │
+│  ├─ clients/      Gemini API client      │
+│  └─ db/           SQLAlchemy models      │
+└──────────┬────────────────┬──────────────┘
+        PostgreSQL        Redis
+   (source of truth)  (agent dialogue
+                       history, TTL)
+```
+
+PostgreSQL is the single source of truth: profiles, goals, and diary entries created in the Mini App are the same rows the bot reads for reminders and agent context.
 
 ## Stack
 
-- Frontend: HTML, CSS, vanilla JavaScript
-- Telegram Mini App SDK: `https://telegram.org/js/telegram-web-app.js`
-- Bot: Python 3, Telegram Bot HTTP API
-- AI: Gemini API through a Python backend endpoint
-- Storage: browser `localStorage` for Mini App state, local JSON files for bot registration data
-- Local HTTPS testing: `ngrok` proxy for port `5173`
-- Repository: `https://github.com/caaahaaaaa/aeon.git`
+**Backend** (`backend/`)
+- Python 3.12, [uv](https://docs.astral.sh/uv/) for dependency management
+- FastAPI + Uvicorn — Mini App REST API, Telegram webhook endpoint, static frontend serving
+- python-telegram-bot v21 — onboarding `ConversationHandler`, agent chat, `JobQueue` daily goal reminders
+- SQLAlchemy 2.0 (async, asyncpg) + Alembic migrations
+- Redis — per-agent dialogue history with TTL
+- Gemini API (httpx, streaming SSE) — agent answers
+
+**Frontend** (`frontend/`)
+- React 19 + TypeScript + Vite
+- Tailwind CSS v4 (on top of the ported custom design system in `src/styles.css`)
+- TanStack Query — server state (profile, goal, diary)
+- React Hook Form + Zod — profile "About" form validation
+- Telegram Mini App SDK via `telegram-web-app.js`
 
 ## Features
 
-- Home page with three AI agents:
-  - Marcus Aurelius: personal wise mentor and psychologist
-  - Machiavelli: coach and tactical business trainer
-  - Carl Jung: shadow-focused psychoanalyst
-- Gemini-powered Marcus Aurelius:
-  - Mini App sends questions to `/api/agent/aurelius`
-  - Python backend calls Gemini with `GEMINI_API_KEY`
-  - the key is never stored in frontend files
-- Agent dialogues inside Telegram bot:
-  - user can choose an agent in the Mini App and press "Start dialogue"
-  - Mini App sends Telegram `initData` to `/api/start-agent-dialog`
-  - backend validates `initData`, activates the chosen agent, and opens the bot chat with `openTelegramLink`
-  - `/agents` opens agent selection
-  - `/app` or `/menu` opens dialogue controls
-  - after choosing Marcus Aurelius, Machiavelli, or Carl Jung, normal Telegram messages go to that agent
-  - each agent keeps a small separate dialogue history
-  - `/stop` closes the active agent mode
-  - agent replies are sent as clean chat messages without inline buttons after every answer
-- Memento Mori diary:
-  - 90 years displayed as 4,680 life weeks
-  - birth date from bot registration or manual input
-  - weeks lived, weeks left, and life progress percentage
-  - daily reflection notes
-  - goal setting for the current life period
-- Goal reminders:
-  - Mini App sends active goals to the bot through `Telegram.WebApp.sendData()`
-  - bot reminds the user every day until the goal is closed
-- Personal cabinet:
-  - profile settings
-  - user memory card
-  - profile completion progress
-  - subscription block
-- Bot registration flow:
-  - compact one-message onboarding: button steps edit the same Telegram message instead of flooding the chat
-  - language selection
-  - Marcus Aurelius welcome message
-  - name
-  - staged birth date picker for the Memento Mori calendar: period -> year -> month -> day, all inside one edited Telegram message
-  - age is calculated automatically from the selected birth date
-  - country list
-  - Mini App launch URL with `lang`, `name`, `age`, `birthDate`, `country`, and `view=profile`
-  - personal cabinet opens already filled, and Memento Mori calendar receives the birth date
+- **Three AI agents** — Marcus Aurelius (stoic mentor), Machiavelli (business tactician), Carl Jung (shadow analyst). Selected in the Mini App or via `/agents`; dialogue happens in the bot chat with streamed answers edited into a single message.
+- **Onboarding in the bot** — `/start` flow (language → name → staged birth date picker → country) editing one Telegram message, saved straight to PostgreSQL.
+- **Memento Mori calendar** — 90 years as 4,680 life weeks, computed from the birth date in the profile.
+- **Diary** — reflection notes with quick prompts, stored server-side.
+- **Goals** — one active goal with daily bot reminders (`JobQueue`, configurable hour and timezone) until closed.
+- **Personal cabinet** — profile memory card, completion progress, plan/tokens.
+- **Mini App auth** — every API request is authenticated with Telegram `initData` (HMAC validation) via the `Authorization: tma <initData>` header.
+- **Bilingual (ru/en)** — the Mini App UI, bot messages, and LLM error messages are fully localized; agents reply in the user's language (English prompts + a per-request language directive). Language is detected from Telegram/onboarding and switchable in the profile. Backend catalog in `backend/app/i18n.py`, frontend catalog in `frontend/src/lib/i18n.ts`.
 
-## Project Notes
+## API
 
-- Remote push authorization is configured on this computer.
-- Local Telegram Mini App testing uses `ngrok` proxying port `5173`.
-- Local app URL before proxy: `http://127.0.0.1:5173/`
-- Public ngrok URL should be used as `WEBAPP_URL` during local Telegram testing.
+FastAPI serves OpenAPI docs at `/docs`. Main endpoints:
 
-## Local Mini App Run
+| Endpoint | Description |
+| --- | --- |
+| `GET /api/me` / `PATCH /api/me` | profile read/update |
+| `GET /api/goal` / `POST /api/goal` / `POST /api/goal/close` | active goal |
+| `GET /api/diary` / `POST /api/diary` / `DELETE /api/diary/{id}` | diary entries |
+| `GET /api/agents` / `POST /api/agents/{id}/dialog` | agents, start bot dialogue |
+| `POST /tg/webhook` | Telegram webhook (`BOT_MODE=webhook`) |
 
-```powershell
-cd C:\Users\diaaa\Documents\Codex\2026-05-18\new-chat
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-$env:WEB_PORT="5173"
-C:\Users\diaaa\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe bot.py
+Frontend types in `src/lib/types.ts` mirror the backend schemas; regenerate with `pnpm generate:api` (requires the backend running on port 8000).
+
+## Local development
+
+Requirements: Python 3.12+, uv, Node 22+, pnpm, Docker or Podman for PostgreSQL/Redis.
+
+1. Start databases:
+
+```bash
+docker compose up -d postgres redis
 ```
 
-Open locally:
+2. Backend (port 8000):
 
-```text
-http://127.0.0.1:5173/
+```bash
+cd backend
+cp ../.env.example .env   # fill in TELEGRAM_BOT_TOKEN, GEMINI_API_KEY
+# for local dev use: DATABASE_URL=postgresql+asyncpg://aeon:aeon@localhost:5432/aeon
+#                    REDIS_URL=redis://localhost:6379/0
+uv sync
+uv run alembic upgrade head
+uv run uvicorn app.main:app --reload --port 8000
 ```
 
-For Telegram testing, start ngrok on the same port:
+3. Frontend (port 5173, proxies `/api` and `/tg` to the backend):
 
-```powershell
+```bash
+cd frontend
+pnpm install
+pnpm dev
+```
+
+4. Telegram testing — expose the frontend over HTTPS and point the bot at it:
+
+```bash
 ngrok http 5173
+# put the https URL into backend .env as WEBAPP_URL, restart the backend
 ```
 
-Then use the generated HTTPS ngrok URL as `WEBAPP_URL`, or leave `WEBAPP_URL` empty: `bot.py` will try to read the active ngrok tunnel from `http://127.0.0.1:4040/api/tunnels`.
-
-Note: `python -m http.server` can serve the static interface, but Marcus Aurelius Gemini answers require `bot.py`, because `/api/agent/aurelius` lives in the Python backend.
-
-## Bot Run
-
-```powershell
-$env:TELEGRAM_BOT_TOKEN="YOUR_TOKEN"
-$env:BOT_USERNAME="YOUR_BOT_USERNAME"
-$env:WEBAPP_URL="https://your-public-mini-app-url"
-$env:REMINDER_HOUR="9"
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-C:\Users\diaaa\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe bot.py
-```
-
-Local ngrok run without `WEBAPP_URL`:
-
-```powershell
-ngrok http 5173
-```
-
-In a second terminal:
-
-```powershell
-$env:TELEGRAM_BOT_TOKEN="YOUR_TOKEN"
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-$env:DATABASE_URL="postgresql://USER:PASSWORD@HOST:5432/DBNAME"
-$env:REDIS_URL="redis://localhost:6379/0"
-$env:WEB_PORT="5173"
-C:\Users\diaaa\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe bot.py
-```
-
-Environment variables:
-
-- `TELEGRAM_BOT_TOKEN`: Telegram bot token from BotFather
-- `BOT_USERNAME`: bot username without `@`; optional, backend can resolve it through `getMe`
-- `WEBAPP_URL`: public HTTPS URL for the Mini App
-- `REMINDER_HOUR`: daily reminder hour, default is `9`
-- `GEMINI_API_KEY`: Gemini API key for Marcus Aurelius answers
-- `GEMINI_MODEL`: Gemini model name, default is `gemini-2.5-flash`
-- `GEMINI_MAX_OUTPUT_TOKENS`: max Gemini answer tokens, default is `2500`
-- `DATABASE_URL`: PostgreSQL connection string; when omitted, the bot falls back to `data/registrations.json`
-- `POSTGRES_USERS_TABLE`: PostgreSQL table for user profiles, default is `registrations`
-- `REDIS_URL`: Redis connection string for short agent dialogue history; when omitted, history falls back to profile storage
-- `REDIS_AGENT_HISTORY_TTL`: Redis history lifetime in seconds, default is `2592000` (30 days)
-- `WEB_PORT`: local backend/static server port, default is `5173`
-
-Install Python dependencies:
-
-```powershell
-C:\Users\diaaa\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe -m pip install -r requirements.txt
-```
-
-Storage and cache:
-
-- With `DATABASE_URL`, profiles, goals, and active agents are stored in PostgreSQL.
-- With `REDIS_URL`, short agent dialogue history is stored in Redis and kept out of user profiles.
-- Without `REDIS_URL`, agent history falls back to PostgreSQL/JSON profile storage for local development.
-- Without `DATABASE_URL`, local development still works through `data/registrations.json`.
-- On first PostgreSQL start, existing `data/registrations.json` profiles are imported automatically if the `registrations` table is empty.
+With `BOT_MODE=polling` (default) no public URL is needed for the bot itself — only for the Mini App button.
 
 ## Docker
 
-Create local env file:
+One backend `Dockerfile` for both local compose and Railway (the frontend is served by Vite locally and by Vercel in production). Multi-stage: dependencies resolve into a virtualenv in a builder stage, the runtime stage gets only `.venv` + code, runs as a non-root user, ships a `HEALTHCHECK`, and keeps uvicorn as PID 1 for graceful shutdown. Linted with hadolint in CI.
 
-```powershell
-copy .env.example .env
-```
+Migrations run as a separate `migrate` compose service (same image, `alembic upgrade head`); `app` starts only after it completes:
 
-Edit `.env` and set real values for:
-
-- `TELEGRAM_BOT_TOKEN`
-- `GEMINI_API_KEY`
-- `WEBAPP_URL`
-- `BOT_USERNAME` if you want to set it manually
-
-Run app + local PostgreSQL + Redis:
-
-```powershell
+```bash
+cp .env.example .env   # fill in tokens
 docker compose up --build
 ```
 
-Open locally:
+API: `http://127.0.0.1:8000`. On Railway the same migration step runs via `preDeployCommand` in `railway.toml`.
 
-```text
-http://127.0.0.1:5173/
+## CI/CD
+
+`.github/workflows/ci.yml` runs on every push/PR to `main`:
+
+- **backend** — ruff, Alembic migrations against a Postgres service container, pytest (`backend/tests/`)
+- **frontend** — oxlint, `tsc` + Vite build
+
+On push to `main` (after both jobs pass) it deploys:
+
+- **Backend → Railway** — the root `Dockerfile`, configured by `railway.toml` (migrations via `preDeployCommand`, healthcheck `/api/health`). Deployed with the Railway CLI.
+- **Frontend → Vercel** — `frontend/` as the project root; `frontend/vercel.json` rewrites `/api/*` to the Railway domain, so the Mini App keeps same-origin requests and no CORS is needed.
+
+### One-time setup
+
+GitHub repository **secrets**:
+
+| Secret | Where to get it |
+| --- | --- |
+| `RAILWAY_TOKEN` | Railway project → Settings → Tokens (project token) |
+| `VERCEL_TOKEN` | Vercel → Account Settings → Tokens |
+| `VERCEL_ORG_ID` | `frontend/.vercel/project.json` after `vercel link` |
+| `VERCEL_PROJECT_ID` | same file |
+
+GitHub repository **variable** `RAILWAY_SERVICE` — the Railway service name (defaults to `aeon` in the workflow).
+
+Railway service **environment variables**: `TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`, `BOT_MODE=webhook`, `PUBLIC_URL` (the Railway public domain, for the Telegram webhook), `WEBAPP_URL` (the Vercel domain, for Mini App buttons), `DATABASE_URL` and `REDIS_URL` (reference the Railway Postgres/Redis plugins), optionally `WEBHOOK_SECRET`, `REMINDER_HOUR`, `REMINDER_TZ`.
+
+Vercel project: link the repo with **Root Directory = `frontend`**, then put the real Railway domain into `frontend/vercel.json`.
+
+## Migrating from the legacy bot.py
+
+Profiles from the old `registrations` table (JSONB) can be imported once into the new schema:
+
+```bash
+cd backend
+PYTHONPATH=. uv run python scripts/import_legacy.py
 ```
 
-For Telegram Mini App local testing, expose the app port:
+## Environment variables
 
-```powershell
-ngrok http 5173
-```
-
-Then put the generated HTTPS URL into `.env` as `WEBAPP_URL` and restart:
-
-```powershell
-docker compose up --build
-```
-
-Run only the app image with an external PostgreSQL:
-
-```powershell
-docker build -t aeon .
-docker run --env-file .env -p 5173:5173 aeon
-```
-
-Production note: for Railway or another host, use the `Dockerfile` for the app and a managed PostgreSQL connection string in `DATABASE_URL`.
-
-## Gemini Diagnostics
-
-Check Gemini API separately from the bot:
-
-```powershell
-$env:GEMINI_API_KEY="YOUR_GEMINI_API_KEY"
-C:\Users\diaaa\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe check_gemini.py
-```
-
-The script prints the HTTP status and Gemini error body without printing the API key.
-
-## Git
-
-Remote:
-
-```text
-origin https://github.com/caaahaaaaa/aeon.git
-```
-
-Push:
-
-```powershell
-git push -u origin main
-```
+| Variable | Default | Description |
+| --- | --- | --- |
+| `TELEGRAM_BOT_TOKEN` | — | bot token from BotFather |
+| `BOT_USERNAME` | resolved via `getMe` | bot username without `@` |
+| `BOT_MODE` | `polling` | `polling` or `webhook` |
+| `WEBHOOK_SECRET` | random | webhook secret token (webhook mode) |
+| `WEBAPP_URL` | — | public HTTPS URL of the Mini App (Vercel) |
+| `PUBLIC_URL` | falls back to `WEBAPP_URL` | public HTTPS URL of the backend (Railway), used for the webhook |
+| `GEMINI_API_KEY` | — | Gemini API key |
+| `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
+| `GEMINI_MAX_OUTPUT_TOKENS` | `2500` | max answer tokens |
+| `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
+| `REDIS_URL` | — | Redis DSN; empty disables dialogue history |
+| `REDIS_AGENT_HISTORY_TTL` | `2592000` | dialogue history TTL, seconds |
+| `REMINDER_HOUR` | `9` | daily goal reminder hour |
+| `REMINDER_TZ` | `UTC` | reminder timezone |
+| `STATIC_DIR` | — | path to built frontend (set in Docker) |

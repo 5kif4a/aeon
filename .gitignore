@@ -27,3 +27,8 @@ data/
 .idea/
 .DS_Store
 Thumbs.db
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vercel/
