@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from telegram import Update
 
@@ -64,6 +65,16 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="aeon", lifespan=lifespan)
+
+_cors_origins = get_settings().cors_origin_list
+if _cors_origins:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
 app.include_router(api_router)
 
 

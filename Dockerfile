@@ -14,8 +14,7 @@ WORKDIR /app
 
 # Dependencies first: this layer is rebuilt only when the lockfile changes.
 COPY backend/pyproject.toml backend/uv.lock ./
-RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+RUN uv sync --frozen --no-dev
 
 # --- Stage 2: runtime without uv and build leftovers ---
 FROM python:3.12.11-slim

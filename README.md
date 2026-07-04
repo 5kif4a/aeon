@@ -130,7 +130,7 @@ API: `http://127.0.0.1:8000`. On Railway the same migration step runs via `preDe
 On push to `main` (after both jobs pass) it deploys:
 
 - **Backend → Railway** — the root `Dockerfile`, configured by `railway.toml` (migrations via `preDeployCommand`, healthcheck `/api/health`). Deployed with the Railway CLI.
-- **Frontend → Vercel** — `frontend/` as the project root; `frontend/vercel.json` rewrites `/api/*` to the Railway domain, so the Mini App keeps same-origin requests and no CORS is needed.
+- **Frontend → Vercel** — `frontend/` as the project root; `frontend/vercel.json` rewrites `/api/*` to the Railway domain, so the Mini App keeps same-origin requests and no CORS is needed. (Alternatively, set `VITE_API_URL` to call the backend directly — see [Deploy](#deploy).)
 
 ### One-time setup
 
@@ -145,9 +145,49 @@ GitHub repository **secrets**:
 
 GitHub repository **variable** `RAILWAY_SERVICE` — the Railway service name (defaults to `aeon` in the workflow).
 
-Railway service **environment variables**: `TELEGRAM_BOT_TOKEN`, `GEMINI_API_KEY`, `BOT_MODE=webhook`, `PUBLIC_URL` (the Railway public domain, for the Telegram webhook), `WEBAPP_URL` (the Vercel domain, for Mini App buttons), `DATABASE_URL` and `REDIS_URL` (reference the Railway Postgres/Redis plugins), optionally `WEBHOOK_SECRET`, `REMINDER_HOUR`, `REMINDER_TZ`.
+Railway service **environment variables** and Vercel project setup: see [Deploy](#deploy).
 
-Vercel project: link the repo with **Root Directory = `frontend`**, then put the real Railway domain into `frontend/vercel.json`.
+## Deploy
+
+Backend runs on **Railway** (the root `Dockerfile`), frontend on **Vercel** (static SPA). Pushes to `main` deploy both automatically — see [CI/CD](#cicd). This section covers the configuration each platform needs.
+
+### Frontend → backend wiring
+
+Two supported ways for the Vercel frontend to reach the Railway backend:
+
+1. **Vercel rewrites (default).** `frontend/vercel.json` proxies `/api/*` to the Railway domain, so the browser makes same-origin requests and CORS is not involved. Replace the placeholder domain with your Railway URL and leave `VITE_API_URL` unset.
+2. **Direct + CORS (alternative).** Set `VITE_API_URL=https://<railway-domain>` on Vercel; the frontend then calls Railway directly. The backend allows the Vercel origin automatically once `WEBAPP_URL` (and/or `CORS_ORIGINS`) is set.
+
+### Railway environment variables
+
+Required:
+
+| Variable | Value |
+| --- | --- |
+| `TELEGRAM_BOT_TOKEN` | bot token from BotFather |
+| `BOT_USERNAME` | bot username without `@` |
+| `BOT_MODE` | `webhook` |
+| `PUBLIC_URL` | the Railway public domain (used for the Telegram webhook) |
+| `WEBAPP_URL` | the Vercel frontend URL (also allowed by CORS) |
+| `GEMINI_API_KEY` | Gemini API key |
+| `DATABASE_URL` | reference the Railway Postgres plugin: `${{ Postgres.DATABASE_URL }}` |
+
+Optional (have defaults):
+
+| Variable | Notes |
+| --- | --- |
+| `WEBHOOK_SECRET` | auto-generated if empty |
+| `CORS_ORIGINS` | extra browser origins (CSV) beyond `WEBAPP_URL`, e.g. Vercel preview domains |
+| `REDIS_URL` | `${{ Redis.REDIS_URL }}` to enable per-agent dialogue history |
+| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `INIT_DATA_MAX_AGE` | tuning |
+
+Do **not** set `PORT` (Railway injects it), `STATIC_DIR` (the frontend is on Vercel), or `WEB_PORT` (dev only). Database migrations run automatically before each deploy via `preDeployCommand` (`alembic upgrade head`) in `railway.toml`.
+
+### Vercel environment / setup
+
+- Link the repo with **Root Directory = `frontend`**.
+- Default path: put your Railway domain into `frontend/vercel.json`.
+- Alternative path: set `VITE_API_URL=https://<railway-domain>` (build-time — redeploy after changing it).
 
 ## Migrating from the legacy bot.py
 
@@ -168,6 +208,8 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `WEBHOOK_SECRET` | random | webhook secret token (webhook mode) |
 | `WEBAPP_URL` | — | public HTTPS URL of the Mini App (Vercel) |
 | `PUBLIC_URL` | falls back to `WEBAPP_URL` | public HTTPS URL of the backend (Railway), used for the webhook |
+| `CORS_ORIGINS` | — | extra browser origins (CSV) allowed by CORS, in addition to `WEBAPP_URL` |
+| `VITE_API_URL` (frontend) | — | backend base URL for direct API calls; empty uses same-origin / Vercel rewrites |
 | `GEMINI_API_KEY` | — | Gemini API key |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
 | `GEMINI_MAX_OUTPUT_TOKENS` | `2500` | max answer tokens |

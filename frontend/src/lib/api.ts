@@ -1,6 +1,13 @@
 import { tg } from "./telegram";
 import type { Agent, DiaryEntry, Goal, Profile, ProfileUpdate, StartDialogResponse } from "./types";
 
+/**
+ * Backend base URL. Empty in dev (Vite proxies /api to the local backend) and
+ * when the backend serves the frontend on the same origin. On split deploys
+ * (frontend on Vercel, backend on Railway) set VITE_API_URL to the backend URL.
+ */
+const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+
 export class ApiError extends Error {
   status: number;
 
@@ -11,7 +18,7 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(path, {
+  const response = await fetch(`${API_BASE}${path}`, {
     ...options,
     headers: {
       "Content-Type": "application/json",
