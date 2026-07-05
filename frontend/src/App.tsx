@@ -5,7 +5,7 @@ import { BottomNav } from "./components/BottomNav";
 import { useProfile, useStartDialog } from "./hooks/queries";
 import { agentMeta, DEFAULT_AGENT_ID } from "./lib/agents";
 import { useT } from "./lib/i18n-context";
-import { closeMiniApp, haptic } from "./lib/telegram";
+import { closeMiniApp, haptic, showBackButton } from "./lib/telegram";
 import { CalendarView } from "./views/CalendarView";
 import { HomeView } from "./views/HomeView";
 import { ProfileView } from "./views/ProfileView";
@@ -29,6 +29,21 @@ export default function App() {
   useEffect(() => {
     if (profile?.activeAgent) setActiveAgentId(profile.activeAgent);
   }, [profile?.activeAgent]);
+
+  // Reset scroll to the top of the page whenever the view changes.
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [view]);
+
+  // Telegram's Back button returns to home from secondary views; home relies on
+  // Telegram's own close control.
+  useEffect(() => {
+    if (view === "home") return;
+    return showBackButton(() => {
+      haptic("selection");
+      setView("home");
+    });
+  }, [view]);
 
   const showMessage = (text: string, canStartDialog = false) => {
     setAssistantMessage({ agentName: agentMeta(activeAgentId, lang).name, text, canStartDialog });

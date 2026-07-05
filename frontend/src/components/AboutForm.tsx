@@ -6,6 +6,7 @@ import { z } from "zod";
 import { useUpdateProfile } from "../hooks/queries";
 import { useT } from "../lib/i18n-context";
 import type { TFunc } from "../lib/i18n";
+import { COUNTRIES, GENDERS, matchOption, type SelectOption } from "../lib/options";
 import type { Profile } from "../lib/types";
 import { field, fieldLabel, goldButton } from "../lib/ui";
 
@@ -24,6 +25,20 @@ function buildSchema(t: TFunc) {
 
 type AboutValues = z.infer<ReturnType<typeof buildSchema>>;
 
+function SelectChevron() {
+  return (
+    <svg
+      className="text-muted pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2"
+      viewBox="0 0 20 20"
+      fill="none"
+      stroke="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M6 8l4 4 4-4" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export function AboutForm({
   profile,
   onSaved,
@@ -31,9 +46,16 @@ export function AboutForm({
   profile: Profile | undefined;
   onSaved: () => void;
 }) {
-  const { t } = useT();
+  const { t, lang } = useT();
   const updateProfile = useUpdateProfile();
   const schema = useMemo(() => buildSchema(t), [t]);
+
+  // Map stored values onto the current-language option label so the matching
+  // <option> stays selected; fall back to the raw value for legacy free text.
+  const optionDefault = (options: SelectOption[], stored: string) =>
+    matchOption(options, stored)?.labels[lang] ?? stored;
+  const genderDefault = optionDefault(GENDERS, profile?.gender ?? "");
+  const locationDefault = optionDefault(COUNTRIES, profile?.location || profile?.country || "");
 
   const {
     register,
@@ -44,8 +66,8 @@ export function AboutForm({
     mode: "onBlur",
     defaultValues: {
       name: profile?.name ?? "",
-      gender: profile?.gender ?? "",
-      location: profile?.location || profile?.country || "",
+      gender: genderDefault,
+      location: locationDefault,
       activity: profile?.activity ?? "",
       interests: profile?.interests ?? "",
       mainGoal: profile?.mainGoal ?? "",
@@ -60,9 +82,29 @@ export function AboutForm({
   });
 
   const textInput = `${field} aria-[invalid=true]:border-danger`;
+  // Native arrow removed (appearance-none); a custom chevron is aligned to the
+  // same right inset as the text, with pr-9 reserving room so it never overlaps.
+  const selectInput = `${textInput} cursor-pointer appearance-none pr-9`;
   const textArea =
     "min-h-[86px] w-full resize-y rounded-[14px] border border-line bg-[rgba(0,0,0,0.24)] px-3 pt-3 leading-[1.42] text-text outline-none aria-[invalid=true]:border-danger";
   const errorText = "text-[12px] text-danger";
+
+  // Placeholder + known options, plus the current value when it is legacy free
+  // text that matches no option (so saving does not silently drop it).
+  const renderOptions = (options: SelectOption[], current: string) => {
+    const labels = options.map((option) => option.labels[lang]);
+    return (
+      <>
+        <option value="">{t("form_not_specified")}</option>
+        {current && !labels.includes(current) && <option value={current}>{current}</option>}
+        {options.map((option) => (
+          <option key={option.code} value={option.labels[lang]}>
+            {option.labels[lang]}
+          </option>
+        ))}
+      </>
+    );
+  };
 
   return (
     <form className="grid gap-3" onSubmit={onSubmit}>
@@ -73,12 +115,26 @@ export function AboutForm({
       </label>
       <label className={fieldLabel}>
         {t("form_gender")}
-        <input {...register("gender")} aria-invalid={!!errors.gender} className={textInput} />
+        <div className="relative">
+          <select {...register("gender")} aria-invalid={!!errors.gender} className={selectInput}>
+            {renderOptions(GENDERS, genderDefault)}
+          </select>
+          <SelectChevron />
+        </div>
         {errors.gender && <small className={errorText}>{errors.gender.message}</small>}
       </label>
       <label className={fieldLabel}>
         {t("form_location")}
-        <input {...register("location")} aria-invalid={!!errors.location} className={textInput} />
+        <div className="relative">
+          <select
+            {...register("location")}
+            aria-invalid={!!errors.location}
+            className={selectInput}
+          >
+            {renderOptions(COUNTRIES, locationDefault)}
+          </select>
+          <SelectChevron />
+        </div>
         {errors.location && <small className={errorText}>{errors.location.message}</small>}
       </label>
       <label className={fieldLabel}>

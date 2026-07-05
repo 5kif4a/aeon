@@ -5,6 +5,7 @@ language to reply in, based on the user's profile language.
 """
 
 import json
+import logging
 import re
 from collections.abc import Awaitable, Callable
 from datetime import date
@@ -25,6 +26,8 @@ from app.db.models import User
 from app.i18n import LANGUAGE_IN_ENGLISH, normalize_language
 
 OnText = Callable[[str], Awaitable[None]]
+
+logger = logging.getLogger(__name__)
 
 NOT_SPECIFIED = "not specified"
 
@@ -295,7 +298,11 @@ async def _get_redis() -> aioredis.Redis | None:
     if _redis_client is not None:
         return _redis_client
     settings = get_settings()
-    if _redis_failed or not settings.redis_url:
+    if _redis_failed:
+        return None
+    if not settings.redis_url:
+        logger.warning("REDIS_URL is not set; agent dialogue history is disabled")
+        _redis_failed = True
         return None
     try:
         client = aioredis.from_url(
@@ -305,6 +312,9 @@ async def _get_redis() -> aioredis.Redis | None:
         _redis_client = client
         return client
     except Exception:
+        logger.warning(
+            "Failed to connect to Redis; agent dialogue history is disabled", exc_info=True
+        )
         _redis_failed = True
         return None
 
@@ -316,6 +326,7 @@ async def get_history(chat_id: int, agent_id: str) -> list[dict]:
     try:
         raw_items = await client.lrange(_history_key(chat_id, agent_id), 0, -1)
     except Exception:
+        logger.warning("Failed to read agent history from Redis", exc_info=True)
         return []
     history = []
     for raw_item in raw_items:
@@ -347,4 +358,4 @@ async def append_history(chat_id: int, agent_id: str, user_text: str, agent_text
             pipe.expire(key, settings.redis_agent_history_ttl)
         await pipe.execute()
     except Exception:
-        pass
+        logger.warning("Failed to write agent history to Redis", exc_info=True)

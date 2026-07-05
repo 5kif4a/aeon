@@ -86,16 +86,16 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
   };
 
   return (
-    <section className="block animate-view-in" aria-label={t("nav_diary")}>
+    <section className="animate-view-in block" aria-label={t("nav_diary")}>
       <header className="flex min-h-[118px] items-center justify-between pt-[26px]">
         <div>
-          <span className="mb-[6px] block text-muted">{t("cal_memento")}</span>
+          <span className="text-muted mb-[6px] block">{t("cal_memento")}</span>
           <h2 className="font-serif text-[24px] leading-[1.1]">{t("cal_title")}</h2>
         </div>
       </header>
 
       <form className={`${cardPanel} p-[14px]`} onSubmit={saveBirthDate}>
-        <label htmlFor="birthDateInput" className="mb-[10px] block text-[14px] text-muted">
+        <label htmlFor="birthDateInput" className="text-muted mb-[10px] block text-[14px]">
           {t("cal_birthdate_label")}
         </label>
         <div className="grid grid-cols-[1fr_auto] gap-2 max-[390px]:grid-cols-1">
@@ -106,12 +106,9 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
             max={todayKey()}
             value={birthDate}
             onChange={(event) => setBirthDate(event.target.value)}
-            className="h-[46px] min-w-0 rounded-[14px] border border-line bg-[rgba(0,0,0,0.22)] px-3 text-text outline-none"
+            className="border-line text-text h-[46px] min-w-0 rounded-[14px] border bg-[rgba(0,0,0,0.22)] px-3 outline-none"
           />
-          <button
-            type="submit"
-            className={`${goldButton} h-[46px] px-[14px] font-[750]`}
-          >
+          <button type="submit" className={`${goldButton} h-[46px] px-[14px] font-[750]`}>
             {t("cal_calculate")}
           </button>
         </div>
@@ -128,24 +125,24 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
         ].map((item) => (
           <article
             key={item.label}
-            className="grid min-h-[92px] place-items-center rounded-[18px] border border-line bg-[rgba(255,255,255,0.045)] p-[12px_8px] text-center"
+            className="border-line grid min-h-[92px] place-items-center rounded-[18px] border bg-[rgba(255,255,255,0.045)] p-[12px_8px] text-center"
           >
-            <strong className="text-[25px] leading-none text-gold-strong max-[390px]:text-[21px]">
+            <strong className="text-gold-strong text-[25px] leading-none max-[390px]:text-[21px]">
               {item.value}
             </strong>
-            <span className="text-[12px] text-muted">{item.label}</span>
+            <span className="text-muted text-[12px]">{item.label}</span>
           </article>
         ))}
       </section>
 
       <section className="mt-3 rounded-[18px] border border-[rgba(42,39,33,0.25)] bg-[radial-gradient(circle_at_18%_8%,rgba(255,255,255,0.42),transparent_18%),linear-gradient(180deg,#efe6d3_0%,#e6dcc5_100%)] p-[clamp(16px,4vw,28px)] text-[#25231f] shadow-[0_18px_42px_rgba(0,0,0,0.36),inset_0_0_0_1px_rgba(255,255,255,0.34)]">
-        <div className="mb-[18px] text-center font-serif text-[clamp(20px,5vw,34px)] leading-[1.1] tracking-[0.46em] text-[#24231f] indent-[0.46em] max-[390px]:tracking-[0.28em] max-[390px]:indent-[0.28em]">
+        <div className="mb-[18px] text-center indent-[0.46em] font-serif text-[clamp(20px,5vw,34px)] leading-[1.1] tracking-[0.46em] text-[#24231f] max-[390px]:indent-[0.28em] max-[390px]:tracking-[0.28em]">
           {t("cal_memento_print")}
         </div>
         <div className="mb-[18px] grid grid-cols-[1fr_52px] items-start gap-3 border-t border-b border-t-[rgba(40,37,31,0.18)] border-b-[rgba(40,37,31,0.18)] py-3">
           <div>
             <h3 className="mb-[5px] font-serif text-[20px]">{mementoTitle(stats, t)}</h3>
-            <p className="text-[#5c5548] leading-[1.42]">{mementoText(stats, t, locale)}</p>
+            <p className="leading-[1.42] text-[#5c5548]">{mementoText(stats, t, locale)}</p>
           </div>
           <span className="grid h-[52px] w-[52px] place-items-center border border-[rgba(37,35,31,0.42)] text-[22px] font-[850] text-[#24231f]">
             {stats?.age ?? 0}
@@ -170,7 +167,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
 
       <section className={`${cardPanel} mt-3 p-4`}>
         <h3 className="mb-2 font-serif text-[21px]">{t("goal_title")}</h3>
-        <p className="text-[#d7cebf] leading-[1.45]">
+        <p className="leading-[1.45] text-[#d7cebf]">
           {activeGoal ? t("goal_active", { text: activeGoal.text }) : t("goal_none")}
         </p>
         <form className="mt-[14px] grid gap-[10px]" onSubmit={submitGoal}>
@@ -179,7 +176,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
             placeholder={t("goal_placeholder")}
             value={goalText}
             onChange={(event) => setGoalText(event.target.value)}
-            className="min-h-[92px] w-full resize-y rounded-[16px] border border-line bg-[rgba(0,0,0,0.22)] p-[14px] leading-[1.45] text-text outline-none"
+            className="border-line text-text min-h-[92px] w-full resize-y rounded-[16px] border bg-[rgba(0,0,0,0.22)] p-[14px] leading-[1.45] outline-none"
           ></textarea>
           <button
             type="submit"
@@ -197,7 +194,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
                 onSuccess: () => onMessage(t("goal_closed_toast")),
               })
             }
-            className="mt-[10px] min-h-[44px] w-full cursor-pointer rounded-[14px] bg-[rgba(213,114,103,0.12)] font-[750] text-danger"
+            className="text-danger mt-[10px] min-h-[44px] w-full cursor-pointer rounded-[14px] bg-[rgba(213,114,103,0.12)] font-[750]"
           >
             {t("goal_close_button")}
           </button>
@@ -208,14 +205,14 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <h3 className="font-serif text-[21px]">{t("diary_title")}</h3>
-            <p className="mt-1 text-[13px] text-[#d7cebf] leading-[1.45]">{t("diary_subtitle")}</p>
+            <p className="mt-1 text-[13px] leading-[1.45] text-[#d7cebf]">{t("diary_subtitle")}</p>
           </div>
-          <span className="rounded-[12px] bg-[rgba(225,195,150,0.11)] px-[10px] py-2 text-[13px] font-[750] text-gold-strong">
+          <span className="text-gold-strong rounded-[12px] bg-[rgba(225,195,150,0.11)] px-[10px] py-2 text-[13px] font-[750]">
             {entries.length}
           </span>
         </div>
         <div
-          className="my-[2px] -mx-1 flex gap-2 overflow-x-auto px-1 pb-2"
+          className="-mx-1 my-[2px] flex gap-2 overflow-x-auto px-1 pb-2"
           aria-label={t("diary_title")}
         >
           {DIARY_PROMPTS.map((item) => (
@@ -235,7 +232,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
             placeholder={t("diary_placeholder")}
             value={diaryText}
             onChange={(event) => setDiaryText(event.target.value)}
-            className="min-h-[116px] w-full resize-y rounded-[18px] border border-line bg-[rgba(0,0,0,0.24)] p-[14px] leading-[1.45] text-text outline-none"
+            className="border-line text-text min-h-[116px] w-full resize-y rounded-[18px] border bg-[rgba(0,0,0,0.24)] p-[14px] leading-[1.45] outline-none"
           ></textarea>
           <button
             type="submit"
@@ -248,8 +245,8 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
         <div className="mt-3 grid gap-[10px]">
           {entries.length === 0 ? (
             <article className="rounded-[18px] border border-[rgba(255,255,255,0.065)] bg-[rgba(255,255,255,0.045)] p-[13px]">
-              <strong className="mb-1 block text-gold-strong">{t("diary_empty_title")}</strong>
-              <p className="text-[#eee4d4] leading-[1.45]">{t("diary_empty_text")}</p>
+              <strong className="text-gold-strong mb-1 block">{t("diary_empty_title")}</strong>
+              <p className="leading-[1.45] text-[#eee4d4]">{t("diary_empty_text")}</p>
             </article>
           ) : (
             entries.map((entry) => (
@@ -258,19 +255,19 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
                 className="rounded-[18px] border border-[rgba(255,255,255,0.065)] bg-[rgba(255,255,255,0.045)] p-[13px]"
               >
                 <div className="mb-2 flex items-center justify-between gap-3">
-                  <span className="text-[12px] text-gold">
+                  <span className="text-gold text-[12px]">
                     {formatDiaryDate(entry.created_at, locale)}
                   </span>
                   <button
                     type="button"
                     aria-label={t("diary_delete_aria")}
                     onClick={() => deleteEntry.mutate(entry.id)}
-                    className="grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full bg-[rgba(255,255,255,0.06)] text-muted"
+                    className="text-muted grid h-[30px] w-[30px] cursor-pointer place-items-center rounded-full bg-[rgba(255,255,255,0.06)]"
                   >
                     ×
                   </button>
                 </div>
-                <p className="text-[#eee4d4] leading-[1.45]">{entry.text}</p>
+                <p className="leading-[1.45] text-[#eee4d4]">{entry.text}</p>
               </article>
             ))
           )}

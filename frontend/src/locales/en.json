@@ -103,5 +103,6 @@
   "form_save": "Save memory",
   "form_name_too_long": "Name is too long",
   "form_name_required": "Enter your name",
-  "form_max_chars": "Maximum {max} characters"
+  "form_max_chars": "Maximum {max} characters",
+  "form_not_specified": "Not specified"
 }

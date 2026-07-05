@@ -47,28 +47,28 @@ export function ProfileView() {
   const closeSheet = () => setSheet(null);
 
   return (
-    <section className="block animate-view-in" aria-label={t("cabinet_title")}>
+    <section className="animate-view-in block" aria-label={t("cabinet_title")}>
       <header className="flex min-h-[98px] items-center justify-between pt-[22px]">
         <div>
           <h2 className="flex items-center gap-[7px] text-[23px]">
             Marcus Aurelius <span className={badge}>✓</span>
           </h2>
-          <p className="mt-1 text-[13px] text-muted">{t("cabinet_title")}</p>
+          <p className="text-muted mt-1 text-[13px]">{t("cabinet_title")}</p>
         </div>
       </header>
 
-      <section className="mt-2 overflow-hidden rounded-[18px] border border-line bg-[linear-gradient(180deg,rgba(29,28,27,0.96),rgba(18,17,16,0.96))]">
+      <section className="border-line mt-2 overflow-hidden rounded-[18px] border bg-[linear-gradient(180deg,rgba(29,28,27,0.96),rgba(18,17,16,0.96))]">
         <button type="button" className={settingRow} onClick={() => setSheet("language")}>
           <span className={settingIcon}>◐</span>
           <strong>{t("language_label")}</strong>
-          <em className="not-italic font-[750] text-gold">{LANGUAGE_NAMES[lang]}</em>
-          <i className="not-italic text-[22px] text-muted">›</i>
+          <em className="text-gold font-[750] not-italic">{LANGUAGE_NAMES[lang]}</em>
+          <i className="text-muted text-[22px] not-italic">›</i>
         </button>
         <button type="button" className={settingRow} onClick={() => setSheet("pro")}>
           <span className={settingIcon}>♜</span>
           <strong>{t("plan_label")}</strong>
-          <em className="not-italic font-[750] text-gold">{plan}</em>
-          <i className="not-italic text-[22px] text-muted">›</i>
+          <em className="text-gold font-[750] not-italic">{plan}</em>
+          <i className="text-muted text-[22px] not-italic">›</i>
         </button>
       </section>
 
@@ -81,7 +81,7 @@ export function ProfileView() {
         </div>
         <div className="mb-[14px] rounded-[16px] border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.24)] p-3">
           <div className="mb-[10px] flex items-center justify-between">
-            <span className="text-[13px] text-muted">{t("profile_completion")}</span>
+            <span className="text-muted text-[13px]">{t("profile_completion")}</span>
             <strong className="text-gold-strong">{completion}%</strong>
           </div>
           <div className="h-[9px] overflow-hidden rounded-full bg-[#252525]">
@@ -94,11 +94,11 @@ export function ProfileView() {
         <div className="grid gap-4">
           {memoryRows(profile).map(([labelKey, value]) => (
             <article key={labelKey} className="grid gap-[2px]">
-              <span className="text-[12px] text-muted">{t(labelKey)}</span>
-              <strong className="text-[16px] leading-[1.28] text-text">
+              <span className="text-muted text-[12px]">{t(labelKey)}</span>
+              <strong className="text-text text-[16px] leading-[1.28]">
                 {value || t("not_specified")}
               </strong>
-              {!value && <small className="text-[12px] text-gold">{t("memory_hint")}</small>}
+              {!value && <small className="text-gold text-[12px]">{t("memory_hint")}</small>}
             </article>
           ))}
         </div>
@@ -133,7 +133,7 @@ export function ProfileView() {
         <Modal title={t("pro_title")} onClose={closeSheet}>
           <div className="grid gap-3">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-[13px] text-muted">{t("sheet_current_plan", { plan })}</span>
+              <span className="text-muted text-[13px]">{t("sheet_current_plan", { plan })}</span>
               <span className={panelAction}>{plan}</span>
             </div>
             <p className={sheetCopy}>{t("pro_desc")}</p>
@@ -141,7 +141,7 @@ export function ProfileView() {
               {PRO_FEATURES.map((key) => (
                 <li
                   key={key}
-                  className="text-[#d7cebf] before:mr-2 before:text-gold before:content-['✦']"
+                  className="before:text-gold text-[#d7cebf] before:mr-2 before:content-['✦']"
                 >
                   {t(key)}
                 </li>

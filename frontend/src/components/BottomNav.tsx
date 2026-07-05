@@ -20,14 +20,14 @@ export function BottomNav({
   return (
     <nav
       aria-label={t("nav_aria")}
-      className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,0px))] left-1/2 z-[11] grid w-[min(calc(100%-36px),486px)] min-h-[72px] -translate-x-1/2 grid-cols-3 gap-1 rounded-[30px] border border-[rgba(255,255,255,0.08)] bg-[rgba(27,26,24,0.92)] p-[7px] shadow-[0_18px_52px_rgba(0,0,0,0.54)] backdrop-blur-[26px]"
+      className="fixed bottom-[calc(10px+env(safe-area-inset-bottom,0px))] left-1/2 z-[11] grid min-h-[72px] w-[min(calc(100%-36px),486px)] -translate-x-1/2 grid-cols-3 gap-1 rounded-[30px] border border-[rgba(255,255,255,0.08)] bg-[rgba(27,26,24,0.92)] p-[7px] shadow-[0_18px_52px_rgba(0,0,0,0.54)] backdrop-blur-[26px]"
     >
       {TABS.map((tab) => (
         <button
           key={tab.id}
           type="button"
           className={`grid cursor-pointer place-items-center gap-[2px] rounded-[24px] ${
-            view === tab.id ? "bg-[rgba(255,255,255,0.08)] text-gold-strong" : "text-muted"
+            view === tab.id ? "text-gold-strong bg-[rgba(255,255,255,0.08)]" : "text-muted"
           }`}
           onClick={() => {
             onChange(tab.id);

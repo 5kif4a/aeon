@@ -30,9 +30,7 @@ def validate_init_data(raw_init_data: str) -> dict:
         raise InitDataError("Telegram initData is expired")
 
     data_check_string = "\n".join(f"{key}={value}" for key, value in sorted(data.items()))
-    secret_key = hmac.new(
-        b"WebAppData", settings.bot_token.encode(), hashlib.sha256
-    ).digest()
+    secret_key = hmac.new(b"WebAppData", settings.bot_token.encode(), hashlib.sha256).digest()
     calculated_hash = hmac.new(secret_key, data_check_string.encode(), hashlib.sha256).hexdigest()
     if not hmac.compare_digest(calculated_hash, received_hash):
         raise InitDataError("Telegram initData is invalid")

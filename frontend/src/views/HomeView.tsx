@@ -35,7 +35,7 @@ export function HomeView({
   };
 
   return (
-    <section className="block animate-view-in" aria-label={t("nav_home")}>
+    <section className="animate-view-in block" aria-label={t("nav_home")}>
       <header className="relative mx-[-18px] min-h-[max(430px,50vh)] overflow-hidden border-b border-b-[rgba(255,255,255,0.06)] px-[18px] pt-[18px] pb-[28px] max-[390px]:mx-[-14px] max-[390px]:px-[14px]">
         {/* Portrait layer */}
         <div
@@ -43,11 +43,15 @@ export function HomeView({
           style={{
             backgroundImage: "url('/assets/hero-sisyphus.webp')",
             filter: "contrast(1.08) brightness(0.76)",
-            maskImage: "linear-gradient(90deg, transparent 0, #000 26%, #000 76%, transparent 100%)",
+            maskImage:
+              "linear-gradient(90deg, transparent 0, #000 26%, #000 76%, transparent 100%)",
           }}
         />
         {/* Darkening overlay */}
-        <div className="pointer-events-none absolute inset-0 z-[1]" style={{ background: HERO_OVERLAY }} />
+        <div
+          className="pointer-events-none absolute inset-0 z-[1]"
+          style={{ background: HERO_OVERLAY }}
+        />
 
         <div className="relative z-[2] mt-[150px] w-[min(78%,360px)] max-[390px]:w-[82%]">
           <h1 className="m-0 font-serif text-[clamp(38px,10.2vw,58px)] leading-none text-balance">
@@ -69,7 +73,7 @@ export function HomeView({
             placeholder={t("home_ask_placeholder")}
             value={question}
             onChange={(event) => setQuestion(event.target.value)}
-            className="min-w-0 border-0 bg-transparent px-3 text-[17px] text-text outline-none placeholder:text-[#8c8479]"
+            className="text-text min-w-0 border-0 bg-transparent px-3 text-[17px] outline-none placeholder:text-[#8c8479]"
           />
           <button
             type="submit"
@@ -87,7 +91,7 @@ export function HomeView({
           <button
             type="button"
             onClick={() => onStartDialog()}
-            className="cursor-pointer bg-transparent text-[14px] text-gold"
+            className="text-gold cursor-pointer bg-transparent text-[14px]"
           >
             {t("home_advice")}
           </button>

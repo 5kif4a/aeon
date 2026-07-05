@@ -103,5 +103,6 @@
   "form_save": "Сохранить память",
   "form_name_too_long": "Слишком длинное имя",
   "form_name_required": "Укажите имя",
-  "form_max_chars": "Не более {max} символов"
+  "form_max_chars": "Не более {max} символов",
+  "form_not_specified": "Не указано"
 }

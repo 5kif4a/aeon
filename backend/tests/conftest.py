@@ -19,9 +19,7 @@ def build_init_data(user_id: int = TEST_USER_ID, name: str = "Tester") -> str:
     user = json.dumps({"id": user_id, "first_name": name, "language_code": "ru"})
     data = {"auth_date": str(int(time.time())), "query_id": "AAE", "user": user}
     check_string = "\n".join(f"{k}={v}" for k, v in sorted(data.items()))
-    secret = hmac.new(
-        b"WebAppData", os.environ["BOT_TOKEN"].encode(), hashlib.sha256
-    ).digest()
+    secret = hmac.new(b"WebAppData", os.environ["BOT_TOKEN"].encode(), hashlib.sha256).digest()
     data["hash"] = hmac.new(secret, check_string.encode(), hashlib.sha256).hexdigest()
     return urlencode(data)
 
