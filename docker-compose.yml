@@ -20,6 +20,7 @@ services:
       GEMINI_MAX_OUTPUT_TOKENS: "${GEMINI_MAX_OUTPUT_TOKENS:-2500}"
       REMINDER_HOUR: "${REMINDER_HOUR:-9}"
       REMINDER_TZ: "${REMINDER_TZ:-UTC}"
+      LIFE_WEEKLY_HOUR: "${LIFE_WEEKLY_HOUR:-10}"
     depends_on:
       migrate:
         condition: service_completed_successfully

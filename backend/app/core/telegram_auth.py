@@ -25,7 +25,10 @@ def validate_init_data(raw_init_data: str) -> dict:
     if not received_hash:
         raise InitDataError("Telegram initData hash is missing")
 
-    auth_date = int(data.get("auth_date", "0") or "0")
+    try:
+        auth_date = int(data.get("auth_date", "0") or "0")
+    except ValueError as error:
+        raise InitDataError("Telegram initData auth_date is malformed") from error
     if not auth_date or time.time() - auth_date > settings.init_data_max_age:
         raise InitDataError("Telegram initData is expired")
 

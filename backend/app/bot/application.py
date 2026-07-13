@@ -7,7 +7,7 @@ from telegram.ext import Application, ApplicationBuilder
 
 from app.bot.handlers.commands import build_command_handlers
 from app.bot.handlers.onboarding import build_onboarding_handler
-from app.bot.jobs import remind_due_goals
+from app.bot.jobs import send_daily_notifications, send_life_weekly_reviews
 from app.core.config import get_settings
 
 
@@ -23,11 +23,25 @@ def build_application() -> Application:
         application.add_handler(handler)
 
     application.job_queue.run_daily(
-        remind_due_goals,
-        time=datetime.time(hour=settings.reminder_hour, tzinfo=ZoneInfo(settings.reminder_tz)),
-        name="goal_reminders",
+        send_life_weekly_reviews,
+        time=datetime.time(hour=settings.life_weekly_hour, tzinfo=ZoneInfo(settings.reminder_tz)),
+        name="life_weekly_reviews",
     )
-    # Catch up after restarts: also check once shortly after startup.
-    application.job_queue.run_once(remind_due_goals, when=15, name="goal_reminders_startup")
+    application.job_queue.run_once(
+        send_life_weekly_reviews,
+        when=15,
+        name="life_weekly_reviews_startup",
+    )
+
+    application.job_queue.run_daily(
+        send_daily_notifications,
+        time=datetime.time(hour=settings.reminder_hour, tzinfo=ZoneInfo(settings.reminder_tz)),
+        name="daily_notifications",
+    )
+    application.job_queue.run_once(
+        send_daily_notifications,
+        when=30,
+        name="daily_notifications_startup",
+    )
 
     return application

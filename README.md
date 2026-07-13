@@ -31,7 +31,7 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 **Backend** (`backend/`)
 - Python 3.12, [uv](https://docs.astral.sh/uv/) for dependency management
 - FastAPI + Uvicorn — Mini App REST API, Telegram webhook endpoint, static frontend serving
-- python-telegram-bot v21 — onboarding `ConversationHandler`, agent chat, `JobQueue` daily goal reminders
+- python-telegram-bot v21 — onboarding `ConversationHandler`, agent chat, and scheduled daily/weekly notifications
 - SQLAlchemy 2.0 (async, asyncpg) + Alembic migrations
 - Redis — per-agent dialogue history with TTL
 - Gemini API (httpx, streaming SSE) — agent answers
@@ -49,7 +49,9 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 - **Onboarding in the bot** — `/start` flow (language → name → staged birth date picker → country) editing one Telegram message, saved straight to PostgreSQL.
 - **Memento Mori calendar** — 90 years as 4,680 life weeks, computed from the birth date in the profile.
 - **Diary** — reflection notes with quick prompts, stored server-side.
-- **Goals** — one active goal with daily bot reminders (`JobQueue`, configurable hour and timezone) until closed.
+- **Goals** — one active goal connected to localized daily agent notifications (`JobQueue`, configurable hour and timezone).
+- **Daily agent notifications** — five ru/en messages per agent, daily rotation, active-goal context, and a direct Mini App action.
+- **Weekly life review** — a localized message from one of three rotating agents, the user's life-week number, and a button that opens the calendar.
 - **Personal cabinet** — profile memory card, completion progress, plan/tokens.
 - **Mini App auth** — every API request is authenticated with Telegram `initData` (HMAC validation) via the `Authorization: tma <initData>` header.
 - **Bilingual (ru/en)** — the Mini App UI, bot messages, and LLM error messages are fully localized; agents reply in the user's language (English prompts + a per-request language directive). Language is detected from Telegram/onboarding and switchable in the profile. Backend catalog in `backend/app/i18n.py`, frontend catalog in `frontend/src/lib/i18n.ts`.
@@ -179,7 +181,7 @@ Optional (have defaults):
 | `WEBHOOK_SECRET` | auto-generated if empty |
 | `CORS_ORIGINS` | extra browser origins (CSV) beyond `MINI_APP_URL`, e.g. Vercel preview domains |
 | `REDIS_URL` | `${{ Redis.REDIS_URL }}` to enable per-agent dialogue history |
-| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `INIT_DATA_MAX_AGE` | tuning |
+| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `LIFE_WEEKLY_HOUR`, `INIT_DATA_MAX_AGE` | tuning |
 
 Do **not** set `PORT` (Railway injects it), `STATIC_DIR` (the frontend is on Vercel), or `WEB_PORT` (dev only). Database migrations run automatically before each deploy via `preDeployCommand` (`alembic upgrade head`) in `railway.toml`.
 
@@ -216,6 +218,7 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
 | `REDIS_URL` | — | Redis DSN; empty disables dialogue history |
 | `REDIS_AGENT_HISTORY_TTL` | `2592000` | dialogue history TTL, seconds |
-| `REMINDER_HOUR` | `9` | daily goal reminder hour |
+| `REMINDER_HOUR` | `9` | daily agent notification hour |
 | `REMINDER_TZ` | `UTC` | reminder timezone |
+| `LIFE_WEEKLY_HOUR` | `10` | weekly life review hour; uses `REMINDER_TZ` |
 | `STATIC_DIR` | — | path to built frontend (set in Docker) |

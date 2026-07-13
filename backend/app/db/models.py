@@ -27,6 +27,8 @@ class User(Base):
     plan: Mapped[str] = mapped_column(String(32), default="Basic")
     tokens: Mapped[int] = mapped_column(default=120)
     active_agent: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    last_daily_notification_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_life_weekly_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

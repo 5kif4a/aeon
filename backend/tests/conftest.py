@@ -40,8 +40,10 @@ async def client():
 
 
 @pytest.fixture(autouse=True)
-async def cleanup_test_user():
+async def cleanup_test_user(request):
     yield
+    if "client" not in request.fixturenames and "auth_headers" not in request.fixturenames:
+        return
     import sqlalchemy as sa
 
     from app.db.session import engine

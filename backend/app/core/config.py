@@ -29,6 +29,7 @@ class Settings(BaseSettings):
 
     reminder_hour: int = 9
     reminder_tz: str = "UTC"
+    life_weekly_hour: int = 10
     init_data_max_age: int = 172_800
 
     web_port: int = 5173

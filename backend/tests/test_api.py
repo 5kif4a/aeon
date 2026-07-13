@@ -8,6 +8,11 @@ class TestAuth:
         response = await client.get("/api/me", headers=headers)
         assert response.status_code == 401
 
+    async def test_malformed_auth_date_is_rejected(self, client):
+        headers = {"Authorization": "tma auth_date=not-a-number&hash=deadbeef&user=%7B%7D"}
+        response = await client.get("/api/me", headers=headers)
+        assert response.status_code == 401
+
 
 class TestProfile:
     async def test_me_creates_user_from_init_data(self, client, auth_headers):
