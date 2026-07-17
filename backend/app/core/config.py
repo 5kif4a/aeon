@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     gemini_max_output_tokens: int = 2500
 
+    rag_enabled: bool = True
+    rag_allow_basic: bool = False
+    rag_data_dir: str = "data/rag"
+    rag_top_k: int = 4
+
     reminder_hour: int = 9
     reminder_tz: str = "UTC"
     life_weekly_hour: int = 10

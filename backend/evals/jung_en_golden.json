@@ -1,0 +1,132 @@
+{
+  "name": "Jung Man and His Symbols EN retrieval golden set",
+  "agent": "jung.en",
+  "language": "en",
+  "source": "C. G. Jung and collaborators, Man and His Symbols (Aldus Books, 1964)",
+  "cases": [
+    {
+      "id": "symbol_vs_sign",
+      "question": "What distinguishes a true symbol from an ordinary sign or abbreviation?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 13, "page_max": 25}]
+    },
+    {
+      "id": "dreams_and_unconscious",
+      "question": "Why are dreams a natural language of the unconscious?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 13, "page_max": 55}]
+    },
+    {
+      "id": "forgotten_memories",
+      "question": "Can a forgotten memory continue to influence consciousness and return later?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 20, "page_max": 40}]
+    },
+    {
+      "id": "compensatory_dream",
+      "question": "How can a dream compensate for a one-sided or distorted conscious attitude?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 40, "page_max": 60}]
+    },
+    {
+      "id": "dream_dictionary",
+      "question": "Why should a dream not be interpreted with a universal dream dictionary?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 40, "page_max": 65}]
+    },
+    {
+      "id": "psychological_types",
+      "question": "How do different psychological types affect the way people understand dreams?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 48, "page_max": 70},
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 208, "page_max": 208}
+      ]
+    },
+    {
+      "id": "archetype_definition",
+      "question": "What is an archetype, and why is it not a fixed inherited image?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 60, "page_max": 88}]
+    },
+    {
+      "id": "collective_unconscious",
+      "question": "How does the collective unconscious differ from the personal unconscious?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 45, "page_max": 91},
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 153, "page_max": 153}
+      ]
+    },
+    {
+      "id": "healing_inner_split",
+      "question": "How can recognizing the unconscious side of personality help heal an inner split?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 13, "page_max": 20},
+        {"source_contains": "Man and His Symbols", "chapter": "1. Approaching the Unconscious - Carl G. Jung", "page_min": 80, "page_max": 91},
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 153, "page_max": 175}
+      ]
+    },
+    {
+      "id": "hero_myth",
+      "question": "What does the hero's struggle with a monster symbolize psychologically?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "2. Ancient Myths and Modern Man - Joseph L. Henderson", "page_min": 94, "page_max": 120}]
+    },
+    {
+      "id": "initiation_rite",
+      "question": "How do initiation rites symbolize death of an old role and psychological rebirth?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "2. Ancient Myths and Modern Man - Joseph L. Henderson", "page_min": 115, "page_max": 140}]
+    },
+    {
+      "id": "individuation_definition",
+      "question": "What is individuation, and how does it unfold throughout a person's life?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 145, "page_max": 165}]
+    },
+    {
+      "id": "shadow_definition",
+      "question": "What is the shadow, and why is it difficult to recognize as part of oneself?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 155, "page_max": 175}]
+    },
+    {
+      "id": "shadow_projection",
+      "question": "Why do people project their own unwanted qualities onto other people?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 153, "page_max": 180},
+        {"source_contains": "Man and His Symbols", "chapter": "5. Symbols in an Individual Analysis - Jolande Jacobi", "page_min": 275, "page_max": 284}
+      ]
+    },
+    {
+      "id": "anima_definition",
+      "question": "What is the anima, and how can it appear in a man's psyche?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 165, "page_max": 185}]
+    },
+    {
+      "id": "animus_definition",
+      "question": "What is the animus, and how can it influence a woman's judgments?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 175, "page_max": 195}]
+    },
+    {
+      "id": "self_definition",
+      "question": "How does the Self differ from the ego, and why does it represent psychic wholeness?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "2. Ancient Myths and Modern Man - Joseph L. Henderson", "page_min": 110, "page_max": 120},
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 185, "page_max": 210},
+        {"source_contains": "Man and His Symbols", "chapter": "4. Symbolism in the Visual Arts - Aniela Jaffe", "page_min": 235, "page_max": 245},
+        {"source_contains": "Man and His Symbols", "chapter": "5. Symbols in an Individual Analysis - Jolande Jacobi", "page_min": 270, "page_max": 280}
+      ]
+    },
+    {
+      "id": "mandala_wholeness",
+      "question": "Why can a circle or mandala symbolize psychic order and wholeness?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 185, "page_max": 210},
+        {"source_contains": "Man and His Symbols", "chapter": "4. Symbolism in the Visual Arts - Aniela Jaffe", "page_min": 225, "page_max": 250}
+      ]
+    },
+    {
+      "id": "modern_art_unconscious",
+      "question": "How can modern art express unconscious contents through abstract forms?",
+      "expected": [{"source_contains": "Man and His Symbols", "chapter": "4. Symbolism in the Visual Arts - Aniela Jaffe", "page_min": 225, "page_max": 252}]
+    },
+    {
+      "id": "dream_series",
+      "question": "Why is a series of dreams more useful for analysis than one dream in isolation?",
+      "expected": [
+        {"source_contains": "Man and His Symbols", "chapter": "3. The Process of Individuation - M.-L. von Franz", "page_min": 145, "page_max": 155},
+        {"source_contains": "Man and His Symbols", "chapter": "5. Symbols in an Individual Analysis - Jolande Jacobi", "page_min": 255, "page_max": 284}
+      ]
+    }
+  ]
+}

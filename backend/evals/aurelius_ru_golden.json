@@ -1,0 +1,126 @@
+{
+  "name": "Marcus Aurelius Meditations RU retrieval golden set",
+  "agent": "aurelius",
+  "language": "ru",
+  "source": "Марк Аврелий, «Размышления» (изд. «Наука», 1985)",
+  "cases": [
+    {
+      "id": "difficult_people_morning",
+      "question": "Как с утра подготовиться к встрече с неблагодарными, грубыми и эгоистичными людьми?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга II", "page_min": 11, "page_max": 12}]
+    },
+    {
+      "id": "death_is_natural",
+      "question": "Как перестать бояться смерти и увидеть в ней естественный процесс?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга II", "page_min": 12, "page_max": 14}]
+    },
+    {
+      "id": "live_in_present",
+      "question": "Почему следует сосредоточиться на настоящем, а не тревожиться о прошлом и будущем?",
+      "expected": [
+        {"source_contains": "Марк Аврелий", "chapter": "Книга III", "page_min": 17, "page_max": 18},
+        {"source_contains": "Марк Аврелий", "chapter": "Книга XII", "page_min": 77, "page_max": 82}
+      ]
+    },
+    {
+      "id": "inner_retreat",
+      "question": "Где найти спокойное убежище, если невозможно уехать и побыть одному?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга IV", "page_min": 19, "page_max": 20}]
+    },
+    {
+      "id": "world_is_change",
+      "question": "Как относиться к постоянным переменам и непрочности всего вокруг?",
+      "expected": [
+        {"source_contains": "Марк Аврелий", "chapter": "Книга IV", "page_min": 19, "page_max": 24},
+        {"source_contains": "Марк Аврелий", "chapter": "Книга IX", "page_min": 62, "page_max": 63}
+      ]
+    },
+    {
+      "id": "fame_is_brief",
+      "question": "Стоит ли стремиться к посмертной славе и мнению будущих поколений?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга IV", "page_min": 20, "page_max": 24}]
+    },
+    {
+      "id": "get_out_of_bed",
+      "question": "Что сказать себе утром, когда не хочется вставать с постели и выполнять свои обязанности?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга V", "page_min": 25, "page_max": 27}]
+    },
+    {
+      "id": "obstacle_to_action",
+      "question": "Как превратить препятствие в материал для действия, а не в причину сдаться?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга V", "page_min": 25, "page_max": 30}]
+    },
+    {
+      "id": "common_good",
+      "question": "Почему поступок человека должен приносить пользу обществу и общему благу?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга VI", "page_min": 31, "page_max": 46}]
+    },
+    {
+      "id": "insult_without_offense",
+      "question": "Как не обижаться, когда меня задели или оскорбили?",
+      "expected": [
+        {"source_contains": "Марк Аврелий", "chapter": "Книга VI", "page_min": 31, "page_max": 34},
+        {"source_contains": "Марк Аврелий", "chapter": "Книга VIII", "page_min": 57, "page_max": 58}
+      ]
+    },
+    {
+      "id": "accept_events",
+      "question": "Как принимать события, которые выпали мне по ходу природы и судьбы?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга VII", "page_min": 47, "page_max": 52}]
+    },
+    {
+      "id": "control_impressions",
+      "question": "Как не позволять первому впечатлению и воображению управлять моим разумом?",
+      "expected": [
+        {"source_contains": "Марк Аврелий", "chapter": "Книга VII", "page_min": 47, "page_max": 52},
+        {"source_contains": "Марк Аврелий", "chapter": "Книга VIII", "page_min": 53, "page_max": 58}
+      ]
+    },
+    {
+      "id": "fact_vs_judgment",
+      "question": "Как отделить то, что реально произошло, от моей оценки этого события?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга VIII", "page_min": 53, "page_max": 58}]
+    },
+    {
+      "id": "another_wrongdoing",
+      "question": "Что делать с чужим проступком и почему не нужно носить его в себе?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга IX", "page_min": 59, "page_max": 64}]
+    },
+    {
+      "id": "fear_of_change",
+      "question": "Почему не следует бояться изменения, распада и превращения вещей?",
+      "expected": [
+        {"source_contains": "Марк Аврелий", "chapter": "Книга IX", "page_min": 59, "page_max": 64},
+        {"source_contains": "Марк Аврелий", "chapter": "Книга X", "page_min": 65, "page_max": 72}
+      ]
+    },
+    {
+      "id": "healthy_perception",
+      "question": "Как принимать любые обстоятельства без требования, чтобы мир соответствовал моим желаниям?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга X", "page_min": 69, "page_max": 72}]
+    },
+    {
+      "id": "anger_and_gentleness",
+      "question": "Почему гнев на ошибающегося человека вреден и как отвечать ему спокойно?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга XI", "page_min": 73, "page_max": 76}]
+    },
+    {
+      "id": "desire_and_aversion",
+      "question": "Как обращаться со своими желаниями и отвращением к тому, что от меня не зависит?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга XII", "page_min": 77, "page_max": 78}]
+    },
+    {
+      "id": "present_task",
+      "question": "Как отбросить тревогу о прошлом и будущем и заняться только нынешним делом?",
+      "expected": [
+        {"source_contains": "Марк Аврелий", "chapter": "Книга III", "page_min": 17, "page_max": 18},
+        {"source_contains": "Марк Аврелий", "chapter": "Книга XII", "page_min": 77, "page_max": 82}
+      ]
+    },
+    {
+      "id": "truth_and_duty",
+      "question": "Какое простое правило помогает не делать недолжного и не говорить неправду?",
+      "expected": [{"source_contains": "Марк Аврелий", "chapter": "Книга XII", "page_min": 79, "page_max": 81}]
+    }
+  ]
+}

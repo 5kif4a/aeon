@@ -1,0 +1,142 @@
+{
+  "name": "Marcus Aurelius Meditations EN retrieval golden set",
+  "agent": "aurelius.en",
+  "language": "en",
+  "source": "Marcus Aurelius, Meditations (Meric Casaubon translation, 2013 edition)",
+  "cases": [
+    {
+      "id": "difficult_people_morning",
+      "question": "How should I prepare myself in the morning to meet selfish, rude, and ungrateful people?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book I", "page_min": 17, "page_max": 17},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book I", "page_min": 18, "page_max": 18},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book II", "page_min": 19, "page_max": 20}
+      ]
+    },
+    {
+      "id": "death_is_natural",
+      "question": "How can I stop fearing death and understand it as a natural process?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book II", "page_min": 20, "page_max": 22},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book V", "page_min": 41, "page_max": 41},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book IX", "page_min": 78, "page_max": 78}
+      ]
+    },
+    {
+      "id": "present_moment",
+      "question": "Why should I concentrate on the present instead of worrying about the past and future?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book III", "page_min": 23, "page_max": 28},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book XII", "page_min": 104, "page_max": 109}
+      ]
+    },
+    {
+      "id": "inner_retreat",
+      "question": "Where can I find peace when I cannot escape my circumstances or travel somewhere quiet?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book IV", "page_min": 29, "page_max": 31}]
+    },
+    {
+      "id": "fame_is_brief",
+      "question": "Is posthumous fame worth pursuing when future generations will also disappear?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book IV", "page_min": 29, "page_max": 33}]
+    },
+    {
+      "id": "world_is_change",
+      "question": "How should I respond to constant change and the impermanence of everything around me?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book IV", "page_min": 29, "page_max": 37},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book IX", "page_min": 77, "page_max": 85}
+      ]
+    },
+    {
+      "id": "get_out_of_bed",
+      "question": "What should I tell myself when I do not want to get out of bed and begin my work?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book V", "page_min": 38, "page_max": 39}]
+    },
+    {
+      "id": "obstacle_to_action",
+      "question": "How can an obstacle become material for action instead of a reason to give up?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book V", "page_min": 38, "page_max": 46}]
+    },
+    {
+      "id": "accept_what_happens",
+      "question": "How can I accept what happens to me as part of the order of nature?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book V", "page_min": 39, "page_max": 42},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book VII", "page_min": 57, "page_max": 65}
+      ]
+    },
+    {
+      "id": "common_good",
+      "question": "Why should my actions serve society and the common good?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book V", "page_min": 46, "page_max": 46},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book VI", "page_min": 47, "page_max": 56},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book XI", "page_min": 101, "page_max": 102}
+      ]
+    },
+    {
+      "id": "insult_without_offense",
+      "question": "How can I avoid taking offense when someone insults or hurts me?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book VI", "page_min": 49, "page_max": 53},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book VIII", "page_min": 69, "page_max": 76}
+      ]
+    },
+    {
+      "id": "control_impressions",
+      "question": "How do I prevent a first impression or imagination from controlling my mind?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book VIII", "page_min": 66, "page_max": 76}]
+    },
+    {
+      "id": "fact_vs_judgment",
+      "question": "How can I separate what actually happened from the judgment I added to it?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book VIII", "page_min": 66, "page_max": 76}]
+    },
+    {
+      "id": "another_wrongdoing",
+      "question": "What should I do with another person's wrongdoing instead of carrying it inside me?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book IX", "page_min": 77, "page_max": 85}]
+    },
+    {
+      "id": "fear_of_change",
+      "question": "Why should I not fear change, decay, and the transformation of things?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book IX", "page_min": 77, "page_max": 85},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book X", "page_min": 86, "page_max": 95},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book XI", "page_min": 96, "page_max": 103}
+      ]
+    },
+    {
+      "id": "current_duty",
+      "question": "How do I stop worrying about the future and focus on the duty in front of me?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book X", "page_min": 86, "page_max": 95}]
+    },
+    {
+      "id": "anger_and_gentleness",
+      "question": "Why is anger toward a mistaken person harmful, and how should I correct them gently?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book XI", "page_min": 96, "page_max": 103}]
+    },
+    {
+      "id": "others_opinions",
+      "question": "Why should other people's praise, blame, or opinions not control my character?",
+      "expected": [
+        {"source_contains": "Marcus Aurelius", "chapter": "Book IV", "page_min": 29, "page_max": 33},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book V", "page_min": 45, "page_max": 45},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book VI", "page_min": 55, "page_max": 55},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book VIII", "page_min": 67, "page_max": 67},
+        {"source_contains": "Marcus Aurelius", "chapter": "Book XI", "page_min": 96, "page_max": 103}
+      ]
+    },
+    {
+      "id": "past_and_future",
+      "question": "How can I let go of the past and future and deal only with the life I have now?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book XII", "page_min": 104, "page_max": 109}]
+    },
+    {
+      "id": "truth_and_duty",
+      "question": "What simple rule should guide me not to act wrongly or speak falsely?",
+      "expected": [{"source_contains": "Marcus Aurelius", "chapter": "Book XII", "page_min": 104, "page_max": 109}]
+    }
+  ]
+}

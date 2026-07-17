@@ -46,6 +46,7 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 ## Features
 
 - **Three AI agents** — Marcus Aurelius (stoic mentor), Machiavelli (business tactician), Carl Jung (shadow analyst). Selected in the Mini App or via `/agents`; dialogue happens in the bot chat with streamed answers edited into a single message.
+- **Agent book RAG** — paid and trial users receive answers grounded in local excerpts from Marcus Aurelius's *Meditations*, Machiavelli's *The Prince*, or Jung's *Man and His Symbols*, with section and page source notes. Basic users keep the prompt-only agents.
 - **Onboarding in the bot** — `/start` flow (language → name → staged birth date picker → country) editing one Telegram message, saved straight to PostgreSQL.
 - **Memento Mori calendar** — 90 years as 4,680 life weeks, computed from the birth date in the profile.
 - **Diary** — reflection notes with quick prompts, stored server-side.
@@ -108,6 +109,34 @@ ngrok http 5173
 ```
 
 With `BOT_MODE=polling` (default) no public URL is needed for the bot itself — only for the Mini App button.
+
+### Agent book RAG
+
+Build the ignored local index from a text-based PDF, then inspect retrieval without calling Gemini:
+
+```bash
+cd backend
+uv run python scripts/ingest_rag_pdf.py "/path/to/The Prince.pdf"
+uv run python -m scripts.query_rag "Когда правителю быть львом, а когда лисой?" --top-k 3
+
+uv run python scripts/build_aurelius_rag.py "/path/to/Meditations-1985.pdf"
+uv run python -m scripts.query_rag "Как не обижаться на грубых людей?" --agent aurelius --top-k 3
+uv run python -m scripts.evaluate_rag evals/aurelius_ru_golden.json
+
+uv run python scripts/build_aurelius_en_rag.py "/path/to/Marcus-Aurelius-Meditations.pdf"
+uv run python -m scripts.query_rag "How can I stop taking insults personally?" --agent aurelius --language en --top-k 3
+uv run python -m scripts.evaluate_rag evals/aurelius_en_golden.json
+
+uv run python scripts/build_jung_rag.py "/path/to/Man-and-His-Symbols-2016.pdf"
+uv run python -m scripts.query_rag "Что такое Тень и почему мы её проецируем?" --agent jung --top-k 3
+uv run python -m scripts.evaluate_rag evals/jung_ru_golden.json
+
+uv run python scripts/build_jung_en_rag.py "/path/to/Man-And-His-Symbols.pdf"
+uv run python -m scripts.query_rag "What is the shadow, and why do we project it?" --agent jung --language en --top-k 3
+uv run python -m scripts.evaluate_rag evals/jung_en_golden.json
+```
+
+Generated corpora live at `backend/data/rag/<agent>.json`; localized English corpora use `backend/data/rag/<agent>.en.json`. They are intentionally not committed. The Aurelius builders index only the twelve books of their respective Russian and English editions. The Jung builder indexes the six authored sections of the 2016 Russian edition and keeps each contributor in the section metadata. Generate or mount the indexes in each deployment environment. `RAG_ALLOW_BASIC=true` bypasses plan gating for local testing only; leave it `false` outside development.
 
 ## Docker
 
@@ -215,6 +244,10 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `GEMINI_API_KEY` | — | Gemini API key |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | Gemini model name |
 | `GEMINI_MAX_OUTPUT_TOKENS` | `2500` | max answer tokens |
+| `RAG_ENABLED` | `true` | enable local book retrieval |
+| `RAG_ALLOW_BASIC` | `false` | allow Basic users to use RAG; local testing override only |
+| `RAG_DATA_DIR` | `data/rag` | directory containing per-agent JSON indexes |
+| `RAG_TOP_K` | `4` | number of book chunks added to an agent prompt |
 | `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
 | `REDIS_URL` | — | Redis DSN; empty disables dialogue history |
 | `REDIS_AGENT_HISTORY_TTL` | `2592000` | dialogue history TTL, seconds |
