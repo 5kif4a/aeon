@@ -253,6 +253,28 @@ QUERY_CONCEPTS = (
         },
     ),
 )
+REQUIRED_QUERY_CONCEPTS = (
+    (
+        {"found", "reform", "alone"},
+        {"institution", "commonwealth", "reconstruct", "one", "man"},
+    ),
+    (
+        {"corrupt", "people", "freedom"},
+        {"corrupt", "people", "obtain", "freedom", "hard", "preserve"},
+    ),
+    (
+        {"multitude", "leader"},
+        {"multitude", "helpless", "head"},
+    ),
+    (
+        {"republic", "return", "principle"},
+        {"sect", "commonwealth", "last", "brought", "back", "beginn", "renew"},
+    ),
+    (
+        {"change", "mode", "time"},
+        {"enjoi", "constant", "fortune", "change", "time"},
+    ),
+)
 
 
 @dataclass(frozen=True)
@@ -324,6 +346,11 @@ def _query_terms(query: str) -> Counter[str]:
     term_set = set(terms)
     for triggers, additions in QUERY_CONCEPTS:
         if term_set & triggers:
+            expanded.extend(additions)
+            expanded.extend(additions)
+            expanded.extend(additions)
+    for required, additions in REQUIRED_QUERY_CONCEPTS:
+        if required <= term_set:
             expanded.extend(additions)
             expanded.extend(additions)
             expanded.extend(additions)

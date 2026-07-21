@@ -1,0 +1,106 @@
+{
+  "agent": "machiavelli",
+  "language": "ru",
+  "cases": [
+    {
+      "id": "mixed_principalities",
+      "question": "Почему новоприобретенную область труднее удержать, чем наследственное государство?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 8, "page_max": 17}]
+    },
+    {
+      "id": "alexander_darius",
+      "question": "Почему после смерти Александра держава Дария не восстала против его преемников?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 18, "page_max": 21}]
+    },
+    {
+      "id": "free_cities",
+      "question": "Как удержать город, который до завоевания жил по собственным законам и был свободен?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 22, "page_max": 23}]
+    },
+    {
+      "id": "own_arms_and_virtue",
+      "question": "Почему государь, получивший власть благодаря собственной доблести и оружию, удерживает ее прочнее?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 24, "page_max": 27}]
+    },
+    {
+      "id": "fortune_and_foreign_help",
+      "question": "Почему власть, приобретенную благодаря удаче и чужой помощи, легко получить, но трудно сохранить?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 28, "page_max": 35}]
+    },
+    {
+      "id": "cruelty_well_used",
+      "question": "Что Макиавелли называет жестокостью, примененной хорошо, и чем она отличается от постоянного насилия?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 36, "page_max": 40}]
+    },
+    {
+      "id": "civil_principality",
+      "question": "На кого надежнее опираться в гражданском государстве: на знать или на народ?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 41, "page_max": 44}]
+    },
+    {
+      "id": "measure_state_strength",
+      "question": "Как определить, способен ли государь защищаться собственными силами?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 45, "page_max": 47}]
+    },
+    {
+      "id": "mercenary_troops",
+      "question": "Почему наемные войска бесполезны и опасны для государства?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 51, "page_max": 56}]
+    },
+    {
+      "id": "auxiliary_troops",
+      "question": "Почему вспомогательные войска союзника опаснее наемников?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 57, "page_max": 60}]
+    },
+    {
+      "id": "military_art",
+      "question": "Почему военное дело должно быть главным занятием государя даже в мирное время?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 61, "page_max": 63}]
+    },
+    {
+      "id": "virtues_and_vices",
+      "question": "Почему государь не всегда может обладать всеми качествами, которые люди считают добродетелями?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 64, "page_max": 65}]
+    },
+    {
+      "id": "generosity_parsimony",
+      "question": "Почему стремление прослыть щедрым может привести государя к ненависти подданных?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 66, "page_max": 68}]
+    },
+    {
+      "id": "loved_or_feared",
+      "question": "Что безопаснее для правителя: быть любимым или внушать страх?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 69, "page_max": 72}]
+    },
+    {
+      "id": "lion_and_fox",
+      "question": "Почему государю следует подражать одновременно льву и лисе?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 73, "page_max": 75}]
+    },
+    {
+      "id": "avoid_hatred_contempt",
+      "question": "Какие поступки вызывают к государю ненависть и презрение и как их избегать?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 77, "page_max": 87}]
+    },
+    {
+      "id": "fortresses",
+      "question": "Полезны ли крепости государю и в каких случаях они могут навредить?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 88, "page_max": 92}]
+    },
+    {
+      "id": "reputation",
+      "question": "Как великие предприятия и решительные поступки помогают государю заслужить славу?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 94, "page_max": 98}]
+    },
+    {
+      "id": "flatterers",
+      "question": "Как государю избегать льстецов, не лишая советников возможности говорить правду?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 101, "page_max": 103}]
+    },
+    {
+      "id": "fortune_river",
+      "question": "Почему Макиавелли сравнивает судьбу с разлившейся рекой и как ей можно сопротивляться?",
+      "expected": [{"source_contains": "Макиавелли", "page_min": 106, "page_max": 109}]
+    }
+  ]
+}

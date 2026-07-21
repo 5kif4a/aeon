@@ -141,7 +141,14 @@ async def choose_country(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     keyboard = None
     if url:
         keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton(t(lang, "open_mini_app"), web_app=WebAppInfo(url=url))]]
+            [
+                [
+                    InlineKeyboardButton(
+                        t(lang, "onboarding_open_mini_app"),
+                        web_app=WebAppInfo(url=url),
+                    )
+                ]
+            ]
         )
     await _edit_registration(update, context, text, keyboard)
     await webapp.set_chat_menu_button(context.bot, chat_id)

@@ -1,0 +1,131 @@
+{
+  "name": "Machiavelli Discourses EN retrieval golden set",
+  "agent": "machiavelli.en",
+  "language": "en",
+  "source": "Niccolo Machiavelli, Discourses on the First Decade of Titus Livius (Ninian Hill Thomson trans., 1883)",
+  "cases": [
+    {
+      "id": "mixed_government",
+      "question": "Why can a mixed constitution combining monarchy, aristocracy, and popular government be more stable than any pure form?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter II"}]
+    },
+    {
+      "id": "class_conflict_liberty",
+      "question": "How could conflict between the Roman plebs and Senate make the republic freer and more powerful?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter IV"}]
+    },
+    {
+      "id": "guardians_of_freedom",
+      "question": "Is public liberty safer when guarded by ordinary people or by the nobles?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter V"}]
+    },
+    {
+      "id": "public_accusations",
+      "question": "Why does a free republic need a lawful way for citizens to accuse powerful officials?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter VII"}]
+    },
+    {
+      "id": "calumny",
+      "question": "Why are public accusations useful but unsupported calumnies destructive to a republic?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter VIII"}]
+    },
+    {
+      "id": "single_founder",
+      "question": "Why must one person act alone when founding or completely reforming a republic?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter IX"}]
+    },
+    {
+      "id": "roman_religion",
+      "question": "How did Numa and Roman religion help establish laws, discipline, and civic order?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter XI"}]
+    },
+    {
+      "id": "corrupt_people_freedom",
+      "question": "Why does a corrupt people have great difficulty preserving freedom after it is recovered?",
+      "expected": [
+        {"source_contains": "Discourses", "chapter": "Book 1, Chapter XVII"},
+        {"source_contains": "Discourses", "chapter": "Book 1, Chapter XVIII"}
+      ]
+    },
+    {
+      "id": "national_army",
+      "question": "Why is it shameful and dangerous for a prince or republic to lack armed forces of its own?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter XXI"}]
+    },
+    {
+      "id": "agrarian_law",
+      "question": "How did Rome's agrarian law create prolonged conflict and disorder within the republic?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter XXXVII"}]
+    },
+    {
+      "id": "multitude_without_head",
+      "question": "Why is a crowd or multitude ineffective when it has no recognized leader?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter XLIV"}]
+    },
+    {
+      "id": "people_wiser_than_prince",
+      "question": "In what sense can the people be wiser and more constant than a prince?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 1, Chapter LVIII"}]
+    },
+    {
+      "id": "virtue_or_fortune",
+      "question": "Did Rome acquire its empire chiefly through virtue or through fortune?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 2, Chapter I"}]
+    },
+    {
+      "id": "defending_freedom",
+      "question": "Why did the peoples who fought Rome defend their freedom so stubbornly?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 2, Chapter II"}]
+    },
+    {
+      "id": "republic_expansion",
+      "question": "What different methods can republics use to expand their power and territory?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 2, Chapter IV"}]
+    },
+    {
+      "id": "fraud_or_force",
+      "question": "Do men more often rise from humble beginnings to great fortune through fraud or through force?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 2, Chapter XIII"}]
+    },
+    {
+      "id": "auxiliary_mercenary_forces",
+      "question": "What danger does a prince or republic face by relying on auxiliary or mercenary soldiers?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 2, Chapter XX"}]
+    },
+    {
+      "id": "buying_friendships",
+      "question": "Why do truly powerful states obtain alliances through strength and reputation rather than buying friendships with money?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 2, Chapter XXX"}]
+    },
+    {
+      "id": "return_to_beginnings",
+      "question": "Why must a republic periodically return to its founding principles if it is to survive for a long time?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 3, Chapter I"}]
+    },
+    {
+      "id": "adapt_to_times",
+      "question": "Why must a leader change his mode of action when circumstances and the times change?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 3, Chapter IX"}]
+    },
+    {
+      "id": "single_commander",
+      "question": "Why should one commander rather than several leaders be placed over an army?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 3, Chapter XV"}]
+    },
+    {
+      "id": "foresee_enemy",
+      "question": "Why is anticipating the enemy's plans one of the highest qualities of a military commander?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 3, Chapter XVIII"}]
+    },
+    {
+      "id": "prolonged_commands",
+      "question": "How did prolonging military commands contribute to the loss of Roman liberty?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 3, Chapter XXIV"}]
+    },
+    {
+      "id": "fraud_in_war",
+      "question": "Why does Machiavelli consider fraud praiseworthy in the conduct of war?",
+      "expected": [{"source_contains": "Discourses", "chapter": "Book 3, Chapter XL"}]
+    }
+  ]
+}

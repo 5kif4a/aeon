@@ -46,7 +46,7 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 ## Features
 
 - **Three AI agents** — Marcus Aurelius (stoic mentor), Machiavelli (business tactician), Carl Jung (shadow analyst). Selected in the Mini App or via `/agents`; dialogue happens in the bot chat with streamed answers edited into a single message.
-- **Agent book RAG** — paid and trial users receive answers grounded in local excerpts from Marcus Aurelius's *Meditations*, Machiavelli's *The Prince*, or Jung's *Man and His Symbols*, with section and page source notes. Basic users keep the prompt-only agents.
+- **Agent book RAG** — paid and trial users receive answers grounded in local excerpts from Marcus Aurelius's *Meditations*, Machiavelli's *The Prince* and *Discourses on Livy*, or Jung's *Man and His Symbols*, with section and page source notes. Basic users keep the prompt-only agents.
 - **Onboarding in the bot** — `/start` flow (language → name → staged birth date picker → country) editing one Telegram message, saved straight to PostgreSQL.
 - **Memento Mori calendar** — 90 years as 4,680 life weeks, computed from the birth date in the profile.
 - **Diary** — reflection notes with quick prompts, stored server-side.
@@ -118,6 +118,10 @@ Build the ignored local index from a text-based PDF, then inspect retrieval with
 cd backend
 uv run python scripts/ingest_rag_pdf.py "/path/to/The Prince.pdf"
 uv run python -m scripts.query_rag "Когда правителю быть львом, а когда лисой?" --top-k 3
+
+uv run python scripts/build_machiavelli_discourses_en_rag.py "/path/to/Discourses-1883.pdf"
+uv run python -m scripts.query_rag "Why can class conflict preserve liberty?" --agent machiavelli --language en --top-k 3
+uv run python -m scripts.evaluate_rag evals/machiavelli_discourses_en_golden.json
 
 uv run python scripts/build_aurelius_rag.py "/path/to/Meditations-1985.pdf"
 uv run python -m scripts.query_rag "Как не обижаться на грубых людей?" --agent aurelius --top-k 3

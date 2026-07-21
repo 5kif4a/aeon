@@ -143,28 +143,32 @@ MESSAGES: dict[str, dict[str, str]] = {
     "en": {
         # Onboarding
         "intro": (
-            "1/4 Greetings, traveler.\n"
-            "I am AI Marcus Aurelius: memory, goals, Memento Mori, and three advisors.\n\n"
-            "What should I call you?"
+            "✦ Welcome to Aeon.\n\n"
+            "Become the man you choose to be.\n\n"
+            "Think with Marcus Aurelius, Machiavelli, and Carl Jung. "
+            "Build discipline, understand yourself, and act with purpose.\n\n"
+            "What should we call you? 👤\n\n"
+            "● ○ ○ ○"
         ),
-        "ask_birthdate": "2/4 Birth date for the Memento Mori calendar.\nChoose a birth period.",
+        "ask_birthdate": "Your journey through time ⏳\n\nWhen were you born?\n\n● ● ○ ○",
         "bad_birthdate": "I cannot read that date. Send it as YYYY-MM-DD, for example 1995-05-18.",
-        "ask_country": "3/4 Where are you from, {name}?\nChoose a country.",
+        "ask_country": (
+            "Where are you from, {name}? 🌍\n\n"
+            "This helps Aeon personalize your experience.\n\n"
+            "● ● ● ○"
+        ),
         "done": (
-            "4/4 Done. I remembered the core profile.\n\n"
-            "Name: {name}\n"
-            "Age: {age}\n"
-            "Birth date: {birthDate}\n"
-            "Country: {country}\n\n"
-            "The Mini App will open with your cabinet and calendar filled.\n"
-            "Agents are available inside the Mini App or with /agents."
+            "Your journey begins, {name}. 🧭\n\n"
+            "Bring one real question. Marcus Aurelius, Machiavelli, and Carl Jung "
+            "will help you see it from three different perspectives.\n\n"
+            "● ● ● ●"
         ),
         "unknown": "I am here. Press /start to register.",
         "birth_back": "← Periods",
-        "birth_period": "2/4 Choose your birth period.",
-        "birth_year": "2/4 Choose your birth year.",
-        "birth_month": "2/4 Choose your birth month.",
-        "birth_day": "2/4 Choose your birth day.",
+        "birth_period": "Your journey through time ⏳\n\nChoose your birth period.\n\n● ● ○ ○",
+        "birth_year": "Your journey through time ⏳\n\nChoose your birth year.\n\n● ● ○ ○",
+        "birth_month": "Your journey through time ⏳\n\nChoose your birth month.\n\n● ● ○ ○",
+        "birth_day": "Your journey through time ⏳\n\nChoose your birth day.\n\n● ● ○ ○",
         # Goals
         "goal_set": "Goal accepted. I will remind you every day until you close it.",
         "goal_closed": "Goal closed. Reminders stopped.",
@@ -209,6 +213,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "dialog_menu_title": "Dialogue controls:",
         "pick_agent_button": "Choose an agent",
         "open_mini_app": "Open Mini App",
+        "onboarding_open_mini_app": "✦ Ask Your First Question",
         # LLM error messages
         "error_rate_limit": "Gemini limit reached or too many requests. Please try again a bit later.",
         "error_overloaded": "The AI service is temporarily overloaded. Please try again in a couple of minutes.",
@@ -223,28 +228,32 @@ MESSAGES: dict[str, dict[str, str]] = {
     "ru": {
         # Onboarding
         "intro": (
-            "1/4 Приветствую, путник.\n"
-            "Я ИИ Марк Аврелий: память, цели, Memento Mori и три советника.\n\n"
-            "Как мне к тебе обращаться?"
+            "✦ Добро пожаловать в Aeon.\n\n"
+            "Станьте мужчиной, которым хотите быть.\n\n"
+            "Размышляйте вместе с Марком Аврелием, Макиавелли и Карлом Юнгом. "
+            "Укрепляйте дисциплину, познавайте себя и действуйте осознанно.\n\n"
+            "Как к Вам обращаться? 👤\n\n"
+            "● ○ ○ ○"
         ),
-        "ask_birthdate": "2/4 Дата рождения для календаря Memento Mori.\nВыбери период рождения.",
+        "ask_birthdate": "Ваш путь во времени ⏳\n\nКогда Вы родились?\n\n● ● ○ ○",
         "bad_birthdate": "Не узнаю дату. Напиши в формате ГГГГ-ММ-ДД, например 1995-05-18.",
-        "ask_country": "3/4 Откуда ты, {name}?\nВыбери страну.",
+        "ask_country": (
+            "Откуда Вы, {name}? 🌍\n\n"
+            "Это поможет Aeon точнее настроить приложение для Вас.\n\n"
+            "● ● ● ○"
+        ),
         "done": (
-            "4/4 Готово. Я запомнил основу профиля.\n\n"
-            "Имя: {name}\n"
-            "Возраст: {age}\n"
-            "Дата рождения: {birthDate}\n"
-            "Страна: {country}\n\n"
-            "Mini App уже откроется с заполненным кабинетом и календарём.\n"
-            "Агентов можно выбрать внутри Mini App или командой /agents."
+            "Ваш путь начинается, {name}. 🧭\n\n"
+            "Задайте вопрос, который действительно Вас волнует. Марк Аврелий, Макиавелли "
+            "и Карл Юнг помогут взглянуть на него с трёх разных сторон.\n\n"
+            "● ● ● ●"
         ),
         "unknown": "Я рядом. Нажми /start, чтобы пройти регистрацию.",
         "birth_back": "← Периоды",
-        "birth_period": "2/4 Выбери период рождения.",
-        "birth_year": "2/4 Выбери год рождения.",
-        "birth_month": "2/4 Выбери месяц рождения.",
-        "birth_day": "2/4 Выбери число рождения.",
+        "birth_period": "Ваш путь во времени ⏳\n\nВыберите период рождения.\n\n● ● ○ ○",
+        "birth_year": "Ваш путь во времени ⏳\n\nВыберите год рождения.\n\n● ● ○ ○",
+        "birth_month": "Ваш путь во времени ⏳\n\nВыберите месяц рождения.\n\n● ● ○ ○",
+        "birth_day": "Ваш путь во времени ⏳\n\nВыберите день рождения.\n\n● ● ○ ○",
         # Goals
         "goal_set": "Цель принята. Я буду напоминать о ней каждый день, пока ты её не закроешь.",
         "goal_closed": "Цель закрыта. Напоминания остановлены.",
@@ -289,6 +298,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "dialog_menu_title": "Управление диалогом:",
         "pick_agent_button": "Выбрать агента",
         "open_mini_app": "Открыть Mini App",
+        "onboarding_open_mini_app": "✦ Задать первый вопрос",
         # LLM error messages
         "error_rate_limit": "Лимит Gemini исчерпан или запросов слишком много. Попробуй чуть позже.",
         "error_overloaded": "Сервис AI временно перегружен. Попробуй ещё раз через пару минут.",

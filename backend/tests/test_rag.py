@@ -79,6 +79,32 @@ def test_stoic_concept_expansion_handles_conversational_question():
     assert hits[0].chunk.chunk_id == "impressions"
 
 
+def test_discourses_concept_expansion_handles_conversational_leader_question():
+    index = RagIndex(
+        [
+            _chunk(
+                "multitude",
+                186,
+                "Book 1, Chapter XLIV",
+                "The multitude is helpless without a head and needs spokesmen.",
+            ),
+            _chunk(
+                "distractor",
+                198,
+                "Book 1, Chapter LVIII",
+                "The people can judge public affairs with wisdom and constancy.",
+            ),
+        ]
+    )
+
+    hits = index.search(
+        "Why is a crowd or multitude ineffective when it has no recognized leader?",
+        top_k=1,
+    )
+
+    assert hits[0].chunk.chunk_id == "multitude"
+
+
 def test_retrieve_is_limited_to_supported_agents(monkeypatch, tmp_path: Path):
     payload = {
         "source": PRINCE,
