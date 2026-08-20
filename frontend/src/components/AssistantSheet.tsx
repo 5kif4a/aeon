@@ -19,7 +19,7 @@ export function AssistantSheet({
   const { t } = useT();
   if (!message) return null;
 
-  const actionBase = "min-h-[42px] rounded-[14px] font-[750] cursor-pointer";
+  const actionBase = "min-h-[42px] rounded-[8px] font-[750] cursor-pointer";
   const gold = "bg-[linear-gradient(135deg,#d4b588,#7d5c3e)] text-[#1e1711]";
   const neutral = "bg-[rgba(255,255,255,0.07)] text-text";
 

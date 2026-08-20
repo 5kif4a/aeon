@@ -3,11 +3,24 @@ import { useState } from "react";
 import { AboutForm } from "../components/AboutForm";
 import { Modal } from "../components/Modal";
 import { ProfileSheet } from "../components/ProfileSheet";
-import { useProfile, useUpdateProfile } from "../hooks/queries";
+import {
+  useBillingStatus,
+  useCancelSubscription,
+  useCreateCheckout,
+  useProfile,
+  useStartTrial,
+} from "../hooks/queries";
 import { useT } from "../lib/i18n-context";
-import { LANGUAGE_NAMES, SUPPORTED_LANGUAGES, type TranslationKey } from "../lib/i18n";
+import {
+  LANGUAGE_NAMES,
+  LOCALES,
+  SUPPORTED_LANGUAGES,
+  type TFunc,
+  type TranslationKey,
+} from "../lib/i18n";
+import { openInvoice } from "../lib/telegram";
 import type { Profile } from "../lib/types";
-import { cardPanel, goldButton } from "../lib/ui";
+import { goldButton } from "../lib/ui";
 
 type SheetName = "about" | "language" | "pro" | null;
 
@@ -19,86 +32,136 @@ const PRO_FEATURES: TranslationKey[] = [
   "pro_feat_voice",
 ];
 
-/** Verified badge next to the assistant name. */
-const badge =
-  "inline-grid h-[17px] w-[17px] place-items-center rounded-[6px] bg-[linear-gradient(135deg,#dcc09a,#8a6544)] text-[11px] text-[#1b1410]";
-/** Row inside the grouped settings card. */
 const settingRow =
-  "grid w-full min-h-[58px] grid-cols-[34px_1fr_auto_18px] items-center gap-[10px] border-b border-line px-[14px] text-left text-text cursor-pointer last:border-b-0";
+  "grid min-h-[60px] w-full grid-cols-[36px_1fr_auto_18px] items-center gap-3 border-b border-line px-3 text-left text-text last:border-b-0";
 const settingIcon =
-  "grid h-[34px] w-[34px] place-items-center rounded-[12px] bg-[rgba(225,195,150,0.1)] text-gold-strong";
-/** Small pill/action in a panel title bar. */
+  "border-line bg-surface-strong text-gold-strong grid h-9 w-9 place-items-center rounded-[8px] border text-[12px] font-[800]";
 const panelAction =
-  "rounded-[12px] bg-[rgba(225,195,150,0.11)] px-[10px] py-2 text-[13px] font-[750] text-gold-strong cursor-pointer";
-/** Neutral full-width option button inside a sheet. */
+  "border-line bg-surface min-h-9 rounded-[8px] border px-3 text-[12px] font-[750] text-gold-strong";
 const sheetOption =
-  "min-h-[46px] w-full rounded-[14px] bg-[rgba(255,255,255,0.06)] font-[650] text-text cursor-pointer";
-const sheetPrimary = `${goldButton} min-h-[46px] w-full font-extrabold`;
-const sheetCopy = "text-[#d7cebf] leading-[1.45]";
+  "border-line bg-surface min-h-[46px] w-full rounded-[8px] border font-[650] text-text";
+const sheetPrimary = `${goldButton} min-h-[52px] w-full px-3 py-2 text-[14px] leading-[1.25] font-[800]`;
+const sheetCopy = "text-muted text-[14px] leading-[1.5]";
 
 export function ProfileView() {
   const { t, lang, setLang } = useT();
-  const { data: profile } = useProfile();
-  const updateProfile = useUpdateProfile();
+  const profileQuery = useProfile();
+  const billingQuery = useBillingStatus();
+  const profile = profileQuery.data;
+  const billing = billingQuery.data;
+  const startTrial = useStartTrial();
+  const createCheckout = useCreateCheckout();
+  const cancelSubscription = useCancelSubscription();
   const [sheet, setSheet] = useState<SheetName>(null);
+  const [paymentState, setPaymentState] = useState<"paid" | "pending" | "failed" | null>(null);
 
   const completion = profile ? profileCompletion(profile) : 0;
-  const plan = profile?.plan ?? "Basic";
+  const plan = billing?.plan ?? profile?.plan ?? "Free";
+  const profileName = profile?.name?.trim() || t("profile_anonymous");
+  const profileInitial = Array.from(profileName)[0]?.toUpperCase() ?? "A";
   const closeSheet = () => setSheet(null);
+
+  const beginCheckout = () => {
+    setPaymentState(null);
+    createCheckout.mutate(undefined, {
+      onSuccess: async ({ invoiceLink }) => {
+        const result = await openInvoice(invoiceLink);
+        if (result === "paid") {
+          setPaymentState("paid");
+          await Promise.all([billingQuery.refetch(), profileQuery.refetch()]);
+        } else if (result === "failed") {
+          setPaymentState("failed");
+        } else if (result === "pending") {
+          setPaymentState("pending");
+        }
+      },
+      onError: () => setPaymentState("failed"),
+    });
+  };
 
   return (
     <section className="animate-view-in block" aria-label={t("cabinet_title")}>
-      <header className="flex min-h-[98px] items-center justify-between pt-[22px]">
-        <div>
-          <h2 className="flex items-center gap-[7px] text-[23px]">
-            Marcus Aurelius <span className={badge}>✓</span>
-          </h2>
-          <p className="text-muted mt-1 text-[13px]">{t("cabinet_title")}</p>
+      <header className="flex min-h-[118px] items-center gap-3 pt-6">
+        <span className="border-line bg-surface-strong text-gold-strong grid h-12 w-12 shrink-0 place-items-center rounded-[8px] border font-serif text-[22px]">
+          {profileInitial}
+        </span>
+        <div className="min-w-0 flex-1">
+          <span className="text-muted block text-[12px]">{t("profile_eyebrow")}</span>
+          <h1 className="mt-0.5 truncate font-serif text-[26px] leading-tight">{profileName}</h1>
         </div>
+        <button
+          type="button"
+          onClick={() => setSheet("pro")}
+          className="border-line bg-surface text-gold-strong min-h-9 shrink-0 rounded-[8px] border px-3 text-[12px] font-[800]"
+        >
+          {planLabel(plan, t)}
+        </button>
       </header>
 
-      <section className="border-line mt-2 overflow-hidden rounded-[18px] border bg-[linear-gradient(180deg,rgba(29,28,27,0.96),rgba(18,17,16,0.96))]">
-        <button type="button" className={settingRow} onClick={() => setSheet("language")}>
-          <span className={settingIcon}>◐</span>
-          <strong>{t("language_label")}</strong>
-          <em className="text-gold font-[750] not-italic">{LANGUAGE_NAMES[lang]}</em>
-          <i className="text-muted text-[22px] not-italic">›</i>
-        </button>
-        <button type="button" className={settingRow} onClick={() => setSheet("pro")}>
-          <span className={settingIcon}>♜</span>
-          <strong>{t("plan_label")}</strong>
-          <em className="text-gold font-[750] not-italic">{plan}</em>
-          <i className="text-muted text-[22px] not-italic">›</i>
-        </button>
+      <section className="mt-2" aria-labelledby="settings-title">
+        <h2
+          id="settings-title"
+          className="text-muted mb-2 text-[12px] font-[750] tracking-[0.12em] uppercase"
+        >
+          {t("profile_settings")}
+        </h2>
+        <div className="border-line bg-surface overflow-hidden rounded-[8px] border">
+          <button type="button" className={settingRow} onClick={() => setSheet("language")}>
+            <span className={settingIcon}>文</span>
+            <strong className="text-[14px]">{t("language_label")}</strong>
+            <em className="text-gold text-[13px] font-[750] not-italic">{LANGUAGE_NAMES[lang]}</em>
+            <i className="text-muted text-[20px] not-italic">›</i>
+          </button>
+          <button type="button" className={settingRow} onClick={() => setSheet("pro")}>
+            <span className={settingIcon}>★</span>
+            <strong className="text-[14px]">{t("plan_label")}</strong>
+            <em className="text-gold text-[13px] font-[750] not-italic">{planLabel(plan, t)}</em>
+            <i className="text-muted text-[20px] not-italic">›</i>
+          </button>
+        </div>
       </section>
 
-      <section className={`${cardPanel} mt-3 p-4`}>
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h3 className="font-serif text-[21px]">{t("about_title")}</h3>
+      <section className="mt-7" aria-labelledby="about-title">
+        <div className="mb-3 flex items-end justify-between gap-3">
+          <div>
+            <h2 id="about-title" className="font-serif text-[23px]">
+              {t("about_title")}
+            </h2>
+            <p className="text-muted mt-1 text-[13px] leading-[1.4]">
+              {t("profile_context_intro")}
+            </p>
+          </div>
           <button type="button" className={panelAction} onClick={() => setSheet("about")}>
             {t("about_edit")}
           </button>
         </div>
-        <div className="mb-[14px] rounded-[16px] border border-[rgba(255,255,255,0.06)] bg-[rgba(0,0,0,0.24)] p-3">
-          <div className="mb-[10px] flex items-center justify-between">
-            <span className="text-muted text-[13px]">{t("profile_completion")}</span>
+
+        <div className="mb-3">
+          <div className="mb-2 flex items-center justify-between text-[12px]">
+            <span className="text-muted">{t("profile_completion")}</span>
             <strong className="text-gold-strong">{completion}%</strong>
           </div>
-          <div className="h-[9px] overflow-hidden rounded-full bg-[#252525]">
+          <div className="bg-surface-strong h-1.5 overflow-hidden rounded-full">
             <i
-              className="block h-full rounded-[inherit] bg-[linear-gradient(90deg,#8a6544,#e1c396)]"
+              className="bg-gold-strong block h-full rounded-full"
               style={{ width: `${completion}%` }}
-            ></i>
+            />
           </div>
         </div>
-        <div className="grid gap-4">
+
+        <div className="border-line bg-surface overflow-hidden rounded-[8px] border">
           {memoryRows(profile).map(([labelKey, value]) => (
-            <article key={labelKey} className="grid gap-[2px]">
+            <article
+              key={labelKey}
+              className="border-line grid min-h-[58px] grid-cols-[112px_1fr] items-center gap-3 border-b px-3 py-2 last:border-b-0 max-[390px]:grid-cols-[94px_1fr]"
+            >
               <span className="text-muted text-[12px]">{t(labelKey)}</span>
-              <strong className="text-text text-[16px] leading-[1.28]">
-                {value || t("not_specified")}
-              </strong>
-              {!value && <small className="text-gold text-[12px]">{t("memory_hint")}</small>}
+              <div className="min-w-0 text-right">
+                <strong className="text-text block text-[14px] leading-[1.35] break-words">
+                  {value || t("not_specified")}
+                </strong>
+                {!value && <small className="text-gold text-[10px]">{t("memory_hint")}</small>}
+              </div>
             </article>
           ))}
         </div>
@@ -133,33 +196,118 @@ export function ProfileView() {
         <Modal title={t("pro_title")} onClose={closeSheet}>
           <div className="grid gap-3">
             <div className="flex items-center justify-between gap-3">
-              <span className="text-muted text-[13px]">{t("sheet_current_plan", { plan })}</span>
-              <span className={panelAction}>{plan}</span>
+              <span className="text-muted text-[13px]">
+                {t("sheet_current_plan", { plan: planLabel(plan, t) })}
+              </span>
+              <span className={panelAction}>{planLabel(plan, t)}</span>
             </div>
             <p className={sheetCopy}>{t("pro_desc")}</p>
+            {billing && (
+              <div className="border-line grid gap-2 border-y py-3 text-[13px]">
+                <BillingRow
+                  label={t("billing_daily_limit")}
+                  value={`${billing.dailyRemaining}/${billing.dailyLimit}`}
+                />
+                {billing.plan === "Trial" && (
+                  <BillingRow
+                    label={t("billing_trial_total")}
+                    value={`${billing.trialTotalLimit - billing.trialTotalUsed}/${billing.trialTotalLimit}`}
+                  />
+                )}
+                {billing.councilLimit > 0 && (
+                  <BillingRow
+                    label={t("billing_council_left")}
+                    value={String(billing.councilRemaining)}
+                  />
+                )}
+                {(billing.trialExpiresAt || billing.proExpiresAt) && (
+                  <BillingRow
+                    label={t("billing_active_until")}
+                    value={formatDate(
+                      billing.proExpiresAt ?? billing.trialExpiresAt,
+                      LOCALES[lang],
+                    )}
+                  />
+                )}
+              </div>
+            )}
             <ul className="grid list-none gap-2 p-0">
               {PRO_FEATURES.map((key) => (
                 <li
                   key={key}
-                  className="before:text-gold text-[#d7cebf] before:mr-2 before:content-['✦']"
+                  className="grid grid-cols-[18px_1fr] gap-2 text-[14px] leading-[1.4] text-[#d7cebf]"
                 >
+                  <span className="text-success">✓</span>
                   {t(key)}
                 </li>
               ))}
             </ul>
-            <button
-              type="button"
-              className={sheetPrimary}
-              disabled={updateProfile.isPending}
-              onClick={() => updateProfile.mutate({ plan: "Pro" }, { onSuccess: closeSheet })}
-            >
-              {t("pro_upgrade")}
-            </button>
+            {billing?.canStartTrial && (
+              <button
+                type="button"
+                className={sheetOption}
+                disabled={startTrial.isPending}
+                onClick={() => startTrial.mutate()}
+              >
+                {t("trial_start")}
+              </button>
+            )}
+            {plan !== "Pro" && (
+              <button
+                type="button"
+                className={sheetPrimary}
+                disabled={createCheckout.isPending}
+                onClick={beginCheckout}
+              >
+                {t("pro_upgrade", { price: billing?.proPriceStars ?? 299 })}
+              </button>
+            )}
+            {plan === "Pro" && billing?.proAutoRenew && (
+              <button
+                type="button"
+                className={sheetOption}
+                disabled={cancelSubscription.isPending}
+                onClick={() => cancelSubscription.mutate()}
+              >
+                {t("pro_cancel")}
+              </button>
+            )}
+            {paymentState && <p className={sheetCopy}>{t(paymentMessageKey(paymentState))}</p>}
           </div>
         </Modal>
       )}
     </section>
   );
+}
+
+function BillingRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-muted">{label}</span>
+      <strong className="text-right">{value}</strong>
+    </div>
+  );
+}
+
+function planLabel(plan: string, t: TFunc): string {
+  if (plan === "Pro") return t("plan_pro");
+  if (plan === "Trial") return t("plan_trial");
+  return t("plan_free");
+}
+
+function paymentMessageKey(state: "paid" | "pending" | "failed"): TranslationKey {
+  if (state === "paid") return "payment_paid";
+  if (state === "pending") return "payment_pending";
+  return "payment_failed";
+}
+
+function formatDate(value: string | null, locale: string): string {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
 }
 
 function profileCompletion(profile: Profile): number {

@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.agents import AGENTS, agent_name, agent_role
 from app.api.deps import CurrentUser, SessionDep
-from app.api.schemas import AgentOut, StartDialogRequest, StartDialogResponse
+from app.api.schemas import AgentOut, StartCouncilRequest, StartDialogRequest, StartDialogResponse
 from app.bot import chat, runtime
 from app.services import users
 
@@ -23,6 +23,24 @@ async def list_agents(user: CurrentUser) -> list[AgentOut]:
         )
         for agent_id in AGENTS
     ]
+
+
+@router.post("/agents/council/dialog", response_model=StartDialogResponse)
+async def start_council_dialog(
+    payload: StartCouncilRequest, user: CurrentUser
+) -> StartDialogResponse:
+    application = runtime.get_application()
+    if application is None:
+        raise HTTPException(status_code=503, detail="Telegram bot is not running")
+    task = asyncio.create_task(
+        chat.process_council_message(application.bot, user.id, payload.message.strip())
+    )
+    task.add_done_callback(_log_dialog_task_error)
+    return StartDialogResponse(
+        ok=True,
+        agentName="Council of Three" if user.language == "en" else "Совет трёх",
+        botUsername=application.bot.username or "",
+    )
 
 
 @router.post("/agents/{agent_id}/dialog", response_model=StartDialogResponse)

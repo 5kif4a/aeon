@@ -4,13 +4,13 @@
 @theme {
   --font-serif: Georgia, "Times New Roman", serif;
 
-  --color-bg: #060605;
-  --color-surface: #121110;
-  --color-surface-strong: #1b1917;
+  --color-bg: #070707;
+  --color-surface: #131313;
+  --color-surface-strong: #20201f;
   --color-line: rgba(255, 255, 255, 0.1);
   --color-text: #f5efe4;
-  --color-muted: #a49b8c;
-  --color-soft: #6f665c;
+  --color-muted: #aaa59b;
+  --color-soft: #74716b;
   --color-gold: #c1a074;
   --color-gold-strong: #e1c396;
   --color-amber: #9b7348;
@@ -24,15 +24,14 @@
 @layer base {
   html {
     background: #000;
+    scroll-behavior: smooth;
   }
 
   body {
-    min-height: 100vh;
+    min-height: 100dvh;
+    overflow-x: hidden;
     color: var(--color-text);
-    background:
-      radial-gradient(circle at 72% 6%, rgba(180, 139, 87, 0.24), transparent 28rem),
-      radial-gradient(circle at 16% 0%, rgba(137, 123, 95, 0.16), transparent 18rem),
-      var(--color-bg);
+    background: var(--color-bg);
     font-family:
       Inter,
       ui-sans-serif,
@@ -42,6 +41,70 @@
       "Segoe UI",
       sans-serif;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  button,
+  input,
+  textarea,
+  select {
+    font: inherit;
+  }
+
+  button:focus-visible,
+  input:focus-visible,
+  textarea:focus-visible,
+  select:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: 2px;
+  }
+}
+
+.landing-display {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 400;
+}
+
+.landing-orbit {
+  pointer-events: none;
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  border-radius: 9999px;
+}
+
+.landing-orbit-one {
+  top: 7%;
+  width: min(94vw, 1250px);
+  height: min(94vw, 1250px);
+}
+
+.landing-orbit-two {
+  top: 18%;
+  width: min(66vw, 850px);
+  height: min(66vw, 850px);
+}
+
+.landing-face::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 80px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .landing > main > section:first-child > div:nth-child(3) {
+    animation: landingReveal 700ms ease-out both;
+  }
+}
+
+@keyframes landingReveal {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

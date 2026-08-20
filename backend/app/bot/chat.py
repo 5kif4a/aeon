@@ -6,12 +6,12 @@ import time
 from telegram import Bot
 
 from app.agents import AGENTS, agent_intro, agent_name
-from app.bot import messaging
+from app.bot import messaging, ui
 from app.clients.gemini import GeminiError
 from app.core.config import get_settings
 from app.db.session import SessionFactory
 from app.i18n import t
-from app.services import agent_chat, diary, goals, users
+from app.services import agent_chat, billing, diary, goals, users
 
 logger = logging.getLogger(__name__)
 
@@ -28,12 +28,14 @@ async def set_active_agent(bot: Bot, chat_id: int, agent_id: str, announce: bool
     return True
 
 
-async def clear_active_agent(bot: Bot, chat_id: int) -> None:
+async def clear_active_agent(bot: Bot, chat_id: int, announce: bool = True) -> str:
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
         await users.update_user(session, user, {"active_agent": None})
         language = user.language
-    await bot.send_message(chat_id, t(language, "agent_mode_closed"))
+    if announce:
+        await bot.send_message(chat_id, t(language, "agent_mode_closed"))
+    return language
 
 
 def build_agent_intro(agent_id: str, language: str) -> str:
@@ -54,13 +56,24 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
         language = user.language
         active_goal = await goals.get_active_goal(session, chat_id)
         diary_entries = await diary.list_entries(session, chat_id, limit=3)
-
-    if not settings.gemini_api_key:
-        await bot.send_message(chat_id, t(language, "gemini_not_configured"))
-        return True
+        if not settings.gemini_api_key:
+            await bot.send_message(chat_id, t(language, "gemini_not_configured"))
+            return True
+        try:
+            grant = await billing.reserve_agent_question(session, chat_id)
+        except billing.AccessLimitExceeded as error:
+            await bot.send_message(
+                chat_id,
+                t(language, f"question_limit_{error.plan.lower()}"),
+                reply_markup=ui.limit_keyboard(language, error.plan),
+            )
+            return True
+        user.plan = grant.generation_plan
 
     await bot.send_chat_action(chat_id, "typing")
     history = await agent_chat.get_history(chat_id, agent_id)
+    if grant.mode == "prompt":
+        history = history[-4:]
     progress = await bot.send_message(
         chat_id, t(language, "agent_thinking", name=agent_name(agent_id, language))
     )
@@ -72,7 +85,8 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
         user=user,
         history=history,
         language=language,
-        diary=[entry.text for entry in diary_entries],
+        diary=[entry.text for entry in diary_entries if grant.mode == "rag"]
+        or [entry.text for entry in diary_entries[:1]],
         active_goal=active_goal.text if active_goal else "",
     )
 
@@ -94,15 +108,74 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
                     progress.message_id,
                     _build_error_message(fallback_error, language),
                 )
+                async with SessionFactory() as session:
+                    await billing.release_agent_question(session, chat_id, grant)
                 return True
         else:
             await messaging.send_or_edit(
                 bot, chat_id, progress.message_id, _build_error_message(error, language)
             )
+            async with SessionFactory() as session:
+                await billing.release_agent_question(session, chat_id, grant)
             return True
 
     await agent_chat.append_history(chat_id, agent_id, text, answer)
-    await messaging.send_or_edit(bot, chat_id, progress.message_id, answer)
+    await messaging.send_or_edit(
+        bot,
+        chat_id,
+        progress.message_id,
+        answer,
+        reply_markup=ui.post_answer_keyboard(language),
+    )
+    return True
+
+
+async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
+    settings = get_settings()
+    async with SessionFactory() as session:
+        user = await users.get_or_create_user(session, chat_id)
+        language = user.language
+        if not settings.gemini_api_key:
+            await bot.send_message(chat_id, t(language, "gemini_not_configured"))
+            return False
+        try:
+            grant = await billing.reserve_council(session, chat_id)
+        except billing.CouncilUnavailable as error:
+            await bot.send_message(
+                chat_id,
+                t(language, f"council_limit_{error.plan.lower()}"),
+                reply_markup=ui.limit_keyboard(language, error.plan),
+            )
+            return False
+        user.plan = grant.plan
+        active_goal = await goals.get_active_goal(session, chat_id)
+        diary_entries = await diary.list_entries(session, chat_id, limit=3)
+
+    progress = await bot.send_message(chat_id, t(language, "council_thinking"))
+    try:
+        answer = await agent_chat.generate_council_answer(
+            text,
+            user,
+            language,
+            diary=[entry.text for entry in diary_entries],
+            active_goal=active_goal.text if active_goal else "",
+        )
+    except Exception as error:
+        logger.warning("Council generation error: %s", error)
+        async with SessionFactory() as session:
+            await billing.release_council(session, chat_id, grant)
+        await messaging.send_or_edit(
+            bot, chat_id, progress.message_id, _build_error_message(error, language)
+        )
+        return False
+
+    await messaging.send_or_edit(
+        bot,
+        chat_id,
+        progress.message_id,
+        answer,
+        reply_markup=ui.post_answer_keyboard(language),
+    )
     return True
 
 

@@ -12,7 +12,7 @@ from telegram import Update
 
 from app.api.routes import api_router
 from app.bot import runtime
-from app.bot.application import build_application
+from app.bot.application import build_application, configure_commands
 from app.core.config import get_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -32,6 +32,7 @@ async def lifespan(app: FastAPI):
     if settings.bot_token:
         application = build_application()
         await application.initialize()
+        await configure_commands(application)
         runtime.set_application(application)
 
         if settings.bot_mode == "webhook":

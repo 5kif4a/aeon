@@ -1,5 +1,14 @@
 import { tg } from "./telegram";
-import type { Agent, DiaryEntry, Goal, Profile, ProfileUpdate, StartDialogResponse } from "./types";
+import type {
+  Agent,
+  BillingStatus,
+  Checkout,
+  DiaryEntry,
+  Goal,
+  Profile,
+  ProfileUpdate,
+  StartDialogResponse,
+} from "./types";
 
 /**
  * Backend base URL. Empty in dev (Vite proxies /api to the local backend) and
@@ -63,4 +72,17 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message }),
     }),
+  startCouncil: (message: string) =>
+    request<StartDialogResponse>("/api/agents/council/dialog", {
+      method: "POST",
+      body: JSON.stringify({ message }),
+    }),
+
+  getBillingStatus: () => request<BillingStatus>("/api/billing/status"),
+  startTrial: () => request<BillingStatus>("/api/billing/trial", { method: "POST" }),
+  createCheckout: () => request<Checkout>("/api/billing/checkout", { method: "POST" }),
+  cancelSubscription: () => request<{ ok: boolean; activeUntil: string | null }>(
+    "/api/billing/cancel",
+    { method: "POST" },
+  ),
 };

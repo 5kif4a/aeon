@@ -29,12 +29,18 @@ class Settings(BaseSettings):
 
     rag_enabled: bool = True
     rag_allow_basic: bool = False
+    pro_price_stars: int = 299
+    free_daily_questions: int = 3
+    trial_days: int = 7
+    trial_daily_rag_questions: int = 5
+    trial_total_rag_questions: int = 35
+    pro_daily_rag_questions: int = 30
+    pro_daily_council_questions: int = 3
     rag_data_dir: str = "data/rag"
     rag_top_k: int = 4
 
     reminder_hour: int = 9
     reminder_tz: str = "UTC"
-    life_weekly_hour: int = 10
     init_data_max_age: int = 172_800
 
     web_port: int = 5173

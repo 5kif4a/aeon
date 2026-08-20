@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../lib/api";
-import type { DiaryEntry, Goal, Profile, ProfileUpdate } from "../lib/types";
+import type { BillingStatus, DiaryEntry, Goal, Profile, ProfileUpdate } from "../lib/types";
 
 export function useProfile() {
   return useQuery({ queryKey: ["profile"], queryFn: api.getProfile });
@@ -72,5 +72,39 @@ export function useStartDialog() {
   return useMutation({
     mutationFn: ({ agentId, message = "" }: { agentId: string; message?: string }) =>
       api.startDialog(agentId, message),
+  });
+}
+
+export function useStartCouncil() {
+  return useMutation({ mutationFn: (message: string) => api.startCouncil(message) });
+}
+
+export function useBillingStatus() {
+  return useQuery({ queryKey: ["billing"], queryFn: api.getBillingStatus });
+}
+
+export function useStartTrial() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.startTrial,
+    onSuccess: (status: BillingStatus) => {
+      queryClient.setQueryData(["billing"], status);
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
+  });
+}
+
+export function useCreateCheckout() {
+  return useMutation({ mutationFn: api.createCheckout });
+}
+
+export function useCancelSubscription() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: api.cancelSubscription,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["billing"] });
+      void queryClient.invalidateQueries({ queryKey: ["profile"] });
+    },
   });
 }

@@ -14,7 +14,7 @@ AGENTS = {
         "roles": {"en": "personal sage and psychologist", "ru": "личный мудрец и психолог"},
         "intros": {
             "en": "The dialogue with Marcus Aurelius is open. Write what needs clarity.",
-            "ru": "Диалог с Марком Аврелием открыт. Напиши, что требует ясности.",
+            "ru": "Диалог с Марком Аврелием открыт. Напишите, что требует ясности.",
         },
         "system": (
             "Role: you are the Roman emperor and Stoic philosopher Marcus Aurelius. "
@@ -45,8 +45,8 @@ AGENTS = {
                 "In what important battle or difficult situation do you need my cold counsel now?"
             ),
             "ru": (
-                "Мой государь, ты строишь своё государство — бизнес, карьеру, проект или влияние. "
-                "В какой важной битве или сложной ситуации тебе сейчас нужен мой холодный совет?"
+                "Мой государь, Вы строите своё государство — бизнес, карьеру, проект или влияние. "
+                "В какой важной битве или сложной ситуации Вам сейчас нужен мой холодный совет?"
             ),
         },
         "system": (
@@ -75,7 +75,7 @@ AGENTS = {
         "roles": {"en": "shadow psychoanalyst", "ru": "психоаналитик тени"},
         "intros": {
             "en": "The dialogue with Carl Jung is open. Write what recurs or troubles you.",
-            "ru": "Диалог с Карлом Юнгом открыт. Напиши, что повторяется или тревожит.",
+            "ru": "Диалог с Карлом Юнгом открыт. Напишите, что повторяется или тревожит.",
         },
         "system": (
             "Role: you are Carl Jung, an attentive explorer of a person's inner life. "

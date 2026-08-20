@@ -22,7 +22,7 @@ class TestProfile:
         assert profile["name"] == "Tester"
         # language_code "ru" from initData normalizes to a supported language
         assert profile["language"] == "ru"
-        assert profile["plan"] == "Basic"
+        assert profile["plan"] == "Free"
 
     async def test_patch_updates_profile_and_computes_age(self, client, auth_headers):
         response = await client.patch(
@@ -34,7 +34,8 @@ class TestProfile:
         profile = response.json()
         # non-ASCII round-trips cleanly through JSON + Postgres
         assert profile["name"] == "Renée ✓"
-        assert profile["plan"] == "Pro"
+        # Billing state is server-owned; arbitrary profile input cannot activate Pro.
+        assert profile["plan"] == "Free"
         assert isinstance(profile["age"], int) and profile["age"] >= 29
 
     async def test_patch_rejects_unsupported_language(self, client, auth_headers):
@@ -109,6 +110,30 @@ class TestAgents:
     async def test_dialog_with_unknown_agent_is_400(self, client, auth_headers):
         response = await client.post("/api/agents/socrates/dialog", headers=auth_headers, json={})
         assert response.status_code == 400
+
+
+class TestBilling:
+    async def test_status_starts_as_free(self, client, auth_headers):
+        response = await client.get("/api/billing/status", headers=auth_headers)
+        assert response.status_code == 200
+        status = response.json()
+        assert status["plan"] == "Free"
+        assert status["dailyLimit"] == 3
+        assert status["canStartTrial"] is True
+        assert status["proPriceStars"] == 299
+
+    async def test_trial_can_only_start_once(self, client, auth_headers):
+        started = await client.post("/api/billing/trial", headers=auth_headers)
+        assert started.status_code == 200
+        assert started.json()["plan"] == "Trial"
+        assert started.json()["dailyLimit"] == 5
+
+        repeated = await client.post("/api/billing/trial", headers=auth_headers)
+        assert repeated.status_code == 409
+
+    async def test_checkout_requires_running_bot(self, client, auth_headers):
+        response = await client.post("/api/billing/checkout", headers=auth_headers)
+        assert response.status_code == 503
 
 
 class TestHealth:

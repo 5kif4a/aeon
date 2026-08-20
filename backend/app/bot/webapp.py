@@ -5,6 +5,7 @@ from urllib.parse import urlencode
 from telegram import Bot, MenuButtonWebApp, WebAppInfo
 
 from app.core.config import get_settings
+from app.i18n import t
 
 
 def build_webapp_url(view: str = "home") -> str:
@@ -16,14 +17,16 @@ def build_webapp_url(view: str = "home") -> str:
     return f"{base}{separator}{urlencode({'view': view})}"
 
 
-async def set_chat_menu_button(bot: Bot, chat_id: int) -> None:
+async def set_chat_menu_button(bot: Bot, chat_id: int, language: str = "en") -> None:
     url = build_webapp_url()
     if not url:
         return
     try:
         await bot.set_chat_menu_button(
             chat_id=chat_id,
-            menu_button=MenuButtonWebApp(text="Open", web_app=WebAppInfo(url=url)),
+            menu_button=MenuButtonWebApp(
+                text=t(language, "chat_menu_button"), web_app=WebAppInfo(url=url)
+            ),
         )
     except Exception:
         pass

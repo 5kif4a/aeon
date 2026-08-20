@@ -1,7 +1,7 @@
-"""Scheduled bot jobs: daily agent notifications and weekly life reviews."""
+"""Scheduled bot jobs: local-time daily notifications and weekly life reviews."""
 
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
@@ -49,20 +49,33 @@ def build_life_weekly_message(user: User, today: date) -> str:
     )
 
 
-def _calendar_keyboard(language: str) -> InlineKeyboardMarkup | None:
+def _calendar_keyboard(language: str) -> InlineKeyboardMarkup:
     url = webapp.build_webapp_url("calendar")
-    if not url:
-        return None
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton(t(language, "life_weekly_button"), web_app=WebAppInfo(url=url))]]
+    rows = []
+    if url:
+        rows.append(
+            [InlineKeyboardButton(t(language, "life_weekly_button"), web_app=WebAppInfo(url=url))]
+        )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                t(language, "notification_settings_button"), callback_data="settings:open"
+            )
+        ]
     )
+    return InlineKeyboardMarkup(rows)
 
 
 async def send_life_weekly_reviews(context: ContextTypes.DEFAULT_TYPE) -> None:
-    today = reminder_today()
+    now = datetime.now(UTC)
     async with SessionFactory() as session:
-        due_users = await users.users_due_for_life_weekly(session, today)
-        for user in due_users:
+        candidates = await users.life_weekly_notification_candidates(session)
+        for user in candidates:
+            if not users.notification_is_due(user, now):
+                continue
+            today = users.local_datetime(user, now).date()
+            if user.last_life_weekly_date and user.last_life_weekly_date > today - timedelta(days=7):
+                continue
             try:
                 await context.bot.send_message(
                     user.id,
@@ -94,21 +107,32 @@ def build_daily_notification(user: User, goal: Goal | None, today: date) -> str:
     )
 
 
-def _daily_keyboard(language: str, has_goal: bool) -> InlineKeyboardMarkup | None:
+def _daily_keyboard(language: str, has_goal: bool) -> InlineKeyboardMarkup:
     url = webapp.build_webapp_url("calendar")
-    if not url:
-        return None
     key = "daily_goal_button" if has_goal else "daily_calendar_button"
-    return InlineKeyboardMarkup(
-        [[InlineKeyboardButton(t(language, key), web_app=WebAppInfo(url=url))]]
+    rows = [[InlineKeyboardButton(t(language, "daily_done_button"), callback_data="daily:done")]]
+    if url:
+        rows.append([InlineKeyboardButton(t(language, key), web_app=WebAppInfo(url=url))])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                t(language, "notification_settings_button"), callback_data="settings:open"
+            )
+        ]
     )
+    return InlineKeyboardMarkup(rows)
 
 
 async def send_daily_notifications(context: ContextTypes.DEFAULT_TYPE) -> None:
-    today = reminder_today()
+    now = datetime.now(UTC)
     async with SessionFactory() as session:
-        due_users = await users.users_due_for_daily_notification(session, today)
-        for user, goal in due_users:
+        candidates = await users.daily_notification_candidates(session)
+        for user, goal in candidates:
+            if not users.notification_is_due(user, now):
+                continue
+            today = users.local_datetime(user, now).date()
+            if user.last_daily_notification_date == today or user.last_life_weekly_date == today:
+                continue
             try:
                 await context.bot.send_message(
                     user.id,

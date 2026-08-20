@@ -142,6 +142,21 @@ uv run python -m scripts.evaluate_rag evals/jung_en_golden.json
 
 Generated corpora live at `backend/data/rag/<agent>.json`; localized English corpora use `backend/data/rag/<agent>.en.json`. They are intentionally not committed. The Aurelius builders index only the twelve books of their respective Russian and English editions. The Jung builder indexes the six authored sections of the 2016 Russian edition and keeps each contributor in the section metadata. Generate or mount the indexes in each deployment environment. `RAG_ALLOW_BASIC=true` bypasses plan gating for local testing only; leave it `false` outside development.
 
+### Freemium and Telegram Stars
+
+The billing tier is server-owned and cannot be changed through `PATCH /api/me`.
+
+- Free: 3 prompt-only answers per UTC day.
+- Trial: 7 days, 5 RAG answers per day, 35 total, one Council of Three. After the RAG allowance, 3 prompt-only answers remain available that day.
+- Pro: 299 Stars per recurring 30-day period, 30 RAG answers and 3 councils per day.
+
+The Mini App starts Trial through `POST /api/billing/trial` and opens a native Stars invoice returned by `POST /api/billing/checkout`. Pro is activated only after Telegram sends `successful_payment`. The bot supports `/subscribe`, `/cancel_subscription`, and the required `/paysupport` command. For an approved refund, run:
+
+```bash
+cd backend
+uv run python -m scripts.refund_star_payment <telegram_user_id> <telegram_payment_charge_id>
+```
+
 ## Docker
 
 One backend `Dockerfile` for both local compose and Railway (the frontend is served by Vite locally and by Vercel in production). Multi-stage: dependencies resolve into a virtualenv in a builder stage, the runtime stage gets only `.venv` + code, runs as a non-root user, ships a `HEALTHCHECK`, and keeps uvicorn as PID 1 for graceful shutdown. Linted with hadolint in CI.
@@ -214,7 +229,7 @@ Optional (have defaults):
 | `WEBHOOK_SECRET` | auto-generated if empty |
 | `CORS_ORIGINS` | extra browser origins (CSV) beyond `MINI_APP_URL`, e.g. Vercel preview domains |
 | `REDIS_URL` | `${{ Redis.REDIS_URL }}` to enable per-agent dialogue history |
-| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `LIFE_WEEKLY_HOUR`, `INIT_DATA_MAX_AGE` | tuning |
+| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `INIT_DATA_MAX_AGE` | tuning |
 
 Do **not** set `PORT` (Railway injects it), `STATIC_DIR` (the frontend is on Vercel), or `WEB_PORT` (dev only). Database migrations run automatically before each deploy via `preDeployCommand` (`alembic upgrade head`) in `railway.toml`.
 
@@ -255,7 +270,6 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
 | `REDIS_URL` | — | Redis DSN; empty disables dialogue history |
 | `REDIS_AGENT_HISTORY_TTL` | `2592000` | dialogue history TTL, seconds |
-| `REMINDER_HOUR` | `9` | daily agent notification hour |
-| `REMINDER_TZ` | `UTC` | reminder timezone |
-| `LIFE_WEEKLY_HOUR` | `10` | weekly life review hour; uses `REMINDER_TZ` |
+| `REMINDER_HOUR` | `9` | default notification hour for new users; each user can change it in the bot |
+| `REMINDER_TZ` | `UTC` | default notification timezone for new users; each user can change it in the bot |
 | `STATIC_DIR` | — | path to built frontend (set in Docker) |

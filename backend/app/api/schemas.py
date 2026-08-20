@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.models import User
 from app.i18n import SUPPORTED_LANGUAGES
+from app.services.billing import BillingSnapshot, effective_plan
 from app.services.users import calculate_age
 
 LanguageCode = Literal[SUPPORTED_LANGUAGES]  # type: ignore[valid-type]
@@ -43,7 +44,7 @@ class ProfileOut(BaseModel):
             interests=user.interests,
             mainGoal=user.main_goal,
             currentProblem=user.current_problem,
-            plan=user.plan,
+            plan=effective_plan(user),
             tokens=user.tokens,
             activeAgent=user.active_agent,
         )
@@ -60,7 +61,6 @@ class ProfileUpdate(BaseModel):
     mainGoal: str | None = Field(default=None, max_length=2000)
     currentProblem: str | None = Field(default=None, max_length=2000)
     language: LanguageCode | None = None
-    plan: str | None = Field(default=None, max_length=32)
 
     def to_user_fields(self) -> dict:
         mapping = {
@@ -74,7 +74,6 @@ class ProfileUpdate(BaseModel):
             "mainGoal": "main_goal",
             "currentProblem": "current_problem",
             "language": "language",
-            "plan": "plan",
         }
         data = self.model_dump(exclude_unset=True)
         return {mapping[key]: value for key, value in data.items() if key in mapping}
@@ -110,6 +109,10 @@ class StartDialogRequest(BaseModel):
     message: str = Field(default="", max_length=2000)
 
 
+class StartCouncilRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000)
+
+
 class StartDialogResponse(BaseModel):
     ok: bool
     agentName: str
@@ -120,3 +123,61 @@ class AgentOut(BaseModel):
     id: str
     name: str
     role: str
+
+
+class BillingStatusOut(BaseModel):
+    plan: str
+    dailyMode: str
+    dailyUsed: int
+    dailyLimit: int
+    dailyRemaining: int
+    promptUsed: int
+    promptLimit: int
+    ragUsed: int
+    ragLimit: int
+    trialTotalUsed: int
+    trialTotalLimit: int
+    councilUsed: int
+    councilLimit: int
+    councilRemaining: int
+    canStartTrial: bool
+    trialStartedAt: datetime | None
+    trialExpiresAt: datetime | None
+    proExpiresAt: datetime | None
+    proAutoRenew: bool
+    proPriceStars: int
+
+    @classmethod
+    def from_snapshot(cls, snapshot: BillingSnapshot) -> "BillingStatusOut":
+        return cls(
+            plan=snapshot.plan,
+            dailyMode=snapshot.daily_mode,
+            dailyUsed=snapshot.daily_used,
+            dailyLimit=snapshot.daily_limit,
+            dailyRemaining=snapshot.daily_remaining,
+            promptUsed=snapshot.prompt_used,
+            promptLimit=snapshot.prompt_limit,
+            ragUsed=snapshot.rag_used,
+            ragLimit=snapshot.rag_limit,
+            trialTotalUsed=snapshot.trial_total_used,
+            trialTotalLimit=snapshot.trial_total_limit,
+            councilUsed=snapshot.council_used,
+            councilLimit=snapshot.council_limit,
+            councilRemaining=snapshot.council_remaining,
+            canStartTrial=snapshot.can_start_trial,
+            trialStartedAt=snapshot.trial_started_at,
+            trialExpiresAt=snapshot.trial_expires_at,
+            proExpiresAt=snapshot.pro_expires_at,
+            proAutoRenew=snapshot.pro_auto_renew,
+            proPriceStars=snapshot.pro_price_stars,
+        )
+
+
+class CheckoutOut(BaseModel):
+    invoiceLink: str
+    priceStars: int
+
+
+class CancelSubscriptionOut(BaseModel):
+    ok: bool
+    activeUntil: datetime | None

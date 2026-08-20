@@ -59,12 +59,20 @@ async def try_edit(
         return False
 
 
-async def send_or_edit(bot: Bot, chat_id: int, message_id: int | None, text: str) -> None:
+async def send_or_edit(
+    bot: Bot,
+    chat_id: int,
+    message_id: int | None,
+    text: str,
+    reply_markup: InlineKeyboardMarkup | None = None,
+) -> None:
     chunks = split_message(text)
     if message_id and chunks:
-        if not await try_edit(bot, chat_id, message_id, chunks[0]):
-            await bot.send_message(chat_id, chunks[0])
-        for chunk in chunks[1:]:
-            await bot.send_message(chat_id, chunk)
+        first_markup = reply_markup if len(chunks) == 1 else None
+        if not await try_edit(bot, chat_id, message_id, chunks[0], first_markup):
+            await bot.send_message(chat_id, chunks[0], reply_markup=first_markup)
+        for index, chunk in enumerate(chunks[1:], start=1):
+            markup = reply_markup if index == len(chunks) - 1 else None
+            await bot.send_message(chat_id, chunk, reply_markup=markup)
         return
-    await send_chunked(bot, chat_id, text)
+    await send_chunked(bot, chat_id, text, reply_markup)

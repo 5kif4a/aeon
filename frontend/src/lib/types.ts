@@ -32,7 +32,6 @@ export interface ProfileUpdate {
   mainGoal?: string;
   currentProblem?: string;
   language?: string;
-  plan?: string;
 }
 
 export interface Goal {
@@ -59,4 +58,32 @@ export interface StartDialogResponse {
   ok: boolean;
   agentName: string;
   botUsername: string;
+}
+
+export interface BillingStatus {
+  plan: "Free" | "Trial" | "Pro";
+  dailyMode: "prompt" | "rag";
+  dailyUsed: number;
+  dailyLimit: number;
+  dailyRemaining: number;
+  promptUsed: number;
+  promptLimit: number;
+  ragUsed: number;
+  ragLimit: number;
+  trialTotalUsed: number;
+  trialTotalLimit: number;
+  councilUsed: number;
+  councilLimit: number;
+  councilRemaining: number;
+  canStartTrial: boolean;
+  trialStartedAt: string | null;
+  trialExpiresAt: string | null;
+  proExpiresAt: string | null;
+  proAutoRenew: boolean;
+  proPriceStars: number;
+}
+
+export interface Checkout {
+  invoiceLink: string;
+  priceStars: number;
 }

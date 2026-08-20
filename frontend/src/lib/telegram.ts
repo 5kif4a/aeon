@@ -9,6 +9,7 @@ interface TelegramWebApp {
   setHeaderColor?(color: string): void;
   setBackgroundColor?(color: string): void;
   sendData?(data: string): void;
+  openInvoice?(url: string, callback?: (status: InvoiceStatus) => void): void;
   HapticFeedback?: {
     selectionChanged(): void;
     impactOccurred(style: "light" | "medium" | "heavy"): void;
@@ -20,6 +21,8 @@ interface TelegramWebApp {
     offClick(cb: () => void): void;
   };
 }
+
+export type InvoiceStatus = "paid" | "cancelled" | "failed" | "pending";
 
 declare global {
   interface Window {
@@ -46,6 +49,17 @@ export function haptic(type: "selection" | "impact") {
 
 export function closeMiniApp() {
   tg?.close();
+}
+
+export function openInvoice(url: string): Promise<InvoiceStatus> {
+  return new Promise((resolve) => {
+    if (tg?.openInvoice) {
+      tg.openInvoice(url, resolve);
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    resolve("pending");
+  });
 }
 
 /**

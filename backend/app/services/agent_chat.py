@@ -4,6 +4,7 @@ Prompts are authored in English; a per-request directive tells the model which
 language to reply in, based on the user's profile language.
 """
 
+import asyncio
 import json
 import logging
 import re
@@ -40,7 +41,16 @@ _redis_failed = False
 
 
 def _language_directive(language: str) -> str:
-    return f"Always reply in {LANGUAGE_IN_ENGLISH[normalize_language(language)]}, regardless of the language of the context."
+    normalized = normalize_language(language)
+    respect = (
+        " Address the user with the respectful Russian form 'Вы' unless they explicitly ask otherwise."
+        if normalized == "ru"
+        else ""
+    )
+    return (
+        f"Always reply in {LANGUAGE_IN_ENGLISH[normalized]}, regardless of the language of the context."
+        f"{respect}"
+    )
 
 
 def _build_system_prompt(agent_id: str, language: str) -> str:
@@ -345,6 +355,69 @@ async def generate_answer_stream(
         retry_text = await _retry(agent_id, message, language, book_context=book_context)
         await on_text(retry_text)
         return retry_text
+    return text
+
+
+async def generate_council_answer(
+    message: str,
+    user: User,
+    language: str,
+    diary: list[str] | None = None,
+    active_goal: str = "",
+) -> str:
+    """Ask all three grounded agents, then synthesize one actionable answer."""
+    agent_ids = ("aurelius", "machiavelli", "jung")
+    answers = await asyncio.gather(
+        *(
+            generate_answer(
+                agent_id,
+                message,
+                user,
+                [],
+                language,
+                diary=diary,
+                active_goal=active_goal,
+            )
+            for agent_id in agent_ids
+        )
+    )
+    perspectives = "\n\n".join(
+        f"{agent_name(agent_id, language)}:\n{answer}"
+        for agent_id, answer in zip(agent_ids, answers, strict=True)
+    )
+    prompt = (
+        "The user asked the Council of Three this question:\n"
+        f"{message}\n\n"
+        "Three independent perspectives:\n"
+        f"{perspectives}\n\n"
+        "Create one compact council response. Preserve the meaningful differences between the "
+        "three perspectives, then give a shared conclusion and one concrete next action. Do not "
+        "invent quotations or sources. Preserve compact source notes already present in the "
+        "perspectives. Use these headings: Marcus Aurelius, Machiavelli, Carl Jung, Council's "
+        "conclusion, Next step."
+    )
+    body = {
+        "systemInstruction": {
+            "parts": [
+                {
+                    "text": (
+                        "You synthesize a decision council without flattening disagreement. "
+                        "Be practical, concise, and intellectually honest. "
+                        f"{_language_directive(language)}"
+                    )
+                }
+            ]
+        },
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.55,
+            "maxOutputTokens": get_settings().gemini_max_output_tokens,
+        },
+    }
+    result = await gemini.generate_content(body)
+    text = sanitize_answer(gemini.extract_text(result))
+    if not text:
+        raise gemini.GeminiError("Gemini returned an empty council answer")
     return text
 
 

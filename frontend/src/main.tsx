@@ -4,7 +4,8 @@ import { createRoot } from "react-dom/client";
 
 import App from "./App";
 import { LanguageProvider } from "./lib/i18n-context";
-import { initTelegram } from "./lib/telegram";
+import { initTelegram, tg } from "./lib/telegram";
+import { LandingView } from "./views/LandingView";
 import "./styles.css";
 
 initTelegram();
@@ -21,10 +22,14 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <LanguageProvider>
-        <App />
-      </LanguageProvider>
-    </QueryClientProvider>
+    {tg?.initData ? (
+      <QueryClientProvider client={queryClient}>
+        <LanguageProvider>
+          <App />
+        </LanguageProvider>
+      </QueryClientProvider>
+    ) : (
+      <LandingView />
+    )}
   </StrictMode>,
 );

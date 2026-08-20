@@ -10,6 +10,7 @@ from app.bot.jobs import (
 )
 from app.db.models import Goal, User
 from app.i18n import daily_notification_content, life_weekly_content
+from app.services.users import notification_is_due
 
 
 def test_reminder_today_uses_configured_timezone_date():
@@ -102,7 +103,34 @@ def test_daily_keyboard_opens_calendar_with_goal_label(monkeypatch):
     keyboard = _daily_keyboard("ru", has_goal=True)
 
     assert keyboard is not None
-    button = keyboard.inline_keyboard[0][0]
-    assert button.text == "Открыть цель"
-    assert button.web_app is not None
-    assert button.web_app.url == "https://aeon.test/?view=calendar"
+    done_button = keyboard.inline_keyboard[0][0]
+    goal_button = keyboard.inline_keyboard[1][0]
+    settings_button = keyboard.inline_keyboard[2][0]
+
+    assert done_button.callback_data == "daily:done"
+    assert goal_button.text == "Открыть цель"
+    assert goal_button.web_app is not None
+    assert goal_button.web_app.url == "https://aeon.test/?view=calendar"
+    assert settings_button.callback_data == "settings:open"
+
+
+def test_notification_is_due_in_the_users_local_timezone():
+    user = User(
+        id=1,
+        reminder_timezone="America/New_York",
+        reminder_hour=9,
+    )
+    now = datetime(2026, 1, 15, 14, 30, tzinfo=UTC)
+
+    assert notification_is_due(user, now)
+
+
+def test_notification_is_not_due_outside_the_users_local_hour():
+    user = User(
+        id=1,
+        reminder_timezone="Europe/London",
+        reminder_hour=9,
+    )
+    now = datetime(2026, 1, 15, 14, 30, tzinfo=UTC)
+
+    assert not notification_is_due(user, now)

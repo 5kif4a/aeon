@@ -86,7 +86,7 @@ export function AboutForm({
   // same right inset as the text, with pr-9 reserving room so it never overlaps.
   const selectInput = `${textInput} cursor-pointer appearance-none pr-9`;
   const textArea =
-    "min-h-[86px] w-full resize-y rounded-[14px] border border-line bg-[rgba(0,0,0,0.24)] px-3 pt-3 leading-[1.42] text-text outline-none aria-[invalid=true]:border-danger";
+    "min-h-[86px] w-full resize-y rounded-[8px] border border-line bg-[rgba(0,0,0,0.24)] px-3 pt-3 leading-[1.42] text-text outline-none focus:border-gold aria-[invalid=true]:border-danger";
   const errorText = "text-[12px] text-danger";
 
   // Placeholder + known options, plus the current value when it is legacy free

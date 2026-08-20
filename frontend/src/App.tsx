@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { AssistantSheet, type AssistantMessage } from "./components/AssistantSheet";
 import { BottomNav } from "./components/BottomNav";
-import { useProfile, useStartDialog } from "./hooks/queries";
+import { useProfile, useStartCouncil, useStartDialog } from "./hooks/queries";
 import { agentMeta, DEFAULT_AGENT_ID } from "./lib/agents";
 import { useT } from "./lib/i18n-context";
 import { closeMiniApp, haptic, showBackButton } from "./lib/telegram";
@@ -25,6 +25,7 @@ export default function App() {
 
   const { data: profile } = useProfile();
   const startDialog = useStartDialog();
+  const startCouncil = useStartCouncil();
 
   useEffect(() => {
     if (profile?.activeAgent) setActiveAgentId(profile.activeAgent);
@@ -52,12 +53,6 @@ export default function App() {
 
   const selectAgent = (agentId: string) => {
     setActiveAgentId(agentId);
-    const name = agentMeta(agentId, lang).name;
-    setAssistantMessage({
-      agentName: name,
-      text: t("assistant_agent_selected", { name }),
-      canStartDialog: true,
-    });
   };
 
   const beginDialog = (message = "") => {
@@ -75,14 +70,25 @@ export default function App() {
     );
   };
 
+  const beginCouncil = (message: string) => {
+    startCouncil.mutate(message, {
+      onSuccess: () => {
+        haptic("impact");
+        closeMiniApp();
+      },
+      onError: () => showMessage(t("assistant_dialog_only_in_telegram")),
+    });
+  };
+
   return (
-    <div className="relative mx-auto min-h-screen w-[min(100%,560px)] overflow-hidden bg-[#070706]">
+    <div className="border-line relative mx-auto min-h-screen w-[min(100%,560px)] overflow-hidden border-x bg-[#070706] max-[560px]:border-x-0">
       <main className="min-h-screen px-[18px] pb-[calc(96px+env(safe-area-inset-bottom,0px))] max-[390px]:px-[14px]">
         {view === "home" && (
           <HomeView
             activeAgentId={activeAgentId}
             onSelectAgent={selectAgent}
             onStartDialog={beginDialog}
+            onStartCouncil={beginCouncil}
           />
         )}
         {view === "calendar" && <CalendarView onMessage={showMessage} />}
