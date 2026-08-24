@@ -11,7 +11,7 @@ from app.bot import webapp
 from app.core.config import get_settings
 from app.db.models import Goal, User
 from app.db.session import SessionFactory
-from app.i18n import daily_notification_content, life_weekly_content, t
+from app.i18n import daily_notification_content, life_weekly_content, notification_agent_id, t
 from app.services import users
 
 logger = logging.getLogger(__name__)
@@ -49,13 +49,20 @@ def build_life_weekly_message(user: User, today: date) -> str:
     )
 
 
-def _calendar_keyboard(language: str) -> InlineKeyboardMarkup:
+def _calendar_keyboard(language: str, agent_id: str) -> InlineKeyboardMarkup:
     url = webapp.build_webapp_url("calendar")
     rows = []
     if url:
         rows.append(
             [InlineKeyboardButton(t(language, "life_weekly_button"), web_app=WebAppInfo(url=url))]
         )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                t(language, "ask_quote_author_button"), callback_data=f"agent:{agent_id}"
+            )
+        ]
+    )
     rows.append(
         [
             InlineKeyboardButton(
@@ -80,7 +87,9 @@ async def send_life_weekly_reviews(context: ContextTypes.DEFAULT_TYPE) -> None:
                 await context.bot.send_message(
                     user.id,
                     build_life_weekly_message(user, today),
-                    reply_markup=_calendar_keyboard(user.language),
+                    reply_markup=_calendar_keyboard(
+                        user.language, notification_agent_id(life_weeks_lived(user.birth_date, today))
+                    ),
                 )
             except Exception as error:
                 logger.warning("Life weekly notification failed for %s: %s", user.id, error)
@@ -107,12 +116,19 @@ def build_daily_notification(user: User, goal: Goal | None, today: date) -> str:
     )
 
 
-def _daily_keyboard(language: str, has_goal: bool) -> InlineKeyboardMarkup:
+def _daily_keyboard(language: str, has_goal: bool, agent_id: str) -> InlineKeyboardMarkup:
     url = webapp.build_webapp_url("calendar")
     key = "daily_goal_button" if has_goal else "daily_calendar_button"
     rows = [[InlineKeyboardButton(t(language, "daily_done_button"), callback_data="daily:done")]]
     if url:
         rows.append([InlineKeyboardButton(t(language, key), web_app=WebAppInfo(url=url))])
+    rows.append(
+        [
+            InlineKeyboardButton(
+                t(language, "ask_quote_author_button"), callback_data=f"agent:{agent_id}"
+            )
+        ]
+    )
     rows.append(
         [
             InlineKeyboardButton(
@@ -137,7 +153,11 @@ async def send_daily_notifications(context: ContextTypes.DEFAULT_TYPE) -> None:
                 await context.bot.send_message(
                     user.id,
                     build_daily_notification(user, goal, today),
-                    reply_markup=_daily_keyboard(user.language, goal is not None),
+                    reply_markup=_daily_keyboard(
+                        user.language,
+                        goal is not None,
+                        notification_agent_id(max((today - user.birth_date).days, 0)),
+                    ),
                 )
             except Exception as error:
                 logger.warning("Daily notification failed for %s: %s", user.id, error)

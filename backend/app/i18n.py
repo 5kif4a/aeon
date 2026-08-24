@@ -15,6 +15,11 @@ LANGUAGE_IN_ENGLISH = {"ru": "Russian", "en": "English"}
 CHOOSE_LANGUAGE = "Choose language / Выберите язык:"
 
 LIFE_WEEKLY_AGENT_ORDER = ("marcus", "machiavelli", "jung")
+LIFE_WEEKLY_AGENT_IDS = {
+    "marcus": "aurelius",
+    "machiavelli": "machiavelli",
+    "jung": "jung",
+}
 LIFE_WEEKLY_AGENT_NAMES = {
     "en": {
         "marcus": "Marcus Aurelius",
@@ -35,6 +40,9 @@ LIFE_WEEKLY_TEXTS = {
             "A meaningful life is built from ordinary days lived with intention.",
             "Accept what has passed calmly, then choose your next step clearly.",
             "Your character is shaped by what you choose again and again.",
+            "A week is not judged by comfort, but by the character you practiced within it.",
+            "Keep the lesson from what is unfinished, then release the weight of it.",
+            "Before choosing the next goal, ask whether it serves your principles or merely your pride.",
         ),
         "machiavelli": (
             "Another week is over, my lord. What will your next move be?",
@@ -42,6 +50,9 @@ LIFE_WEEKLY_TEXTS = {
             "Intention without action changes nothing. It is time to make the first move.",
             "Do not let chance rule your week. Take the initiative.",
             "My lord, judge the results clearly: what strengthened your position?",
+            "Activity is not always progress. Measure what actually changed your position.",
+            "A wise plan leaves room for fortune without surrendering direction to it.",
+            "The coming week belongs less to the hopeful than to the prepared.",
         ),
         "jung": (
             "What was changing within you while the world around you moved on?",
@@ -49,6 +60,9 @@ LIFE_WEEKLY_TEXTS = {
             "Recurring events often carry a recurring lesson. Notice it.",
             "Is this goal truly yours, or was it shaped by someone else's expectations?",
             "Change begins when you see your present situation honestly.",
+            "The part of the week you resist remembering may contain its most useful truth.",
+            "Growth asks not only what you achieved, but what you learned about yourself.",
+            "A goal gains power when conscious intention meets an honest inner need.",
         ),
     },
     "ru": {
@@ -58,6 +72,9 @@ LIFE_WEEKLY_TEXTS = {
             "Большая жизнь складывается из обычных дней, прожитых осознанно.",
             "Спокойно примите прошедшее и ясно определите следующий шаг.",
             "Ваш характер формируется тем, что Вы выбираете снова и снова.",
+            "Неделю определяет не лёгкость, а характер, который Вы проявляли в ней.",
+            "Сохраните урок незавершённого, но освободитесь от его тяжести.",
+            "Прежде чем выбрать новую цель, спросите: служит ли она Вашим принципам или лишь гордости?",
         ),
         "machiavelli": (
             "Ещё одна неделя завершена, мой господин. Каким будет Ваш следующий ход?",
@@ -65,6 +82,9 @@ LIFE_WEEKLY_TEXTS = {
             "Намерение без действия не меняет положения дел. Пора сделать первый шаг.",
             "Не позволяйте случаю распоряжаться Вашей неделей. Возьмите инициативу.",
             "Мой господин, оцените итоги трезво: что укрепило Вашу позицию?",
+            "Деятельность не всегда означает прогресс. Оцените, что действительно укрепило Вашу позицию.",
+            "Мудрый план оставляет место удаче, но не отдаёт ей направление.",
+            "Новая неделя принадлежит не столько надеющимся, сколько подготовленным.",
         ),
         "jung": (
             "Что происходило внутри Вас, пока менялся окружающий мир?",
@@ -72,6 +92,9 @@ LIFE_WEEKLY_TEXTS = {
             "Повторяющиеся события часто несут повторяющийся урок. Заметьте его.",
             "Эта цель действительно Ваша или она продиктована чужими ожиданиями?",
             "Изменение начинается в момент, когда Вы честно видите своё настоящее положение.",
+            "Та часть недели, которую не хочется вспоминать, может содержать самый ценный смысл.",
+            "Рост определяется не только достижениями, но и тем, что Вы узнали о себе.",
+            "Цель обретает силу, когда осознанное намерение встречается с честной внутренней потребностью.",
         ),
     },
 }
@@ -83,6 +106,9 @@ DAILY_NOTIFICATION_TEXTS = {
             "Ask yourself: what action today reflects the person you want to become?",
             "Do not wait for the right mood. Begin calmly, and inner order will follow action.",
             "You do not need to be perfect today. You only need to be mindful of your choices.",
+            "Let the quality of this hour be enough. A worthy day is built one action at a time.",
+            "Discipline begins when you act from principle instead of waiting for motivation.",
+            "Meet the task before you without complaint; this is where character becomes visible.",
         ),
         "machiavelli": (
             "My lord, the day has already begun. What first move will strengthen your position?",
@@ -90,6 +116,9 @@ DAILY_NOTIFICATION_TEXTS = {
             "Do not let urgent matters take what is most important from you. Set your priority in advance.",
             "My lord, opportunity rarely announces its arrival. Be ready to use it.",
             "Judge your strength clearly. Today, doing what is necessary matters more than doing more.",
+            "Begin with the move that creates options instead of merely consuming effort.",
+            "Protect your attention. Whoever controls your priorities controls the direction of your day.",
+            "A small advantage used today is worth more than a perfect plan delayed.",
         ),
         "jung": (
             "Notice what you want to avoid today. Your growth may begin there.",
@@ -97,6 +126,9 @@ DAILY_NOTIFICATION_TEXTS = {
             "Ask yourself: is today's choice truly yours, or was it shaped by someone else's expectations?",
             "What irritates you in others may reveal an unrecognized part of yourself.",
             "Do not rush to fix yourself. Begin by seeing your present state honestly.",
+            "Before acting, notice which part of you wants this choice and which part resists it.",
+            "The task you postpone may be carrying a message about fear, meaning, or identity.",
+            "Give today's strongest emotion a name; what is seen clearly no longer rules from the shadows.",
         ),
     },
     "ru": {
@@ -106,6 +138,9 @@ DAILY_NOTIFICATION_TEXTS = {
             "Спросите себя: какое действие сегодня будет соответствовать человеку, которым Вы хотите стать?",
             "Не ждите подходящего настроения. Начните спокойно, и внутренний порядок последует за действием.",
             "Сегодня Вам не нужно быть идеальным. Достаточно быть внимательным к своему выбору.",
+            "Пусть качества этого часа будет достаточно. Достойный день складывается из отдельных поступков.",
+            "Дисциплина начинается, когда Вы действуете из принципа, а не ждёте мотивации.",
+            "Примите стоящую перед Вами задачу без жалоб: именно здесь проявляется характер.",
         ),
         "machiavelli": (
             "Мой господин, день уже начался. Какой первый ход укрепит Вашу позицию?",
@@ -113,6 +148,9 @@ DAILY_NOTIFICATION_TEXTS = {
             "Не позволяйте срочным делам отнять у Вас главное. Определите приоритет заранее.",
             "Мой господин, удачный момент редко объявляет о своём появлении. Будьте готовы использовать его.",
             "Оцените свои силы трезво. Сегодня важнее не сделать больше, а сделать необходимое.",
+            "Начните с хода, который создаёт новые возможности, а не просто расходует силы.",
+            "Защищайте своё внимание. Кто управляет Вашими приоритетами, тот определяет направление дня.",
+            "Небольшое преимущество, использованное сегодня, ценнее идеального плана, отложенного на потом.",
         ),
         "jung": (
             "Обратите внимание на то, чего Вам сегодня хочется избежать. Возможно, там начинается рост.",
@@ -120,6 +158,9 @@ DAILY_NOTIFICATION_TEXTS = {
             "Спросите себя: сегодняшний выбор действительно Ваш или продиктован чужими ожиданиями?",
             "То, что раздражает Вас в других, иногда указывает на непризнанную часть Вас самих.",
             "Не стремитесь немедленно исправить себя. Для начала честно увидьте своё нынешнее состояние.",
+            "Перед действием заметьте, какая часть Вас стремится к этому выбору, а какая ему сопротивляется.",
+            "Откладываемая задача может говорить о страхе, смысле или Вашем представлении о себе.",
+            "Назовите сильнейшее чувство этого дня: увиденное ясно больше не управляет из тени.",
         ),
     },
 }
@@ -191,21 +232,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "goal_closed": "Goal closed. Reminders stopped.",
         "reminder": "Your active goal: {goal}\n\nWhat is the smallest useful step you can complete today?",
         "life_weekly": (
-            "{agent}\n\n"
+            "“{text}”\n\n"
+            "— {agent}\n\n"
             "Week {weeksLived} of your life has come to an end.\n\n"
-            "{text}\n\n"
             "Choose one goal for the coming week."
         ),
         "life_weekly_button": "Open calendar",
         "daily_with_goal": (
-            "{agent}\n\nYour active goal: {goal}\n\n{text}\n\nChoose one step for today."
+            "“{text}”\n\n— {agent}\n\nYour active goal: {goal}\n\nChoose one step for today."
         ),
-        "daily_without_goal": "{agent}\n\n{text}\n\nChoose one meaningful action for today.",
+        "daily_without_goal": "“{text}”\n\n— {agent}\n\nChoose one meaningful action for today.",
         "daily_goal_button": "Open goal",
         "daily_calendar_button": "Set a goal",
         "daily_done_button": "✓ Done for today",
         "daily_checkin_saved": "Action recorded. Your current streak is {streak} day(s).",
         "notification_settings_button": "Notification settings",
+        "ask_quote_author_button": "Ask the author",
         # Billing
         "payment_pro_title": "Aeon Pro",
         "payment_pro_description": "30 days of answers grounded in original works and the Council of Three.",
@@ -324,21 +366,22 @@ MESSAGES: dict[str, dict[str, str]] = {
         "goal_closed": "Цель закрыта. Напоминания остановлены.",
         "reminder": "Ваша активная цель: {goal}\n\nКакой самый небольшой полезный шаг Вы можете завершить сегодня?",
         "life_weekly": (
-            "{agent}\n\n"
+            "«{text}»\n\n"
+            "— {agent}\n\n"
             "Завершилась {weeksLived}-я неделя Вашей жизни.\n\n"
-            "{text}\n\n"
             "Выберите одну цель на новую неделю."
         ),
         "life_weekly_button": "Открыть календарь",
         "daily_with_goal": (
-            "{agent}\n\nВаша активная цель: {goal}\n\n{text}\n\nВыберите один шаг на сегодня."
+            "«{text}»\n\n— {agent}\n\nВаша активная цель: {goal}\n\nВыберите один шаг на сегодня."
         ),
-        "daily_without_goal": "{agent}\n\n{text}\n\nВыберите одно значимое действие на сегодня.",
+        "daily_without_goal": "«{text}»\n\n— {agent}\n\nВыберите одно значимое действие на сегодня.",
         "daily_goal_button": "Открыть цель",
         "daily_calendar_button": "Поставить цель",
         "daily_done_button": "✓ Выполнено сегодня",
         "daily_checkin_saved": "Действие отмечено. Ваша текущая серия: {streak} дн.",
         "notification_settings_button": "Настроить уведомления",
+        "ask_quote_author_button": "Спросить автора",
         # Billing
         "payment_pro_title": "Aeon Pro",
         "payment_pro_description": "30 дней ответов с опорой на оригинальные труды и доступ к Совету трёх.",
@@ -432,6 +475,12 @@ def life_weekly_content(lang: str | None, weeks_lived: int) -> tuple[str, str]:
     texts = LIFE_WEEKLY_TEXTS[language][agent]
     text_index = (weeks_lived // len(LIFE_WEEKLY_AGENT_ORDER)) % len(texts)
     return LIFE_WEEKLY_AGENT_NAMES[language][agent], texts[text_index]
+
+
+def notification_agent_id(sequence: int) -> str:
+    """Return the canonical agent id for a rotating notification sequence."""
+    agent = LIFE_WEEKLY_AGENT_ORDER[sequence % len(LIFE_WEEKLY_AGENT_ORDER)]
+    return LIFE_WEEKLY_AGENT_IDS[agent]
 
 
 def daily_notification_content(lang: str | None, sequence: int) -> tuple[str, str]:
