@@ -169,7 +169,11 @@ export function HomeView({
                   <img
                     src={`/assets/${AGENT_IMAGE[agentId]}.webp`}
                     alt={agent.name[lang]}
-                    className="block h-full w-full object-cover object-top"
+                    className={`block h-full w-full object-cover object-top transition-[filter,opacity,transform] duration-500 ease-out motion-reduce:transition-none ${
+                      isActive
+                        ? "scale-[1.03] opacity-100 grayscale-0 saturate-[1.08] brightness-100"
+                        : "scale-100 opacity-75 grayscale saturate-0 brightness-[0.72]"
+                    }`}
                   />
                   {isActive && (
                     <span className="bg-gold-strong absolute top-2 right-2 grid h-5 w-5 place-items-center rounded-full text-[11px] font-bold text-[#1b1510]">
