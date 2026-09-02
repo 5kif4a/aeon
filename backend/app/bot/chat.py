@@ -11,7 +11,7 @@ from app.clients.gemini import GeminiError
 from app.core.config import get_settings
 from app.db.session import SessionFactory
 from app.i18n import t
-from app.services import agent_chat, billing, diary, goals, users
+from app.services import agent_chat, billing, conversations, diary, goals, users
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +21,7 @@ async def set_active_agent(bot: Bot, chat_id: int, agent_id: str, announce: bool
         return False
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
+        await conversations.start_session(session, chat_id, agent_id)
         await users.update_user(session, user, {"active_agent": agent_id})
         language = user.language
     if announce:
@@ -31,6 +32,7 @@ async def set_active_agent(bot: Bot, chat_id: int, agent_id: str, announce: bool
 async def clear_active_agent(bot: Bot, chat_id: int, announce: bool = True) -> str:
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
+        await conversations.close_active_session(session, chat_id)
         await users.update_user(session, user, {"active_agent": None})
         language = user.language
     if announce:
@@ -169,6 +171,7 @@ async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
         )
         return False
 
+    await agent_chat.store_completed_session(chat_id, "council", text, answer)
     await messaging.send_or_edit(
         bot,
         chat_id,

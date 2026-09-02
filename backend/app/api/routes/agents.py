@@ -7,7 +7,7 @@ from app.agents import AGENTS, agent_name, agent_role
 from app.api.deps import CurrentUser, SessionDep
 from app.api.schemas import AgentOut, StartCouncilRequest, StartDialogRequest, StartDialogResponse
 from app.bot import chat, runtime
-from app.services import users
+from app.services import conversations, users
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["agents"])
@@ -54,6 +54,7 @@ async def start_agent_dialog(
     if application is None:
         raise HTTPException(status_code=503, detail="Telegram bot is not running")
 
+    await conversations.start_session(session, user.id, agent_id)
     await users.update_user(session, user, {"active_agent": agent_id})
 
     initial_message = payload.message.strip()
