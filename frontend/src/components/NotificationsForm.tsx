@@ -24,6 +24,10 @@ function SelectChevron() {
   );
 }
 
+/**
+ * Switch row. `w-full` matters: a button sizes to its content, so without it the
+ * switch column lands wherever the label ends instead of on the card's right edge.
+ */
 function Toggle({
   label,
   hint,
@@ -44,9 +48,9 @@ function Toggle({
       aria-checked={checked}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="border-line grid min-h-[54px] grid-cols-[1fr_auto] items-center gap-3 border-b px-1 py-2 text-left last:border-b-0 disabled:opacity-60"
+      className="border-line grid min-h-[54px] w-full grid-cols-[1fr_auto] items-center gap-3 border-b px-1 py-2 text-left last:border-b-0 disabled:opacity-60"
     >
-      <span>
+      <span className="min-w-0">
         <strong className="text-text block text-[14px] font-[650]">{label}</strong>
         <small className="text-muted text-[12px] leading-[1.35]">{hint}</small>
       </span>
