@@ -13,7 +13,9 @@ def _callbacks(keyboard) -> list[str]:
 
 
 def test_home_keyboard_exposes_primary_bot_actions(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}")
+    monkeypatch.setattr(
+        webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
+    )
 
     keyboard = ui.home_keyboard("en", profile_complete=False)
     callbacks = _callbacks(keyboard)
@@ -25,7 +27,9 @@ def test_home_keyboard_exposes_primary_bot_actions(monkeypatch):
 
 
 def test_completed_profile_does_not_show_setup_again(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}")
+    monkeypatch.setattr(
+        webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
+    )
 
     keyboard = ui.home_keyboard("en", profile_complete=True)
 
@@ -41,14 +45,12 @@ def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch):
     assert all(row for row in keyboard.inline_keyboard)
 
 
-def test_free_limit_leads_to_trial(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}")
-
+def test_free_limit_leads_directly_to_pro_invoice():
     keyboard = ui.limit_keyboard("en", "Free")
     primary = keyboard.inline_keyboard[0][0]
 
-    assert primary.text == "Start 7-day Trial"
-    assert primary.web_app.url == "https://aeon.test/profile"
+    assert primary.text == "Continue with Pro"
+    assert primary.callback_data == "billing:subscribe"
 
 
 def test_trial_limit_leads_directly_to_pro_invoice():

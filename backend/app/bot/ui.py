@@ -48,7 +48,11 @@ def home_keyboard(language: str, *, profile_complete: bool) -> InlineKeyboardMar
     ]
     if not profile_complete:
         rows.append(
-            [InlineKeyboardButton(t(language, "complete_profile_button"), callback_data="profile:setup")]
+            [
+                InlineKeyboardButton(
+                    t(language, "complete_profile_button"), callback_data="profile:setup"
+                )
+            ]
         )
     rows.append(
         [InlineKeyboardButton(t(language, "settings_button"), callback_data="settings:open")]
@@ -72,7 +76,9 @@ def post_answer_keyboard(language: str) -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         [
             [
-                InlineKeyboardButton(t(language, "switch_agent_button"), callback_data="agent:picker"),
+                InlineKeyboardButton(
+                    t(language, "switch_agent_button"), callback_data="agent:picker"
+                ),
                 InlineKeyboardButton(t(language, "council_button"), callback_data="council:start"),
             ],
             [InlineKeyboardButton(t(language, "back_home"), callback_data="menu:home")],
@@ -87,11 +93,12 @@ def back_home_keyboard(language: str) -> InlineKeyboardMarkup:
 
 
 def limit_keyboard(language: str, plan: str) -> InlineKeyboardMarkup:
-    primary: InlineKeyboardButton | None
-    if plan.lower() == "free":
-        primary = _mini_app_button(language, "start_trial_button", "profile", sheet="pro")
-    elif plan.lower() == "trial":
-        primary = InlineKeyboardButton(t(language, "upgrade_pro_button"), callback_data="billing:subscribe")
+    # Free and Trial users get the Stars invoice directly; the Trial is never promoted from the
+    # bot, it stays a secondary action inside the Mini App profile.
+    if plan.lower() in ("free", "trial"):
+        primary = InlineKeyboardButton(
+            t(language, "upgrade_pro_button"), callback_data="billing:subscribe"
+        )
     else:
         primary = _mini_app_button(language, "open_aeon", "profile", sheet="pro")
     return _markup(

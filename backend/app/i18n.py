@@ -273,7 +273,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "books again. Renew for {price} ★ per month to bring back the sources and the "
             "Council of Three."
         ),
-        "question_limit_free": "You have used today's 3 free questions. Your limit resets tomorrow. Start the 7-day Trial to continue with answers grounded in the original books.",
+        "question_limit_free": "You have used today's 3 free questions. Your limit resets tomorrow. Pro gives 30 answers a day grounded in the original books and the Council of Three.",
         "question_limit_trial": "Today's Trial questions are used. Your book-grounded allowance resets tomorrow, or you can continue with Pro.",
         "question_limit_pro": "Today's Pro questions are used. Your allowance resets tomorrow.",
         "council_usage": "Send one important question after the command:\n/council Should I change careers?",
@@ -282,7 +282,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Council of Three\n\nSend one important decision or situation. "
             "You will receive three distinct perspectives and one concrete next step."
         ),
-        "council_limit_free": "The Council of Three is available in the free Trial and Pro.",
+        "council_limit_free": "The Council of Three is part of Pro: three councils a day.",
         "council_limit_trial": "Your one Trial Council has already been used. Upgrade to Pro for three councils per day.",
         "council_limit_pro": "Today's three Pro councils have been used. The limit resets tomorrow.",
         # Agent dialogue
@@ -307,7 +307,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "back_home": "← Main menu",
         "back_settings": "← Settings",
         "switch_agent_button": "Switch advisor",
-        "start_trial_button": "Start 7-day Trial",
         "upgrade_pro_button": "Continue with Pro",
         "chat_menu_button": "Open Aeon",
         # Settings
@@ -423,7 +422,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Ваш Aeon Pro закончился и не был продлён, советники снова отвечают без опоры на книги. "
             "Продлите за {price} ★ в месяц, чтобы вернуть источники и Совет трёх."
         ),
-        "question_limit_free": "Сегодняшние 3 бесплатных вопроса использованы. Лимит обновится завтра. Запустите 7-дневный пробный период, чтобы продолжить с ответами на основе оригинальных книг.",
+        "question_limit_free": "Сегодняшние 3 бесплатных вопроса использованы. Лимит обновится завтра. В Pro — 30 ответов в день на основе оригинальных книг и Совет трёх.",
         "question_limit_trial": "Вопросы пробного периода на сегодня использованы. Лимит ответов по книгам обновится завтра, либо Вы можете продолжить с Pro.",
         "question_limit_pro": "Вопросы Pro на сегодня использованы. Лимит обновится завтра.",
         "council_usage": "Добавьте один важный вопрос после команды:\n/council Стоит ли мне сменить профессию?",
@@ -432,7 +431,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Совет трёх\n\nОтправьте одно важное решение или ситуацию. "
             "Вы получите три разных взгляда и один конкретный следующий шаг."
         ),
-        "council_limit_free": "Совет трёх доступен в бесплатном Trial и Pro.",
+        "council_limit_free": "Совет трёх входит в Pro: три совета в день.",
         "council_limit_trial": "Единственный пробный Совет трёх уже использован. В Pro доступно три совета в день.",
         "council_limit_pro": "Сегодняшние три Совета Pro использованы. Лимит обновится завтра.",
         # Agent dialogue
@@ -457,7 +456,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "back_home": "← Главное меню",
         "back_settings": "← Настройки",
         "switch_agent_button": "Сменить советника",
-        "start_trial_button": "Начать 7-дневный период",
         "upgrade_pro_button": "Продолжить с Pro",
         "chat_menu_button": "Открыть Aeon",
         # Settings
