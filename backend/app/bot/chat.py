@@ -7,7 +7,7 @@ from collections import defaultdict
 
 from telegram import Bot
 
-from app.agents import AGENTS, agent_intro, agent_name
+from app.agents import AGENTS, PROMPT_MODE_HISTORY_LIMIT, agent_intro, agent_name
 from app.bot import messaging, ui
 from app.clients.gemini import GeminiError
 from app.core.config import get_settings
@@ -103,7 +103,7 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
     await bot.send_chat_action(chat_id, "typing")
     history = await agent_chat.get_history(chat_id, agent_id)
     if grant.mode == "prompt":
-        history = history[-4:]
+        history = history[-PROMPT_MODE_HISTORY_LIMIT:]
     progress = await bot.send_message(
         chat_id, t(language, "agent_thinking", name=agent_name(agent_id, language))
     )

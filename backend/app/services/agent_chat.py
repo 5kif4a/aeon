@@ -13,18 +13,20 @@ from datetime import date
 
 from app.agents import (
     AGENT_HISTORY_LIMIT,
+    DEFAULT_TEMPERATURE,
     GEMINI_HISTORY_LIMIT,
     GEMINI_HISTORY_TEXT_LIMIT,
     agent_name,
     agent_role,
     agent_system_prompt,
+    response_style_prompt,
 )
 from app.clients import gemini
 from app.core.config import get_settings
 from app.db.models import User
 from app.db.session import SessionFactory
 from app.i18n import LANGUAGE_IN_ENGLISH, normalize_language
-from app.services import conversations, rag
+from app.services import bot_settings, conversations, rag
 
 OnText = Callable[[str], Awaitable[None]]
 
@@ -51,27 +53,70 @@ def _language_directive(language: str) -> str:
 def _build_system_prompt(agent_id: str, language: str) -> str:
     return (
         f"{agent_system_prompt(agent_id)}\n\n"
-        "Answer concisely, clearly, and to the point. "
-        "Response structure: first a direct thesis, then 1-2 short paragraphs of explanation, then a single next question or practical step. "
-        "If the question is broad, do not lay out every option at once: pick the most important direction and gently clarify the intent. "
-        "If you ask a question, ask only one. "
-        "Keep it compact: usually 5-8 sentences. Do not add technical notes, character counts, length checks, or comments about the response format. "
+        f"{response_style_prompt()}"
         f"{_language_directive(language)}"
     )
 
 
-def _compact_history(history: list[dict]) -> list[dict]:
-    compact = []
-    for item in (history or [])[-GEMINI_HISTORY_LIMIT:]:
+# Stored conversation roles (services/conversations.py) -> Gemini content roles.
+_GEMINI_ROLES = {"user": "user", "agent": "model", "model": "model"}
+
+
+def _history_contents(history: list[dict]) -> list[dict]:
+    """Recent dialogue as alternating Gemini turns, oldest first.
+
+    Gemini requires the conversation to start with a user turn and to alternate
+    roles, so consecutive same-role messages are merged and a leading model turn
+    is dropped. Each message is capped at GEMINI_HISTORY_TEXT_LIMIT characters.
+    """
+    limit = bot_settings.get_int(bot_settings.HISTORY_TURNS_KEY, GEMINI_HISTORY_LIMIT)
+    contents: list[dict] = []
+    for item in (history or [])[-limit:]:
         if not isinstance(item, dict):
             continue
-        text = str(item.get("text", "")).strip()
-        if not text:
+        role = _GEMINI_ROLES.get(str(item.get("role", "")).strip().lower())
+        text = str(item.get("text", "")).strip()[:GEMINI_HISTORY_TEXT_LIMIT]
+        if role is None or not text:
             continue
-        compact.append(
-            {"role": str(item.get("role", ""))[:20], "text": text[:GEMINI_HISTORY_TEXT_LIMIT]}
+        if not contents and role == "model":
+            continue
+        if contents and contents[-1]["role"] == role:
+            contents[-1]["parts"][0]["text"] += f"\n\n{text}"
+            continue
+        contents.append({"role": role, "parts": [{"text": text}]})
+    if contents and contents[-1]["role"] == "user":
+        # The current message becomes the final user turn; a dangling user message
+        # (e.g. from a failed generation) would otherwise break the alternation.
+        contents.pop()
+    return contents
+
+
+def _trailing_question_count(history: list[dict]) -> int:
+    """How many of the agent's most recent replies in a row ended with a question."""
+    count = 0
+    for item in reversed(history or []):
+        if not isinstance(item, dict) or item.get("role") != "agent":
+            continue
+        text = str(item.get("text", "")).strip()
+        if not text.rstrip('*_` "»”)').endswith("?"):
+            break
+        count += 1
+    return count
+
+
+def _dialogue_note(history: list[dict]) -> str:
+    """Cheap hint about the shape of the model's own recent replies."""
+    replies = sum(
+        1 for item in history or [] if isinstance(item, dict) and item.get("role") == "agent"
+    )
+    note = f"Dialogue note: this is your reply #{replies + 1} in this session."
+    questions = _trailing_question_count(history)
+    if questions >= 2:
+        note += (
+            f" Your last {questions} replies each ended with a question; do not end this one "
+            "with a question — offer a thought, an example, or a step instead."
         )
-    return compact
+    return note
 
 
 def _build_user_prompt(
@@ -96,11 +141,11 @@ def _build_user_prompt(
         "active_goal": active_goal or NOT_SPECIFIED,
         "current_problem": (user.current_problem if user else "") or NOT_SPECIFIED,
         "recent_diary": (diary or [])[:3],
-        "recent_dialogue": _compact_history(history),
     }
     prompt = (
         "User context:\n"
         f"{json.dumps(context, ensure_ascii=False, indent=2)}\n\n"
+        f"{_dialogue_note(history)}\n\n"
         "User's question or request:\n"
         f"{message or 'Give a short, thoughtful piece of advice for today.'}"
     )
@@ -121,11 +166,11 @@ def _with_book_context(prompt: str, book_context: str) -> str:
     )
 
 
-def _book_context(agent_id: str, message: str, user: User | None, language: str) -> str:
+async def _book_context(agent_id: str, message: str, user: User | None, language: str) -> str:
     if not message.strip():
         return ""
     try:
-        return rag.build_context(
+        return await rag.build_context(
             agent_id,
             message,
             user.plan if user else "Basic",
@@ -146,14 +191,28 @@ def _age_label(user: User | None) -> str:
     return str(age)
 
 
-def _request_body(agent_id: str, prompt: str, language: str) -> dict:
+def _request_body(
+    agent_id: str, prompt: str, language: str, history: list[dict] | None = None
+) -> dict:
+    """Multi-turn request: recent dialogue as real turns, then the current user turn.
+
+    The current turn carries the user context (profile, diary, goal, book excerpts)
+    together with the question, so the model reads the excerpts next to what they
+    are meant to support.
+    """
     settings = get_settings()
+    contents = _history_contents(history or [])
+    contents.append({"role": "user", "parts": [{"text": prompt}]})
     return {
         "systemInstruction": {"parts": [{"text": _build_system_prompt(agent_id, language)}]},
-        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "contents": contents,
         "generationConfig": {
-            "temperature": 0.72,
-            "maxOutputTokens": settings.gemini_max_output_tokens,
+            "temperature": bot_settings.get_float(
+                bot_settings.TEMPERATURE_KEY, DEFAULT_TEMPERATURE
+            ),
+            "maxOutputTokens": bot_settings.get_int(
+                bot_settings.MAX_OUTPUT_TOKENS_KEY, settings.gemini_max_output_tokens
+            ),
         },
     }
 
@@ -296,7 +355,7 @@ async def generate_answer(
     diary: list[str] | None = None,
     active_goal: str = "",
 ) -> str:
-    book_context = _book_context(agent_id, message, user, language)
+    book_context = await _book_context(agent_id, message, user, language)
     prompt = _build_user_prompt(
         agent_id,
         message,
@@ -307,7 +366,7 @@ async def generate_answer(
         active_goal,
         book_context,
     )
-    result = await gemini.generate_content(_request_body(agent_id, prompt, language))
+    result = await gemini.generate_content(_request_body(agent_id, prompt, language, history))
     text = sanitize_answer(gemini.extract_text(result))
     text = await _complete_if_needed(agent_id, text, gemini.finish_reason(result), language)
     if not text:
@@ -325,7 +384,7 @@ async def generate_answer_stream(
     diary: list[str] | None = None,
     active_goal: str = "",
 ) -> str:
-    book_context = _book_context(agent_id, message, user, language)
+    book_context = await _book_context(agent_id, message, user, language)
     prompt = _build_user_prompt(
         agent_id,
         message,
@@ -338,7 +397,9 @@ async def generate_answer_stream(
     )
     text = ""
     reason = ""
-    async for chunk in gemini.stream_generate_content(_request_body(agent_id, prompt, language)):
+    async for chunk in gemini.stream_generate_content(
+        _request_body(agent_id, prompt, language, history)
+    ):
         reason = gemini.finish_reason(chunk) or reason
         delta = gemini.extract_text(chunk)
         if not delta:
