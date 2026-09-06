@@ -7,10 +7,12 @@ from app.agents import AGENTS
 from app.bot import chat, messaging, ui, webapp
 from app.bot.handlers.onboarding import send_home
 from app.bot.handlers.payments import (
+    SubscriptionUpdateHandler,
     cancel_subscription_command,
     paysupport_command,
     precheckout_callback,
     subscribe_command,
+    subscription_update_callback,
     successful_payment_callback,
 )
 from app.db.session import SessionFactory
@@ -139,7 +141,9 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         await _handle_settings_callback(update, context, user)
 
 
-async def _handle_settings_callback(update: Update, context: ContextTypes.DEFAULT_TYPE, user) -> None:
+async def _handle_settings_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, user
+) -> None:
     query = update.callback_query
     data = query.data
     if data == "settings:open":
@@ -257,6 +261,7 @@ def build_command_handlers() -> list:
         CommandHandler("paysupport", paysupport_command, filters=private),
         PreCheckoutQueryHandler(precheckout_callback),
         MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback),
+        SubscriptionUpdateHandler(subscription_update_callback),
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(
             navigation_callback,

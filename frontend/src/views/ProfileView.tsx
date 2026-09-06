@@ -48,6 +48,9 @@ const panelAction =
 const sheetOption =
   "border-line bg-surface min-h-[46px] w-full rounded-[8px] border font-[650] text-text";
 const sheetPrimary = `${goldButton} min-h-[52px] w-full px-3 py-2 text-[14px] leading-[1.25] font-[800]`;
+/** Borderless secondary action: visible, but never competing with the gold primary. */
+const sheetGhost =
+  "text-muted min-h-11 w-full cursor-pointer rounded-[8px] bg-transparent text-[13px] font-[650] underline decoration-[rgba(255,255,255,0.25)] underline-offset-4";
 const sheetCopy = "text-muted text-[14px] leading-[1.5]";
 
 export function ProfileView() {
@@ -252,12 +255,9 @@ export function ProfileView() {
       {sheet === "pro" && (
         <Modal title={t("pro_title")} onClose={closeSheet}>
           <div className="grid gap-3">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-muted text-[13px]">
-                {t("sheet_current_plan", { plan: planLabel(plan, t) })}
-              </span>
-              <span className={panelAction}>{planLabel(plan, t)}</span>
-            </div>
+            <span className="text-muted text-[13px]">
+              {t("sheet_current_plan", { plan: planLabel(plan, t) })}
+            </span>
             <p className={sheetCopy}>{t("pro_desc")}</p>
             {billing && (
               <div className="border-line grid gap-2 border-y py-3 text-[13px]">
@@ -288,6 +288,11 @@ export function ProfileView() {
                 )}
               </div>
             )}
+            {plan !== "Pro" && (
+              <strong className="text-gold text-[12px] font-[750] tracking-[0.08em] uppercase">
+                {t("pro_features_title")}
+              </strong>
+            )}
             <ul className="grid list-none gap-2 p-0">
               {PRO_FEATURES.map((key) => (
                 <li
@@ -299,25 +304,30 @@ export function ProfileView() {
                 </li>
               ))}
             </ul>
-            {/* One primary action per plan: Free → Trial, Trial → Pro, Pro → cancel renewal. */}
+            {/* Pro is always the primary action; the Trial is a quieter fallback for Free users. */}
+            {plan !== "Pro" && (
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  className={sheetPrimary}
+                  disabled={createCheckout.isPending || paymentState === "confirming"}
+                  onClick={beginCheckout}
+                >
+                  {t("pro_upgrade", { price: billing?.proPriceStars ?? 350 })}
+                </button>
+                <span className="text-soft text-center text-[12px] leading-[1.4]">
+                  {t("pro_renewal_note")}
+                </span>
+              </div>
+            )}
             {plan === "Free" && billing?.canStartTrial && (
               <button
                 type="button"
-                className={sheetPrimary}
+                className={sheetGhost}
                 disabled={startTrial.isPending}
                 onClick={() => startTrial.mutate()}
               >
                 {t("trial_start")}
-              </button>
-            )}
-            {plan !== "Pro" && (
-              <button
-                type="button"
-                className={plan === "Free" && billing?.canStartTrial ? sheetOption : sheetPrimary}
-                disabled={createCheckout.isPending || paymentState === "confirming"}
-                onClick={beginCheckout}
-              >
-                {t("pro_upgrade", { price: billing?.proPriceStars ?? 350 })}
               </button>
             )}
             {plan === "Pro" && billing?.proAutoRenew && (

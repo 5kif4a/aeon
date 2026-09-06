@@ -1,10 +1,12 @@
 """Telegram Stars subscription commands and payment update handlers."""
 
 import logging
+from dataclasses import dataclass
 from datetime import timedelta
+from typing import Any
 
 from telegram import LabeledPrice, Update
-from telegram.ext import ContextTypes
+from telegram.ext import BaseHandler, ContextTypes
 
 from app.bot import ui
 from app.core.config import get_settings
@@ -52,9 +54,7 @@ async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     )
 
 
-async def successful_payment_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def successful_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     message = update.effective_message
     payment = message.successful_payment if message else None
     if payment is None:
@@ -97,9 +97,7 @@ async def successful_payment_callback(
     )
 
 
-async def cancel_subscription_command(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def cancel_subscription_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = await _user(update.effective_user.id)
     if billing.effective_plan(user) != "Pro" or not user.pro_subscription_charge_id:
         await context.bot.send_message(
@@ -112,8 +110,8 @@ async def cancel_subscription_command(
         user.id, user.pro_subscription_charge_id, is_canceled=True
     )
     async with SessionFactory() as session:
-        user = await billing.mark_subscription_canceled(session, user.id)
-    ops.subscription_canceled(user)
+        user = await billing.mark_subscription_canceled(session, user.id, source="bot")
+    ops.subscription_canceled(user, source="bot")
     await context.bot.send_message(
         user.id,
         t(
@@ -128,3 +126,94 @@ async def cancel_subscription_command(
 async def paysupport_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user = await _user(update.effective_user.id)
     await context.bot.send_message(user.id, t(user.language, "payment_support"))
+
+
+# --- Bot API 10.2 `subscription` updates ---------------------------------------------------
+#
+# Telegram tells the bot when the user cancels a Stars subscription from Telegram's own
+# settings ("canceled"), re-enables it ("active"), or a renewal charge fails ("failed").
+# python-telegram-bot 22.x predates this update type: `Update.de_json` keeps the unknown
+# field in `update.api_kwargs`, and the type must be requested explicitly in `allowed_updates`
+# (see `app.bot.application.ALLOWED_UPDATES`). Once PTB grows `Update.subscription`, the
+# parser below picks it up without changes here.
+
+SUBSCRIPTION_UPDATE_KEY = "subscription"
+SUBSCRIPTION_STATES = ("canceled", "active", "failed")
+
+
+@dataclass(frozen=True, slots=True)
+class SubscriptionUpdate:
+    user_id: int
+    invoice_payload: str
+    state: str
+
+
+def parse_subscription_update(update: Update) -> SubscriptionUpdate | None:
+    raw: Any = update.api_kwargs.get(SUBSCRIPTION_UPDATE_KEY)
+    if raw is None:
+        raw = getattr(update, SUBSCRIPTION_UPDATE_KEY, None)
+    if raw is None:
+        return None
+    if isinstance(raw, dict):
+        user = raw.get("user") or {}
+        user_id = user.get("id")
+        payload = raw.get("invoice_payload")
+        state = raw.get("state")
+    else:  # a future PTB object
+        user_id = getattr(getattr(raw, "user", None), "id", None)
+        payload = getattr(raw, "invoice_payload", None)
+        state = getattr(raw, "state", None)
+    if not isinstance(user_id, int) or not isinstance(payload, str) or not isinstance(state, str):
+        return None
+    return SubscriptionUpdate(user_id=user_id, invoice_payload=payload, state=state)
+
+
+class SubscriptionUpdateHandler(BaseHandler[Update, ContextTypes.DEFAULT_TYPE, None]):
+    """Matches only updates that carry a `subscription` object."""
+
+    def check_update(self, update: object) -> bool:
+        return isinstance(update, Update) and parse_subscription_update(update) is not None
+
+
+async def subscription_update_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    event = parse_subscription_update(update)
+    if event is None:
+        return
+    if billing.payload_user_id(event.invoice_payload) != event.user_id:
+        logger.error(
+            "Subscription update ignored: payload does not match user (user_id=%s payload=%r)",
+            event.user_id,
+            event.invoice_payload,
+        )
+        return
+    if event.state not in SUBSCRIPTION_STATES:
+        logger.warning("Unknown subscription state %r for user %s", event.state, event.user_id)
+        return
+
+    async with SessionFactory() as session:
+        if event.state == "canceled":
+            user = await billing.mark_subscription_canceled(
+                session, event.user_id, source="telegram"
+            )
+        elif event.state == "active":
+            user = await billing.mark_subscription_restored(session, event.user_id)
+        else:
+            user = await billing.mark_subscription_payment_failed(session, event.user_id)
+
+    date = user.pro_expires_at.date().isoformat() if user.pro_expires_at else "—"
+    if event.state == "canceled":
+        ops.subscription_canceled(user, source="telegram")
+        text = t(user.language, "payment_canceled", date=date)
+        keyboard = ui.home_keyboard(user.language, profile_complete=user.birth_date is not None)
+    elif event.state == "active":
+        ops.subscription_restored(user)
+        text = t(user.language, "payment_restored", date=date)
+        keyboard = ui.home_keyboard(user.language, profile_complete=user.birth_date is not None)
+    else:
+        ops.subscription_payment_failed(user)
+        text = t(user.language, "payment_renewal_failed", date=date)
+        keyboard = ui.limit_keyboard(user.language, billing.effective_plan(user))
+    try:
+        await context.bot.send_message(user.id, text, reply_markup=keyboard)
+    except Exception as error:  # the user may have blocked the bot; the state is already saved
+        logger.warning("Subscription notice failed for %s: %s", user.id, error)

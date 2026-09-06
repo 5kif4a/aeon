@@ -375,10 +375,55 @@ async def record_successful_payment(
     return user
 
 
-async def mark_subscription_canceled(session: AsyncSession, user_id: int) -> User:
+async def mark_subscription_canceled(
+    session: AsyncSession, user_id: int, *, source: str = "bot"
+) -> User:
+    """Auto-renew is off; Pro stays until ``pro_expires_at``.
+
+    ``source`` is ``bot`` for /cancel_subscription and the Mini App, ``telegram`` when the
+    user canceled from Telegram's own subscription settings (Bot API ``subscription`` update).
+    Idempotent: a repeated cancel does not produce a second event.
+    """
+    user = await _locked_user(session, user_id)
+    if not user.pro_auto_renew:
+        return user
+    user.pro_auto_renew = False
+    events.record(
+        session,
+        events.SUBSCRIPTION_CANCELED,
+        user.id,
+        expires_at=user.pro_expires_at,
+        source=source,
+    )
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def mark_subscription_restored(session: AsyncSession, user_id: int) -> User:
+    """The user re-enabled a canceled subscription in Telegram; renewals will resume."""
+    user = await _locked_user(session, user_id)
+    if user.pro_auto_renew:
+        return user
+    user.pro_auto_renew = True
+    events.record(session, events.SUBSCRIPTION_RESTORED, user.id, expires_at=user.pro_expires_at)
+    await session.commit()
+    await session.refresh(user)
+    return user
+
+
+async def mark_subscription_payment_failed(session: AsyncSession, user_id: int) -> User:
+    """Telegram could not charge the renewal (usually not enough Stars).
+
+    Pro keeps working until ``pro_expires_at``; auto-renew is switched off so the UI stops
+    promising a renewal. A later successful charge turns it back on via
+    ``record_successful_payment``, and the ``pro_expired`` reminder covers the no-charge case.
+    """
     user = await _locked_user(session, user_id)
     user.pro_auto_renew = False
-    events.record(session, events.SUBSCRIPTION_CANCELED, user.id, expires_at=user.pro_expires_at)
+    events.record(
+        session, events.SUBSCRIPTION_PAYMENT_FAILED, user.id, expires_at=user.pro_expires_at
+    )
     await session.commit()
     await session.refresh(user)
     return user

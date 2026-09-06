@@ -27,7 +27,7 @@ export const fieldLabel = "grid gap-[7px] text-[13px] text-muted";
 
 /** Close button for sheets and modals: 44px hit area. */
 export const closeButton =
-  "text-text border-line h-11 w-11 shrink-0 cursor-pointer rounded-[8px] border bg-transparent text-[24px]";
+  "text-text border-line grid h-11 w-11 shrink-0 cursor-pointer place-items-center rounded-[8px] border bg-transparent text-[22px] leading-none";
 
 /** Inline confirmation line shown under a form after a successful save. */
 export const inlineStatus = "text-success text-[13px] font-[650]";

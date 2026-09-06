@@ -133,3 +133,27 @@ async def test_renewal_keeps_original_subscription_charge_for_cancellation():
             now=now + timedelta(days=30),
         )
         assert user.pro_subscription_charge_id == "subscription-charge"
+
+
+async def test_subscription_state_updates_toggle_auto_renew_once():
+    now = datetime(2026, 7, 21, 10, tzinfo=UTC)
+    async with SessionFactory() as session:
+        await billing.record_successful_payment(
+            session,
+            user_id=USER_ID,
+            invoice_payload=billing.pro_invoice_payload(USER_ID),
+            currency="XTR",
+            amount=350,
+            telegram_payment_charge_id="charge-sub-1",
+            is_first_recurring=True,
+            now=now,
+        )
+        user = await billing.mark_subscription_canceled(session, USER_ID, source="telegram")
+        assert user.pro_auto_renew is False
+        # A second cancel (e.g. bot command after Telegram already told us) is a no-op.
+        await billing.mark_subscription_canceled(session, USER_ID)
+        user = await billing.mark_subscription_restored(session, USER_ID)
+        assert user.pro_auto_renew is True
+        user = await billing.mark_subscription_payment_failed(session, USER_ID)
+        assert user.pro_auto_renew is False
+        assert billing.effective_plan(user, now) == "Pro"

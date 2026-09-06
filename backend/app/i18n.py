@@ -256,6 +256,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_success": "Aeon Pro is active. Your agents now answer with their books and the Council of Three is available.",
         "payment_no_subscription": "You do not have an active renewable Pro subscription.",
         "payment_canceled": "Automatic renewal is canceled. Pro remains active until {date}.",
+        "payment_restored": "Automatic renewal is back on. Pro continues after {date}.",
+        "payment_renewal_failed": "Telegram could not charge the renewal, most likely there were not enough Stars. Pro stays active until {date}; top up your Stars or subscribe again with /subscribe to keep it.",
         "payment_support": "Aeon Pro is a digital subscription paid in Telegram Stars; payments are not refundable. You can stop the renewal at any time with /cancel_subscription, and Pro stays active until the end of the paid period. If a payment went through but Pro did not activate, describe the issue and the approximate payment date and we will check the transaction.",
         "billing_trial_ending": (
             "Your 7-day Trial ends tomorrow. After that the advisors answer without their books "
@@ -405,6 +407,8 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_success": "Aeon Pro активирован. Агенты теперь отвечают с опорой на книги, а Совет трёх доступен.",
         "payment_no_subscription": "У Вас нет активной Pro-подписки с автопродлением.",
         "payment_canceled": "Автопродление отключено. Pro продолжит работать до {date}.",
+        "payment_restored": "Автопродление снова включено. Pro продолжится после {date}.",
+        "payment_renewal_failed": "Telegram не смог списать оплату за продление, скорее всего не хватило Stars. Pro работает до {date}; пополните баланс Stars или оформите подписку заново через /subscribe, чтобы сохранить доступ.",
         "payment_support": "Aeon Pro — цифровая подписка, оплаченная Telegram Stars; средства за неё не возвращаются. Автопродление можно отключить в любой момент командой /cancel_subscription, Pro продолжит работать до конца оплаченного периода. Если платёж прошёл, а Pro не активировался, опишите проблему и укажите примерную дату платежа, мы проверим транзакцию.",
         "billing_trial_ending": (
             "Ваш 7-дневный пробный период заканчивается завтра. После этого советники будут "

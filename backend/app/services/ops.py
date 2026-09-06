@@ -145,9 +145,21 @@ def format_payment_succeeded(
     return "\n".join(lines)
 
 
-def format_subscription_canceled(user: User) -> str:
-    until = user.pro_expires_at.date().isoformat() if user.pro_expires_at else "—"
-    return f"📉 Auto-renew canceled\n{_user_line(user)}\nPro active until {until}"
+def _pro_until(user: User) -> str:
+    return user.pro_expires_at.date().isoformat() if user.pro_expires_at else "—"
+
+
+def format_subscription_canceled(user: User, *, source: str = "bot") -> str:
+    via = " (from Telegram settings)" if source == "telegram" else ""
+    return f"📉 Auto-renew canceled{via}\n{_user_line(user)}\nPro active until {_pro_until(user)}"
+
+
+def format_subscription_restored(user: User) -> str:
+    return f"🔂 Auto-renew restored\n{_user_line(user)}\nnext charge {_pro_until(user)}"
+
+
+def format_subscription_payment_failed(user: User) -> str:
+    return f"⚠️ Renewal charge failed\n{_user_line(user)}\nPro active until {_pro_until(user)}"
 
 
 def user_created(user: User) -> None:
@@ -172,8 +184,16 @@ def payment_succeeded(
     )
 
 
-def subscription_canceled(user: User) -> None:
-    notify(format_subscription_canceled(user))
+def subscription_canceled(user: User, *, source: str = "bot") -> None:
+    notify(format_subscription_canceled(user, source=source))
+
+
+def subscription_restored(user: User) -> None:
+    notify(format_subscription_restored(user))
+
+
+def subscription_payment_failed(user: User) -> None:
+    notify(format_subscription_payment_failed(user))
 
 
 def generation_failed(kind: str, user_id: int, error: Exception) -> None:

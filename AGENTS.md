@@ -84,6 +84,10 @@ The reserve/release pattern is mandatory around every Gemini call:
 `release_agent_question` / `release_council`. Counters live in `daily_usages` per UTC date.
 Pro is activated only by `successful_payment` (Stars, `currency="XTR"`); invoice payloads are bound to
 the user id via `billing.pro_invoice_payload` and checked in both `precheckout` and `successful_payment`.
+Renewals arrive as further `successful_payment` updates (`is_recurring`). Cancel/restore/failed-charge
+state arrives as the Bot API 10.2 `subscription` update, which python-telegram-bot 22.x does not model:
+`SubscriptionUpdateHandler` reads it from `update.api_kwargs`, and `ALLOWED_UPDATES` in
+`bot/application.py` must keep requesting it by name or Telegram never sends it.
 
 **Agent dialogue flow** (`app/bot/chat.py` → `app/services/agent_chat.py`): the Mini App never
 talks to Gemini; `POST /api/agents/{id}/dialog` only sets the active agent and pushes the first

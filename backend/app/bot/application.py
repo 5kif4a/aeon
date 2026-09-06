@@ -2,7 +2,7 @@
 
 import logging
 
-from telegram import BotCommand, BotCommandScopeChat
+from telegram import BotCommand, BotCommandScopeChat, Update
 from telegram.ext import Application, ApplicationBuilder
 
 from app.bot.handlers.commands import build_command_handlers
@@ -17,6 +17,10 @@ from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# `Update.ALL_TYPES` only lists the update types the installed python-telegram-bot knows.
+# `subscription` (Bot API 10.2: Stars subscription canceled / restored / charge failed) is
+# newer than PTB 22.x, so it has to be requested by name or Telegram will never send it.
+ALLOWED_UPDATES: list[str] = [*Update.ALL_TYPES, "subscription"]
 
 async def configure_commands(application: Application) -> None:
     english = [
