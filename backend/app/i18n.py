@@ -220,6 +220,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Choose your local time in Settings so reflections arrive when they are useful."
         ),
         "unknown": "I am here. Press /start to register.",
+        "unsupported_message": "I work with text only. Please type your question.",
         "birth_back": "← Periods",
         "birth_back_years": "← Years",
         "birth_back_months": "← Months",
@@ -374,6 +375,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Выберите местное время в настройках, чтобы сообщения приходили вовремя."
         ),
         "unknown": "Я рядом. Откройте главное меню командой /start.",
+        "unsupported_message": "Я работаю только с текстом. Напишите Ваш вопрос словами.",
         "birth_back": "← Периоды",
         "birth_back_years": "← Годы",
         "birth_back_months": "← Месяцы",

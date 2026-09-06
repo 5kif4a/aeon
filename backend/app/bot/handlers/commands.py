@@ -215,6 +215,28 @@ def _settings_text(user) -> str:
     )
 
 
+# Any private message that is not text and not a Telegram status/payment event: voice, photo,
+# video, sticker, document, location... The bot works with text only; answer instead of
+# staying silent, without promising anything about other formats.
+UNSUPPORTED_MESSAGE_FILTER = (
+    filters.ChatType.PRIVATE
+    & ~filters.TEXT
+    & ~filters.COMMAND
+    & ~filters.SUCCESSFUL_PAYMENT
+    & ~filters.StatusUpdate.ALL
+)
+
+
+async def unsupported_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    chat_id = update.effective_chat.id
+    language = await _user_language(chat_id)
+    await context.bot.send_message(
+        chat_id,
+        t(language, "unsupported_message"),
+        reply_markup=ui.back_home_keyboard(language),
+    )
+
+
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     text = (update.message.text or "").strip()
@@ -270,4 +292,5 @@ def build_command_handlers() -> list:
             pattern=r"^(menu:home|council:start|billing:subscribe|daily:done|settings:)",
         ),
         MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
+        MessageHandler(UNSUPPORTED_MESSAGE_FILTER, unsupported_message),
     ]

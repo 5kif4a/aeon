@@ -133,3 +133,38 @@ def test_build_webapp_url_produces_router_paths(monkeypatch):
     assert webapp.build_webapp_url("profile", sheet="pro") == "https://aeon.test/profile?sheet=pro"
     monkeypatch.setattr(get_settings(), "mini_app_url", "")
     assert webapp.build_webapp_url("calendar") == ""
+
+
+def _private_update(**message_fields):
+    from datetime import UTC, datetime
+
+    from telegram import Chat, Message, Update
+
+    message = Message(
+        message_id=1,
+        date=datetime.now(UTC),
+        chat=Chat(id=42, type=Chat.PRIVATE),
+        **message_fields,
+    )
+    return Update(update_id=1, message=message)
+
+
+def test_unsupported_message_filter_catches_voice_but_not_text_or_status_updates():
+    from telegram import Voice
+
+    from app.bot.handlers.commands import UNSUPPORTED_MESSAGE_FILTER
+
+    voice = _private_update(voice=Voice(file_id="v", file_unique_id="vu", duration=3))
+    text = _private_update(text="Как жить?")
+    command = _private_update(text="/start", entities=[])
+    status = _private_update(pinned_message=None, new_chat_title="Renamed")
+
+    assert UNSUPPORTED_MESSAGE_FILTER.check_update(voice)
+    assert not UNSUPPORTED_MESSAGE_FILTER.check_update(text)
+    assert not UNSUPPORTED_MESSAGE_FILTER.check_update(command)
+    assert not UNSUPPORTED_MESSAGE_FILTER.check_update(status)
+
+
+def test_unsupported_message_text_exists_in_both_languages():
+    assert "текст" in t("ru", "unsupported_message")
+    assert "text" in t("en", "unsupported_message")
