@@ -10,6 +10,7 @@ import {
   adminLink,
   adminSelect,
   adminTable,
+  adminTableScroll,
   adminTd,
   adminTh,
 } from "../../lib/adminUi";
@@ -76,72 +77,74 @@ export function AdminConversationsView() {
         </div>
       </header>
 
-      <section className={`${adminCard} overflow-x-auto p-0`}>
+      <section className={`${adminCard} p-0`}>
         {conversations.isPending ? <p className="text-muted p-5">{t("admin_loading")}</p> : null}
         {conversations.isError ? <p className="text-danger p-5">{t("admin_error")}</p> : null}
         {conversations.data ? (
-          <table className={adminTable}>
-            <thead>
-              <tr>
-                <th className={adminTh}>{t("admin_col_updated")}</th>
-                <th className={adminTh}>{t("admin_col_agent")}</th>
-                <th className={adminTh}>{t("admin_col_user")}</th>
-                <th className={adminTh}>{t("admin_col_preview")}</th>
-                <th className={adminTh}>{t("admin_col_status")}</th>
-                <th className={`${adminTh} text-right`}>{t("admin_col_messages")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {conversations.data.items.map((conversation) => (
-                <tr key={conversation.id} className="hover:bg-[rgba(255,255,255,0.02)]">
-                  <td className={`${adminTd} text-muted whitespace-nowrap`}>
-                    {formatDateTime(conversation.updatedAt)}
-                  </td>
-                  <td className={adminTd}>{agentLabel(conversation.agentId, lang)}</td>
-                  <td className={adminTd}>
-                    <Link
-                      to="/admin/users/$userId"
-                      params={{ userId: String(conversation.userId) }}
-                      className={adminLink}
-                    >
-                      {conversation.userId}
-                    </Link>
-                    <div className="text-soft text-[11px]">
-                      {conversation.userLanguage} · {conversation.userPlan}
-                    </div>
-                  </td>
-                  <td className={`${adminTd} max-w-[420px]`}>
-                    <Link
-                      to="/admin/conversations/$conversationId"
-                      params={{ conversationId: conversation.id }}
-                      className={`${adminLink} line-clamp-2`}
-                    >
-                      {conversation.preview ||
-                        conversation.title ||
-                        t("admin_conversation_untitled")}
-                    </Link>
-                  </td>
-                  <td className={adminTd}>
-                    {t(
-                      conversation.status === "active"
-                        ? "admin_status_active"
-                        : "admin_status_closed",
-                    )}
-                  </td>
-                  <td className={`${adminTd} text-right tabular-nums`}>
-                    {conversation.messageCount}
-                  </td>
-                </tr>
-              ))}
-              {conversations.data.items.length === 0 ? (
+          <div className={adminTableScroll}>
+            <table className={adminTable}>
+              <thead>
                 <tr>
-                  <td className={`${adminTd} text-soft text-center`} colSpan={6}>
-                    {t("admin_empty")}
-                  </td>
+                  <th className={adminTh}>{t("admin_col_updated")}</th>
+                  <th className={adminTh}>{t("admin_col_agent")}</th>
+                  <th className={adminTh}>{t("admin_col_user")}</th>
+                  <th className={adminTh}>{t("admin_col_preview")}</th>
+                  <th className={adminTh}>{t("admin_col_status")}</th>
+                  <th className={`${adminTh} text-right`}>{t("admin_col_messages")}</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {conversations.data.items.map((conversation) => (
+                  <tr key={conversation.id} className="hover:bg-[rgba(255,255,255,0.02)]">
+                    <td className={`${adminTd} text-muted whitespace-nowrap`}>
+                      {formatDateTime(conversation.updatedAt)}
+                    </td>
+                    <td className={adminTd}>{agentLabel(conversation.agentId, lang)}</td>
+                    <td className={adminTd}>
+                      <Link
+                        to="/admin/users/$userId"
+                        params={{ userId: String(conversation.userId) }}
+                        className={adminLink}
+                      >
+                        {conversation.userId}
+                      </Link>
+                      <div className="text-soft text-[11px]">
+                        {conversation.userLanguage} · {conversation.userPlan}
+                      </div>
+                    </td>
+                    <td className={`${adminTd} max-w-[420px]`}>
+                      <Link
+                        to="/admin/conversations/$conversationId"
+                        params={{ conversationId: conversation.id }}
+                        className={`${adminLink} line-clamp-2`}
+                      >
+                        {conversation.preview ||
+                          conversation.title ||
+                          t("admin_conversation_untitled")}
+                      </Link>
+                    </td>
+                    <td className={adminTd}>
+                      {t(
+                        conversation.status === "active"
+                          ? "admin_status_active"
+                          : "admin_status_closed",
+                      )}
+                    </td>
+                    <td className={`${adminTd} text-right tabular-nums`}>
+                      {conversation.messageCount}
+                    </td>
+                  </tr>
+                ))}
+                {conversations.data.items.length === 0 ? (
+                  <tr>
+                    <td className={`${adminTd} text-soft text-center`} colSpan={6}>
+                      {t("admin_empty")}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         ) : null}
         {conversations.data ? (
           <div className="px-4 pb-3">

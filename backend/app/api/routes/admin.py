@@ -1,10 +1,12 @@
 """Product-owner panel: metrics, users, conversations, payments. Allowlisted admins only."""
 
+import asyncio
 import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
 
+from app.agents import AGENTS
 from app.api.deps import AdminUser, SessionDep
 from app.api.schemas import (
     AdminAuthConfigOut,
@@ -19,7 +21,11 @@ from app.api.schemas import (
     AdminOAuthStartOut,
     AdminPageOut,
     AdminPaymentOut,
+    AdminPromptPreviewIn,
+    AdminPromptPreviewOut,
     AdminSessionOut,
+    AdminSettingIn,
+    AdminSettingOut,
     AdminStatsOut,
     AdminStatsTotalsOut,
     AdminUserDetailOut,
@@ -30,11 +36,14 @@ from app.api.schemas import (
 from app.core import admin_auth, admin_oauth
 from app.core.config import get_settings
 from app.db.models import BillingPayment, Conversation, ProductEvent, User
-from app.services import admin, billing, events, stats, users
+from app.services import admin, agent_chat, billing, bot_settings, events, stats, users
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 STATS_DAYS = {7, 30, 90}
+# The prompt preview is a cost-capped, admin-only Gemini call outside the billing flow.
+PREVIEW_MAX_OUTPUT_TOKENS = 800
+PREVIEW_TIMEOUT_SECONDS = 40
 
 
 # --- auth --------------------------------------------------------------------------------
@@ -360,3 +369,109 @@ async def admin_payments(
         ],
         total=page.total,
     )
+
+
+# --- bot settings ------------------------------------------------------------------------
+
+
+def _setting_out(state: bot_settings.SettingState) -> AdminSettingOut:
+    bounds = state.spec.bounds
+    return AdminSettingOut(
+        key=state.spec.key,
+        kind=state.spec.kind,
+        description=state.spec.description,
+        default=state.spec.default,
+        value=state.value,
+        min=bounds[0] if bounds else None,
+        max=bounds[1] if bounds else None,
+        updatedAt=state.updated_at,
+        updatedBy=state.updated_by,
+    )
+
+
+async def _setting_state(session: SessionDep, key: str) -> AdminSettingOut:
+    for state in await bot_settings.list_settings(session):
+        if state.spec.key == key:
+            return _setting_out(state)
+    raise HTTPException(status_code=404, detail="Unknown setting")
+
+
+@router.get("/settings", response_model=list[AdminSettingOut])
+async def admin_settings(_: AdminUser, session: SessionDep) -> list[AdminSettingOut]:
+    return [_setting_out(state) for state in await bot_settings.list_settings(session)]
+
+
+@router.put("/settings/{key}", response_model=AdminSettingOut)
+async def admin_set_setting(
+    key: str, payload: AdminSettingIn, actor: AdminUser, session: SessionDep
+) -> AdminSettingOut:
+    try:
+        await bot_settings.set_value(session, key, payload.value, actor.id)
+    except bot_settings.UnknownSettingError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except bot_settings.SettingError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    return await _setting_state(session, key)
+
+
+@router.delete("/settings/{key}", response_model=AdminSettingOut)
+async def admin_reset_setting(key: str, actor: AdminUser, session: SessionDep) -> AdminSettingOut:
+    try:
+        await bot_settings.delete_value(session, key, actor.id)
+    except bot_settings.UnknownSettingError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    return await _setting_state(session, key)
+
+
+@router.post("/settings/preview", response_model=AdminPromptPreviewOut)
+async def admin_prompt_preview(
+    payload: AdminPromptPreviewIn, actor: AdminUser, session: SessionDep
+) -> AdminPromptPreviewOut:
+    """Run a message through Gemini with unsaved draft settings.
+
+    Deliberately outside billing (no grant is reserved: the caller is an allowlisted
+    admin, not a subscriber) and outside Telegram: nothing is sent to any chat and no
+    conversation is stored. Output size and duration are capped to bound the cost.
+    """
+    if payload.agentId not in AGENTS:
+        raise HTTPException(status_code=404, detail="Unknown agent")
+    try:
+        overrides = {
+            key: bot_settings.validate(key, value) for key, value in payload.overrides.items()
+        }
+    except bot_settings.UnknownSettingError as error:
+        raise HTTPException(status_code=404, detail=str(error)) from error
+    except bot_settings.SettingError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    requested_tokens = overrides.get(bot_settings.MAX_OUTPUT_TOKENS_KEY)
+    overrides[bot_settings.MAX_OUTPUT_TOKENS_KEY] = min(
+        PREVIEW_MAX_OUTPUT_TOKENS,
+        int(requested_tokens)
+        if isinstance(requested_tokens, int | float)
+        else bot_settings.get_int(
+            bot_settings.MAX_OUTPUT_TOKENS_KEY, get_settings().gemini_max_output_tokens
+        ),
+    )
+    await admin.record_admin_event(
+        session,
+        events.ADMIN_PROMPT_PREVIEW,
+        actor.id,
+        agent_id=payload.agentId,
+        language=payload.language,
+        override_keys=sorted(payload.overrides),
+    )
+    try:
+        with bot_settings.draft_overrides(overrides):
+            async with asyncio.timeout(PREVIEW_TIMEOUT_SECONDS):
+                text = await agent_chat.generate_answer(
+                    payload.agentId,
+                    payload.message,
+                    user=None,
+                    history=[],
+                    language=payload.language,
+                )
+    except TimeoutError as error:
+        raise HTTPException(status_code=504, detail="Preview timed out") from error
+    except Exception as error:  # Gemini/network failures: surface them, no retries here
+        raise HTTPException(status_code=502, detail=f"Preview failed: {error}") from error
+    return AdminPromptPreviewOut(text=text)

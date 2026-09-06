@@ -42,6 +42,9 @@ function NavLinks({ pathname, t }: { pathname: string; t: TFunc }) {
       >
         {t("admin_nav_payments")}
       </Link>
+      <Link to="/admin/settings" className={linkClass(pathname.startsWith("/admin/settings"))}>
+        {t("admin_nav_settings")}
+      </Link>
     </>
   );
 }

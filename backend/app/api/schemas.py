@@ -383,3 +383,36 @@ class AdminConversationDetailOut(BaseModel):
 
 class GrantProIn(BaseModel):
     days: int = Field(ge=1, le=365)
+
+
+# Bot settings: prompt texts and generation knobs edited from the admin panel.
+SettingValue = str | int | float
+
+
+class AdminSettingOut(BaseModel):
+    key: str
+    kind: Literal["text", "int", "float"]
+    description: str
+    default: SettingValue
+    # Stored override, or null when the code default applies.
+    value: SettingValue | None
+    min: float | None = None
+    max: float | None = None
+    updatedAt: datetime | None
+    updatedBy: int | None
+
+
+class AdminSettingIn(BaseModel):
+    value: SettingValue
+
+
+class AdminPromptPreviewIn(BaseModel):
+    agentId: str
+    message: str = Field(min_length=1, max_length=4000)
+    language: LanguageCode = "ru"
+    # Unsaved draft values applied for this single generation only.
+    overrides: dict[str, SettingValue] = Field(default_factory=dict)
+
+
+class AdminPromptPreviewOut(BaseModel):
+    text: str

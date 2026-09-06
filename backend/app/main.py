@@ -12,9 +12,9 @@ from telegram import Update
 
 from app.api.routes import api_router
 from app.bot import runtime
-from app.bot.application import build_application, configure_commands
 from app.bot.application import ALLOWED_UPDATES, build_application, configure_commands
 from app.core.config import get_settings
+from app.services import bot_settings
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -28,6 +28,9 @@ _webhook_secret = ""
 async def lifespan(app: FastAPI):
     global _webhook_secret
     settings = get_settings()
+
+    # Prompts and generation knobs live in the DB; a failure here only keeps code defaults.
+    await bot_settings.refresh_safely()
 
     application = None
     if settings.bot_token:
@@ -46,7 +49,6 @@ async def lifespan(app: FastAPI):
             await application.bot.set_webhook(
                 url=f"{webhook_base_url.rstrip('/')}{WEBHOOK_PATH}",
                 secret_token=_webhook_secret,
-                allowed_updates=Update.ALL_TYPES,
                 allowed_updates=ALLOWED_UPDATES,
             )
             await application.start()
@@ -54,7 +56,6 @@ async def lifespan(app: FastAPI):
         else:
             await application.bot.delete_webhook(drop_pending_updates=False)
             await application.start()
-            await application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
             await application.updater.start_polling(allowed_updates=ALLOWED_UPDATES)
             logger.info("Telegram bot started in polling mode")
     else:

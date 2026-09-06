@@ -14,6 +14,7 @@ from app.bot.jobs import (
     send_life_weekly_reviews,
 )
 from app.core.config import get_settings
+from app.services import bot_settings
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 # `subscription` (Bot API 10.2: Stars subscription canceled / restored / charge failed) is
 # newer than PTB 22.x, so it has to be requested by name or Telegram will never send it.
 ALLOWED_UPDATES: list[str] = [*Update.ALL_TYPES, "subscription"]
+
 
 async def configure_commands(application: Application) -> None:
     english = [
@@ -51,6 +53,11 @@ async def configure_commands(application: Application) -> None:
             )
         except Exception as error:  # the bot may not be in the group yet
             logger.warning("Could not register /stats for the ops chat %s: %s", ops_chat_id, error)
+
+
+async def _refresh_bot_settings(_context) -> None:
+    """Pick up admin-panel edits of prompts/knobs; the API refreshes in-process on write."""
+    await bot_settings.refresh_safely()
 
 
 def build_application() -> Application:
@@ -90,6 +97,13 @@ def build_application() -> Application:
         interval=15 * 60,
         first=60,
         name="ops_digests",
+    )
+
+    application.job_queue.run_repeating(
+        _refresh_bot_settings,
+        interval=60,
+        first=60,
+        name="bot_settings_refresh",
     )
 
     return application

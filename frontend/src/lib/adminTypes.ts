@@ -151,3 +151,32 @@ export interface AdminConversationDetail {
   conversation: AdminConversation;
   messages: AdminMessage[];
 }
+
+/** Runtime bot settings (prompts, generation knobs) mirroring services/bot_settings. */
+export type AdminSettingKind = "text" | "int" | "float";
+export type AdminSettingValue = string | number;
+
+export interface AdminSetting {
+  key: string;
+  kind: AdminSettingKind;
+  description: string;
+  default: AdminSettingValue;
+  /** Stored override, or null when the code default applies. */
+  value: AdminSettingValue | null;
+  min: number | null;
+  max: number | null;
+  updatedAt: string | null;
+  updatedBy: number | null;
+}
+
+export interface AdminPromptPreviewInput {
+  agentId: string;
+  message: string;
+  language: string;
+  /** Unsaved drafts applied to this single generation only. */
+  overrides: Record<string, AdminSettingValue>;
+}
+
+export interface AdminPromptPreview {
+  text: string;
+}

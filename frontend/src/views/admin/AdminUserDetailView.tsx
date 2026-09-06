@@ -13,6 +13,7 @@ import {
   adminMuted,
   adminPrimaryButton,
   adminTable,
+  adminTableScroll,
   adminTd,
   adminTh,
 } from "../../lib/adminUi";
@@ -144,98 +145,102 @@ export function AdminUserDetailView() {
         </article>
       </section>
 
-      <section className={`${adminCard} overflow-x-auto p-0`}>
+      <section className={`${adminCard} p-0`}>
         <h2 className="text-muted px-5 pt-4 text-[13px] font-[700]">
           {t("admin_nav_conversations")}
         </h2>
-        <table className={`${adminTable} mt-2`}>
-          <thead>
-            <tr>
-              <th className={adminTh}>{t("admin_col_agent")}</th>
-              <th className={adminTh}>{t("admin_col_title")}</th>
-              <th className={adminTh}>{t("admin_col_status")}</th>
-              <th className={`${adminTh} text-right`}>{t("admin_col_messages")}</th>
-              <th className={adminTh}>{t("admin_col_updated")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {conversations.map((conversation) => (
-              <tr key={conversation.id}>
-                <td className={adminTd}>{agentLabel(conversation.agentId, lang)}</td>
-                <td className={adminTd}>
-                  <Link
-                    to="/admin/conversations/$conversationId"
-                    params={{ conversationId: conversation.id }}
-                    className={adminLink}
-                  >
-                    {conversation.title || t("admin_conversation_untitled")}
-                  </Link>
-                </td>
-                <td className={adminTd}>
-                  {t(
-                    conversation.status === "active"
-                      ? "admin_status_active"
-                      : "admin_status_closed",
-                  )}
-                </td>
-                <td className={`${adminTd} text-right tabular-nums`}>
-                  {conversation.messageCount}
-                </td>
-                <td className={`${adminTd} text-muted whitespace-nowrap`}>
-                  {formatDateTime(conversation.updatedAt)}
-                </td>
-              </tr>
-            ))}
-            {conversations.length === 0 ? (
-              <tr>
-                <td className={`${adminTd} text-soft text-center`} colSpan={5}>
-                  {t("admin_empty")}
-                </td>
-              </tr>
-            ) : null}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <article className={`${adminCard} overflow-x-auto`}>
-          <h2 className="text-muted mb-2 text-[13px] font-[700]">{t("admin_nav_payments")}</h2>
-          <table className="w-full text-[13px]">
+        <div className={`${adminTableScroll} mt-2`}>
+          <table className={adminTable}>
             <thead>
               <tr>
-                <th className={adminTh}>{t("admin_col_date")}</th>
-                <th className={`${adminTh} text-right`}>{t("admin_col_amount")}</th>
+                <th className={adminTh}>{t("admin_col_agent")}</th>
+                <th className={adminTh}>{t("admin_col_title")}</th>
                 <th className={adminTh}>{t("admin_col_status")}</th>
-                <th className={adminTh}>{t("admin_col_until")}</th>
+                <th className={`${adminTh} text-right`}>{t("admin_col_messages")}</th>
+                <th className={adminTh}>{t("admin_col_updated")}</th>
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment) => (
-                <tr key={payment.id}>
-                  <td className={`${adminTd} text-muted whitespace-nowrap`}>
-                    {formatDateTime(payment.createdAt)}
-                  </td>
-                  <td className={`${adminTd} text-right tabular-nums`}>
-                    {payment.amount} {payment.currency === "XTR" ? "★" : payment.currency}
+              {conversations.map((conversation) => (
+                <tr key={conversation.id}>
+                  <td className={adminTd}>{agentLabel(conversation.agentId, lang)}</td>
+                  <td className={adminTd}>
+                    <Link
+                      to="/admin/conversations/$conversationId"
+                      params={{ conversationId: conversation.id }}
+                      className={adminLink}
+                    >
+                      {conversation.title || t("admin_conversation_untitled")}
+                    </Link>
                   </td>
                   <td className={adminTd}>
-                    {payment.status}
-                    {payment.isRecurring ? ` · ${t("admin_payment_recurring")}` : ""}
+                    {t(
+                      conversation.status === "active"
+                        ? "admin_status_active"
+                        : "admin_status_closed",
+                    )}
+                  </td>
+                  <td className={`${adminTd} text-right tabular-nums`}>
+                    {conversation.messageCount}
                   </td>
                   <td className={`${adminTd} text-muted whitespace-nowrap`}>
-                    {formatDate(payment.subscriptionExpiresAt)}
+                    {formatDateTime(conversation.updatedAt)}
                   </td>
                 </tr>
               ))}
-              {payments.length === 0 ? (
+              {conversations.length === 0 ? (
                 <tr>
-                  <td className={`${adminTd} text-soft text-center`} colSpan={4}>
+                  <td className={`${adminTd} text-soft text-center`} colSpan={5}>
                     {t("admin_empty")}
                   </td>
                 </tr>
               ) : null}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className={adminCard}>
+          <h2 className="text-muted mb-2 text-[13px] font-[700]">{t("admin_nav_payments")}</h2>
+          <div className={adminTableScroll}>
+            <table className="w-full border-separate border-spacing-0 text-[13px]">
+              <thead>
+                <tr>
+                  <th className={adminTh}>{t("admin_col_date")}</th>
+                  <th className={`${adminTh} text-right`}>{t("admin_col_amount")}</th>
+                  <th className={adminTh}>{t("admin_col_status")}</th>
+                  <th className={adminTh}>{t("admin_col_until")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payments.map((payment) => (
+                  <tr key={payment.id}>
+                    <td className={`${adminTd} text-muted whitespace-nowrap`}>
+                      {formatDateTime(payment.createdAt)}
+                    </td>
+                    <td className={`${adminTd} text-right tabular-nums`}>
+                      {payment.amount} {payment.currency === "XTR" ? "★" : payment.currency}
+                    </td>
+                    <td className={adminTd}>
+                      {payment.status}
+                      {payment.isRecurring ? ` · ${t("admin_payment_recurring")}` : ""}
+                    </td>
+                    <td className={`${adminTd} text-muted whitespace-nowrap`}>
+                      {formatDate(payment.subscriptionExpiresAt)}
+                    </td>
+                  </tr>
+                ))}
+                {payments.length === 0 ? (
+                  <tr>
+                    <td className={`${adminTd} text-soft text-center`} colSpan={4}>
+                      {t("admin_empty")}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         </article>
         <article className={adminCard}>
           <h2 className="text-muted mb-2 text-[13px] font-[700]">{t("admin_user_events")}</h2>

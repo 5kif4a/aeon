@@ -13,6 +13,10 @@ import type {
   AdminOAuthStart,
   AdminPage,
   AdminPayment,
+  AdminPromptPreview,
+  AdminPromptPreviewInput,
+  AdminSetting,
+  AdminSettingValue,
   AdminSession,
   AdminStats,
   AdminUser,
@@ -120,4 +124,18 @@ export const adminApi = {
 
   getPayments: (params: { limit: number; offset: number }) =>
     request<AdminPage<AdminPayment>>(`/api/admin/payments${query(params)}`),
+
+  getSettings: () => request<AdminSetting[]>("/api/admin/settings"),
+  setSetting: (key: string, value: AdminSettingValue) =>
+    request<AdminSetting>(`/api/admin/settings/${encodeURIComponent(key)}`, {
+      method: "PUT",
+      body: JSON.stringify({ value }),
+    }),
+  resetSetting: (key: string) =>
+    request<AdminSetting>(`/api/admin/settings/${encodeURIComponent(key)}`, { method: "DELETE" }),
+  previewPrompt: (input: AdminPromptPreviewInput) =>
+    request<AdminPromptPreview>("/api/admin/settings/preview", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
 };

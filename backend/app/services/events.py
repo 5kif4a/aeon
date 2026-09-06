@@ -25,6 +25,8 @@ OPS_DIGEST_SENT = "ops_digest_sent"
 PRO_GRANTED = "pro_granted"
 ADMIN_LOGIN = "admin_login"
 ADMIN_VIEW_CONVERSATION = "admin_view_conversation"
+ADMIN_SETTING_CHANGED = "admin_setting_changed"
+ADMIN_PROMPT_PREVIEW = "admin_prompt_preview"
 
 
 def record(

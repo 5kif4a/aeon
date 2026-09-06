@@ -18,6 +18,7 @@ import { AdminConversationsView } from "./views/admin/AdminConversationsView";
 import { AdminDashboardView } from "./views/admin/AdminDashboardView";
 import { AdminLayout } from "./views/admin/AdminLayout";
 import { AdminPaymentsView } from "./views/admin/AdminPaymentsView";
+import { AdminSettingsView } from "./views/admin/AdminSettingsView";
 import { AdminUserDetailView } from "./views/admin/AdminUserDetailView";
 import { AdminUsersView } from "./views/admin/AdminUsersView";
 import { CalendarView } from "./views/CalendarView";
@@ -159,6 +160,13 @@ const adminPaymentsRoute = createRoute({
   component: AdminPaymentsView,
 });
 
+/** Runtime bot settings: prompts and generation knobs, edited without a deploy. */
+const adminSettingsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/settings",
+  component: AdminSettingsView,
+});
+
 /** Unknown paths fall back to home so a mistyped deep link never shows a blank page. */
 const notFoundRoute = createRoute({
   getParentRoute: () => rootRoute,
@@ -179,6 +187,7 @@ const routeTree = rootRoute.addChildren([
     adminConversationsRoute,
     adminConversationRoute,
     adminPaymentsRoute,
+    adminSettingsRoute,
   ]),
   notFoundRoute,
 ]);

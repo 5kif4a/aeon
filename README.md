@@ -53,6 +53,7 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 - **Weekly life review** — a localized message from one of three rotating agents, the user's life-week number, and a button that opens the calendar.
 - **Personal cabinet** — profile memory card, completion progress, plan/tokens.
 - **Mini App auth** — every API request is authenticated with Telegram `initData` (HMAC validation) via the `Authorization: tma <initData>` header.
+- **Admin panel** — `/admin` (allowlisted `OPS_ADMIN_IDS`, Telegram login) shows metrics, users, conversations and payments, and lets the product owner edit bot settings from the admin panel without a deploy: per-agent system prompts, the shared response-style block, temperature, history depth and max output tokens are stored as overrides in `bot_settings` (code keeps the defaults; the running bot picks changes up within a minute), and a preview runs a draft prompt against Gemini outside billing.
 - **Bilingual (ru/en)** — the Mini App UI, bot messages, and LLM error messages are fully localized; agents reply in the user's language (English prompts + a per-request language directive). Language is detected from Telegram/onboarding and switchable in the profile. Backend catalog in `backend/app/i18n.py`, frontend catalog in `frontend/src/lib/i18n.ts`.
 
 ## API
@@ -113,7 +114,9 @@ With `BOT_MODE=polling` (default) no public URL is needed for the bot itself —
 
 ### Agent book RAG
 
-Build the ignored local index from a text-based PDF, then inspect retrieval without calling Gemini:
+Retrieval is hybrid: Gemini embeddings (`gemini-embedding-001`, 768 dimensions, cosine) and BM25 over the same chunks, fused with reciprocal rank fusion. Chunk texts and vectors live in the `rag_chunks` Postgres table (no pgvector; a few thousand rows per corpus are scanned in memory with numpy), so production needs no files on disk. See `RAG.md` for the design.
+
+Build the ignored local JSON corpus from a text-based PDF, then inspect retrieval without calling the language model:
 
 ```bash
 cd backend
@@ -141,7 +144,21 @@ uv run python -m scripts.query_rag "What is the shadow, and why do we project it
 uv run python -m scripts.evaluate_rag evals/jung_en_golden.json
 ```
 
-Generated corpora live at `backend/data/rag/<agent>.json`; localized English corpora use `backend/data/rag/<agent>.en.json`. They are intentionally not committed. The Aurelius builders index only the twelve books of their respective Russian and English editions. The Jung builder indexes the six authored sections of the 2016 Russian edition and keeps each contributor in the section metadata. Generate or mount the indexes in each deployment environment. `RAG_ALLOW_BASIC=true` bypasses plan gating for local testing only; leave it `false` outside development.
+Generated corpora live at `backend/data/rag/<agent>.json`; localized English corpora use `backend/data/rag/<agent>.en.json`. They are intentionally not committed. The Aurelius builders index only the twelve books of their respective Russian and English editions. The Jung builder indexes the six authored sections of the 2016 Russian edition and keeps each contributor in the section metadata. `RAG_ALLOW_BASIC=true` bypasses plan gating for local testing only; leave it `false` outside development.
+
+**Publishing the corpus to a database.** The JSON files are only an intermediate format. `scripts/embed_rag.py` embeds every corpus found in `RAG_DATA_DIR` and upserts it into `rag_chunks`, keyed by `(agent_id, language, chunk_id)`; unchanged chunks are skipped, removed chunks are deleted, and 429/5xx responses are retried with backoff. It reads `DATABASE_URL` and `GEMINI_API_KEY` from settings, so the production database is populated from a laptop (the Railway image does not contain the corpora):
+
+```bash
+cd backend
+uv run alembic upgrade head                                  # creates rag_chunks (once)
+uv run python -m scripts.embed_rag --dry-run                  # what would change
+DATABASE_URL="postgresql+asyncpg://user:pass@host:port/db" uv run python -m scripts.embed_rag
+uv run python -m scripts.embed_rag --agent jung --language en  # one corpus
+uv run python -m scripts.embed_rag --force                    # after changing RAG_EMBEDDING_MODEL/DIM
+uv run python -m scripts.evaluate_rag evals/aurelius_en_golden.json --hybrid   # eval the production path
+```
+
+Take the production DSN from the Railway Postgres service (public `DATABASE_PUBLIC_URL`; replace `postgresql://` with `postgresql+asyncpg://`). The backend caches each corpus in memory for five minutes, so new embeddings are picked up without a redeploy. If `rag_chunks` is empty for a corpus and no JSON file exists, the backend logs one warning per corpus and answers without book context; if only the query embedding fails, it falls back to BM25.
 
 ### Freemium and Telegram Stars
 
@@ -151,7 +168,7 @@ The billing tier is server-owned and cannot be changed through `PATCH /api/me`.
 - Trial: 7 days, 5 RAG answers per day, 35 total, one Council of Three. After the RAG allowance, 3 prompt-only answers remain available that day.
 - Pro: 350 Stars per recurring 30-day period, 30 RAG answers and 3 councils per day.
 
-The Mini App starts Trial through `POST /api/billing/trial` and opens a native Stars invoice returned by `POST /api/billing/checkout`. Pro is activated only after Telegram sends `successful_payment`. The bot supports `/subscribe`, `/cancel_subscription`, and the required `/paysupport` command. Payments are not refundable by policy; `/paysupport` explains how to stop the renewal. There is no refund tooling: if Telegram itself reverses a Stars payment, Pro stays active until the end of the paid period.
+Pro is the primary offer everywhere: bot limit messages open the Stars invoice directly, and the Mini App Pro sheet leads with checkout (`POST /api/billing/checkout`). The Trial is offered only as a secondary button in that sheet (`POST /api/billing/trial`); the bot never promotes it. Pro is activated only after Telegram sends `successful_payment`. The bot supports `/subscribe`, `/cancel_subscription`, and the required `/paysupport` command. Payments are not refundable by policy; `/paysupport` explains how to stop the renewal. There is no refund tooling: if Telegram itself reverses a Stars payment, Pro stays active until the end of the paid period.
 
 ## Docker
 
@@ -260,8 +277,10 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `GEMINI_MAX_OUTPUT_TOKENS` | `2500` | max answer tokens |
 | `RAG_ENABLED` | `true` | enable local book retrieval |
 | `RAG_ALLOW_BASIC` | `false` | allow Basic users to use RAG; local testing override only |
-| `RAG_DATA_DIR` | `data/rag` | directory containing per-agent JSON indexes |
+| `RAG_DATA_DIR` | `data/rag` | directory containing per-agent JSON corpora (build input; optional BM25 fallback at runtime) |
 | `RAG_TOP_K` | `4` | number of book chunks added to an agent prompt |
+| `RAG_EMBEDDING_MODEL` | `gemini-embedding-001` | Gemini embedding model used for chunks and queries |
+| `RAG_EMBEDDING_DIM` | `768` | embedding size stored in `rag_chunks`; change requires `embed_rag.py --force` |
 | `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
 | `REMINDER_HOUR` | `9` | default notification hour for new users; each user can change it in the bot |
 | `REMINDER_TZ` | `UTC` | default notification timezone for new users; each user can change it in the bot |

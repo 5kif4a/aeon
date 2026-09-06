@@ -12,6 +12,7 @@ import {
   adminLink,
   adminSelect,
   adminTable,
+  adminTableScroll,
   adminTd,
   adminTh,
 } from "../../lib/adminUi";
@@ -63,68 +64,72 @@ export function AdminUsersView() {
         </form>
       </header>
 
-      <section className={`${adminCard} overflow-x-auto p-0`}>
+      <section className={`${adminCard} p-0`}>
         {users.isPending ? <p className="text-muted p-5">{t("admin_loading")}</p> : null}
         {users.isError ? <p className="text-danger p-5">{t("admin_error")}</p> : null}
         {users.data ? (
-          <table className={adminTable}>
-            <thead>
-              <tr>
-                <th className={adminTh}>{t("admin_col_user")}</th>
-                <th className={adminTh}>{t("admin_col_plan")}</th>
-                <th className={adminTh}>{t("admin_col_country")}</th>
-                <th className={`${adminTh} text-right`}>{t("admin_col_questions")}</th>
-                <th className={`${adminTh} text-right`}>{t("admin_col_conversations")}</th>
-                <th className={`${adminTh} text-right`}>{t("admin_col_stars")}</th>
-                <th className={adminTh}>{t("admin_col_last_active")}</th>
-                <th className={adminTh}>{t("admin_col_created")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.data.items.map((user) => (
-                <tr key={user.id} className="hover:bg-[rgba(255,255,255,0.02)]">
-                  <td className={adminTd}>
-                    <Link
-                      to="/admin/users/$userId"
-                      params={{ userId: String(user.id) }}
-                      className={adminLink}
-                    >
-                      {user.name || t("admin_user_unnamed")}
-                    </Link>
-                    <div className="text-soft text-[11px]">
-                      {user.id} · {user.language}
-                    </div>
-                  </td>
-                  <td className={adminTd}>
-                    <span className={`${adminChip} ${planChipClass(user.plan)}`}>{user.plan}</span>
-                  </td>
-                  <td className={adminTd}>{user.country || "—"}</td>
-                  <td className={`${adminTd} text-right tabular-nums`}>
-                    {formatNumber(user.questionsTotal)}
-                  </td>
-                  <td className={`${adminTd} text-right tabular-nums`}>
-                    {formatNumber(user.conversations)}
-                  </td>
-                  <td className={`${adminTd} text-right tabular-nums`}>
-                    {formatNumber(user.paymentsStars)}
-                  </td>
-                  <td className={`${adminTd} text-muted whitespace-nowrap`}>
-                    {formatDateTime(user.lastActiveAt)}
-                  </td>
-                  <td className={`${adminTd} text-muted whitespace-nowrap`}>
-                    {formatDateTime(user.createdAt)}
-                  </td>
-                </tr>
-              ))}
-              {users.data.items.length === 0 ? (
+          <div className={adminTableScroll}>
+            <table className={adminTable}>
+              <thead>
                 <tr>
-                  <td className={`${adminTd} text-soft text-center`} colSpan={8}>
-                    {t("admin_empty")}
-                  </td>
+                  <th className={adminTh}>{t("admin_col_user")}</th>
+                  <th className={adminTh}>{t("admin_col_plan")}</th>
+                  <th className={adminTh}>{t("admin_col_country")}</th>
+                  <th className={`${adminTh} text-right`}>{t("admin_col_questions")}</th>
+                  <th className={`${adminTh} text-right`}>{t("admin_col_conversations")}</th>
+                  <th className={`${adminTh} text-right`}>{t("admin_col_stars")}</th>
+                  <th className={adminTh}>{t("admin_col_last_active")}</th>
+                  <th className={adminTh}>{t("admin_col_created")}</th>
                 </tr>
-              ) : null}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {users.data.items.map((user) => (
+                  <tr key={user.id} className="hover:bg-[rgba(255,255,255,0.02)]">
+                    <td className={adminTd}>
+                      <Link
+                        to="/admin/users/$userId"
+                        params={{ userId: String(user.id) }}
+                        className={adminLink}
+                      >
+                        {user.name || t("admin_user_unnamed")}
+                      </Link>
+                      <div className="text-soft text-[11px]">
+                        {user.id} · {user.language}
+                      </div>
+                    </td>
+                    <td className={adminTd}>
+                      <span className={`${adminChip} ${planChipClass(user.plan)}`}>
+                        {user.plan}
+                      </span>
+                    </td>
+                    <td className={adminTd}>{user.country || "—"}</td>
+                    <td className={`${adminTd} text-right tabular-nums`}>
+                      {formatNumber(user.questionsTotal)}
+                    </td>
+                    <td className={`${adminTd} text-right tabular-nums`}>
+                      {formatNumber(user.conversations)}
+                    </td>
+                    <td className={`${adminTd} text-right tabular-nums`}>
+                      {formatNumber(user.paymentsStars)}
+                    </td>
+                    <td className={`${adminTd} text-muted whitespace-nowrap`}>
+                      {formatDateTime(user.lastActiveAt)}
+                    </td>
+                    <td className={`${adminTd} text-muted whitespace-nowrap`}>
+                      {formatDateTime(user.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+                {users.data.items.length === 0 ? (
+                  <tr>
+                    <td className={`${adminTd} text-soft text-center`} colSpan={8}>
+                      {t("admin_empty")}
+                    </td>
+                  </tr>
+                ) : null}
+              </tbody>
+            </table>
+          </div>
         ) : null}
         {users.data ? (
           <div className="px-4 pb-3">

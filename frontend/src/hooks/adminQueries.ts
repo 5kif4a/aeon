@@ -1,7 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { adminApi, hasAdminCredential, setAdminToken } from "../lib/adminApi";
-import type { AdminUser, AdminUserDetail, TelegramLoginPayload } from "../lib/adminTypes";
+import type {
+  AdminPromptPreviewInput,
+  AdminSetting,
+  AdminSettingValue,
+  AdminUser,
+  AdminUserDetail,
+  TelegramLoginPayload,
+} from "../lib/adminTypes";
 import { ApiError } from "../lib/api";
 
 export const PAGE_SIZE = 50;
@@ -131,6 +138,42 @@ export function useAdminPayments(page: number) {
     queryKey: ["admin", "payments", page],
     queryFn: () => adminApi.getPayments({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
     placeholderData: (previous) => previous,
+  });
+}
+
+export function useAdminSettings() {
+  return useQuery({ queryKey: ["admin", "settings"], queryFn: adminApi.getSettings });
+}
+
+function replaceSetting(queryClient: ReturnType<typeof useQueryClient>, saved: AdminSetting) {
+  queryClient.setQueryData(["admin", "settings"], (items: AdminSetting[] | undefined) =>
+    items ? items.map((item) => (item.key === saved.key ? saved : item)) : items,
+  );
+}
+
+/** Saves one override; the backend refreshes the running bot in-process. */
+export function useSaveSetting() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ key, value }: { key: string; value: AdminSettingValue }) =>
+      adminApi.setSetting(key, value),
+    onSuccess: (saved) => replaceSetting(queryClient, saved),
+  });
+}
+
+/** Drops an override so the code default applies again. */
+export function useResetSetting() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (key: string) => adminApi.resetSetting(key),
+    onSuccess: (saved) => replaceSetting(queryClient, saved),
+  });
+}
+
+/** One-off Gemini run with unsaved drafts; nothing is cached or stored. */
+export function usePromptPreview() {
+  return useMutation({
+    mutationFn: (input: AdminPromptPreviewInput) => adminApi.previewPrompt(input),
   });
 }
 

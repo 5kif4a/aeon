@@ -261,12 +261,19 @@ class ProductEvent(Base):
     )
 
 
+class BotSetting(Base):
     """Runtime override of one bot setting (prompt text or generation knob).
 
+    Code holds the defaults (`services.bot_settings.defaults`); a row exists only while the
+    product owner has overridden a value from the admin panel.
     """
 
+    __tablename__ = "bot_settings"
 
+    key: Mapped[str] = mapped_column(String(128), primary_key=True)
+    value: Mapped[str | int | float] = mapped_column(JSONB)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     # Telegram id of the admin who saved the value; nullable for imports/scripts.
+    updated_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
