@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 
 from app.bot import runtime
 from app.core.config import get_settings
-from app.db.models import User
+from app.db.models import BillingPayment, User
 from app.services import billing
 
 logger = logging.getLogger(__name__)
@@ -154,6 +154,33 @@ def format_subscription_canceled(user: User, *, source: str = "bot") -> str:
     return f"📉 Auto-renew canceled{via}\n{_user_line(user)}\nPro active until {_pro_until(user)}"
 
 
+def format_payment_refunded(
+    user: User, *, amount: int, currency: str, source: str, pro_revoked: bool
+) -> str:
+    unit = "★" if currency == "XTR" else html.escape(currency)
+    via = "by Telegram support" if source == "telegram" else "from the admin panel"
+    effect = "Pro revoked" if pro_revoked else "entitlement unchanged"
+    return f"↩️ Refund {amount} {unit} {via}\n{_user_line(user)}\n{effect}"
+
+
+def format_paysupport_request(user: User, text: str, payments: list[BillingPayment]) -> str:
+    """/paysupport message. Deliberately carries the user's text: it is addressed to us,
+    not to an agent, and the operator cannot act on a payment complaint without it."""
+    lines = [f"🛟 Payment support request\n{_user_line(user)}"]
+    if user.pro_expires_at:
+        lines.append(f"pro until {user.pro_expires_at.date().isoformat()}")
+    for payment in payments[:3]:
+        unit = "★" if payment.currency == "XTR" else html.escape(payment.currency)
+        lines.append(
+            f"• {payment.created_at.date().isoformat()} {payment.amount} {unit} "
+            f"{html.escape(payment.status)} <code>{html.escape(payment.telegram_payment_charge_id)}</code>"
+        )
+    if not payments:
+        lines.append("no payments on record")
+    lines.append(f"<blockquote>{html.escape(text[:1000])}</blockquote>")
+    return "\n".join(lines)
+
+
 def format_subscription_restored(user: User) -> str:
     return f"🔂 Auto-renew restored\n{_user_line(user)}\nnext charge {_pro_until(user)}"
 
@@ -186,6 +213,20 @@ def payment_succeeded(
 
 def subscription_canceled(user: User, *, source: str = "bot") -> None:
     notify(format_subscription_canceled(user, source=source))
+
+
+def payment_refunded(
+    user: User, *, amount: int, currency: str, source: str, pro_revoked: bool
+) -> None:
+    notify(
+        format_payment_refunded(
+            user, amount=amount, currency=currency, source=source, pro_revoked=pro_revoked
+        )
+    )
+
+
+def paysupport_request(user: User, text: str, payments: list[BillingPayment]) -> None:
+    notify(format_paysupport_request(user, text, payments), THREAD_ALERTS)
 
 
 def subscription_restored(user: User) -> None:

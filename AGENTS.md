@@ -88,6 +88,9 @@ Renewals arrive as further `successful_payment` updates (`is_recurring`). Cancel
 state arrives as the Bot API 10.2 `subscription` update, which python-telegram-bot 22.x does not model:
 `SubscriptionUpdateHandler` reads it from `update.api_kwargs`, and `ALLOWED_UPDATES` in
 `bot/application.py` must keep requesting it by name or Telegram never sends it.
+Refunds go through `billing.mark_payment_refunded` from two sides: the admin route calls
+`refundStarPayment` (Telegram is called between two transactions, never inside one), and the bot
+handles `refunded_payment` for refunds made by Telegram support. Both are idempotent per charge id.
 
 **Agent dialogue flow** (`app/bot/chat.py` → `app/services/agent_chat.py`): the Mini App never
 talks to Gemini; `POST /api/agents/{id}/dialog` only sets the active agent and pushes the first
@@ -116,7 +119,8 @@ The bot/API layer announces to the product-owner group through `services/ops.py`
 throttled per kind. `/stats [7|30]` answers only in the ops group or to `OPS_ADMIN_IDS`; the
 `ops_digests` job posts daily/weekly/monthly digests at `OPS_DIGEST_HOUR` and dedupes through
 `ops_digest_sent` events. Ops texts are internal English and carry user ids, never names or
-message content. Because the bot sits in a group, every user-facing handler is filtered to
+message content; the one exception is the `/paysupport` request, which is the user's message to
+the operator, not to an agent. Because the bot sits in a group, every user-facing handler is filtered to
 `filters.ChatType.PRIVATE`; keep it that way for new handlers.
 
 **Admin panel.** `/admin` on the frontend (`src/views/admin/*`, own layout, not the Mini App

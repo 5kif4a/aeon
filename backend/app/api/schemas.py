@@ -1,8 +1,9 @@
 import uuid
 from datetime import date, datetime
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.agents import agent_name
 from app.core.admin_auth import is_admin
@@ -81,6 +82,55 @@ class ProfileUpdate(BaseModel):
             "language": "language",
         }
         data = self.model_dump(exclude_unset=True)
+        return {mapping[key]: value for key, value in data.items() if key in mapping}
+
+
+class NotificationSettingsOut(BaseModel):
+    dailyEnabled: bool
+    weeklyEnabled: bool
+    reminderHour: int
+    reminderTimezone: str
+    # Nothing is ever sent to a user without a birth date; the Mini App says so instead
+    # of letting the settings look effective when they are not.
+    birthDateSet: bool
+
+    @classmethod
+    def from_user(cls, user: User) -> "NotificationSettingsOut":
+        return cls(
+            dailyEnabled=bool(user.daily_notifications_enabled),
+            weeklyEnabled=bool(user.weekly_notifications_enabled),
+            reminderHour=user.reminder_hour if user.reminder_hour is not None else 9,
+            reminderTimezone=user.reminder_timezone or "UTC",
+            birthDateSet=user.birth_date is not None,
+        )
+
+
+class NotificationSettingsUpdate(BaseModel):
+    dailyEnabled: bool | None = None
+    weeklyEnabled: bool | None = None
+    reminderHour: int | None = Field(default=None, ge=0, le=23)
+    # Any IANA zone the device reports is accepted, not only the curated picker list.
+    reminderTimezone: str | None = Field(default=None, max_length=64)
+
+    @field_validator("reminderTimezone")
+    @classmethod
+    def _known_timezone(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        try:
+            ZoneInfo(value)
+        except (ZoneInfoNotFoundError, ValueError, KeyError) as error:
+            raise ValueError("Unknown IANA time zone") from error
+        return value
+
+    def to_user_fields(self) -> dict:
+        mapping = {
+            "dailyEnabled": "daily_notifications_enabled",
+            "weeklyEnabled": "weekly_notifications_enabled",
+            "reminderHour": "reminder_hour",
+            "reminderTimezone": "reminder_timezone",
+        }
+        data = self.model_dump(exclude_unset=True, exclude_none=True)
         return {mapping[key]: value for key, value in data.items() if key in mapping}
 
 

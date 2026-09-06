@@ -1,6 +1,8 @@
 """Reusable inline keyboards for the Telegram bot."""
 
 from collections.abc import Iterable
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
@@ -8,16 +10,40 @@ from app.agents import AGENTS, agent_button
 from app.bot import webapp
 from app.i18n import t
 
+# (callback token, IANA zone, city label). Mirrored in frontend/src/lib/options.ts so the
+# bot and the Mini App offer the same zones; the Mini App additionally accepts whatever
+# zone the device reports. Tokens are part of callback data - never rename one in place.
 TIMEZONE_OPTIONS: tuple[tuple[str, str, str], ...] = (
     ("utc", "UTC", "UTC"),
+    ("lisbon", "Europe/Lisbon", "Lisbon"),
     ("london", "Europe/London", "London"),
-    ("new_york", "America/New_York", "New York"),
-    ("los_angeles", "America/Los_Angeles", "Los Angeles"),
-    ("toronto", "America/Toronto", "Toronto"),
     ("berlin", "Europe/Berlin", "Berlin"),
     ("madrid", "Europe/Madrid", "Madrid"),
+    ("warsaw", "Europe/Warsaw", "Warsaw"),
+    ("kyiv", "Europe/Kyiv", "Kyiv"),
+    ("istanbul", "Europe/Istanbul", "Istanbul"),
+    ("moscow", "Europe/Moscow", "Moscow"),
+    ("tbilisi", "Asia/Tbilisi", "Tbilisi"),
+    ("yerevan", "Asia/Yerevan", "Yerevan"),
+    ("dubai", "Asia/Dubai", "Dubai"),
+    ("tashkent", "Asia/Tashkent", "Tashkent"),
     ("almaty", "Asia/Almaty", "Almaty"),
+    ("bangkok", "Asia/Bangkok", "Bangkok"),
+    ("singapore", "Asia/Singapore", "Singapore"),
+    ("tokyo", "Asia/Tokyo", "Tokyo"),
+    ("sydney", "Australia/Sydney", "Sydney"),
+    ("sao_paulo", "America/Sao_Paulo", "Sao Paulo"),
+    ("new_york", "America/New_York", "New York"),
+    ("toronto", "America/Toronto", "Toronto"),
+    ("chicago", "America/Chicago", "Chicago"),
+    ("denver", "America/Denver", "Denver"),
+    ("los_angeles", "America/Los_Angeles", "Los Angeles"),
 )
+
+# Delivery hours offered in the bot; the Mini App offers the same range.
+REMINDER_HOURS: tuple[int, ...] = tuple(range(24))
+HOURS_PER_ROW = 4
+TIMEZONES_PER_ROW = 3
 
 
 def _mini_app_button(
@@ -117,8 +143,11 @@ def settings_keyboard(user) -> InlineKeyboardMarkup:
     reminder_timezone = user.reminder_timezone or "UTC"
     daily_key = "notifications_on" if daily_enabled else "notifications_off"
     weekly_key = "notifications_on" if weekly_enabled else "notifications_off"
+    # Same settings, larger screen: the Mini App writes the very same columns.
+    app_button = _mini_app_button(language, "settings_open_app", "profile", sheet="notifications")
     return InlineKeyboardMarkup(
         [
+            *([[app_button]] if app_button else []),
             [
                 InlineKeyboardButton(
                     f"{t(language, 'daily_setting')}: {t(language, daily_key)}",
@@ -150,36 +179,33 @@ def settings_keyboard(user) -> InlineKeyboardMarkup:
     )
 
 
-def reminder_time_keyboard(language: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        [
-            [
-                InlineKeyboardButton(f"{hour:02d}:00", callback_data=f"settings:hour:{hour}")
-                for hour in (8, 10)
-            ],
-            [
-                InlineKeyboardButton(f"{hour:02d}:00", callback_data=f"settings:hour:{hour}")
-                for hour in (13, 18)
-            ],
-            [
-                InlineKeyboardButton(f"{hour:02d}:00", callback_data=f"settings:hour:{hour}")
-                for hour in (20, 22)
-            ],
-            [InlineKeyboardButton(t(language, "back_settings"), callback_data="settings:open")],
-        ]
-    )
+def _chunk(buttons: list[InlineKeyboardButton], per_row: int) -> list[list[InlineKeyboardButton]]:
+    return [buttons[start : start + per_row] for start in range(0, len(buttons), per_row)]
 
 
-def timezone_keyboard(language: str) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton]] = []
-    row: list[InlineKeyboardButton] = []
-    for token, _zone, label in TIMEZONE_OPTIONS:
-        row.append(InlineKeyboardButton(label, callback_data=f"settings:tz:{token}"))
-        if len(row) == 2:
-            rows.append(row)
-            row = []
-    if row:
-        rows.append(row)
+def reminder_time_keyboard(language: str, selected_hour: int | None = None) -> InlineKeyboardMarkup:
+    """Every hour of the day; the current one is marked so the choice is visible."""
+    buttons = [
+        InlineKeyboardButton(
+            f"• {hour:02d}:00" if hour == selected_hour else f"{hour:02d}:00",
+            callback_data=f"settings:hour:{hour}",
+        )
+        for hour in REMINDER_HOURS
+    ]
+    rows = _chunk(buttons, HOURS_PER_ROW)
+    rows.append([InlineKeyboardButton(t(language, "back_settings"), callback_data="settings:open")])
+    return InlineKeyboardMarkup(rows)
+
+
+def timezone_keyboard(language: str, selected_zone: str | None = None) -> InlineKeyboardMarkup:
+    buttons = [
+        InlineKeyboardButton(
+            f"• {label}" if zone == selected_zone else label,
+            callback_data=f"settings:tz:{token}",
+        )
+        for token, zone, label in TIMEZONE_OPTIONS
+    ]
+    rows = _chunk(buttons, TIMEZONES_PER_ROW)
     rows.append([InlineKeyboardButton(t(language, "back_settings"), callback_data="settings:open")])
     return InlineKeyboardMarkup(rows)
 
@@ -189,4 +215,21 @@ def timezone_from_token(token: str) -> str | None:
 
 
 def timezone_label(zone: str) -> str:
-    return next((label for _key, value, label in TIMEZONE_OPTIONS if value == zone), zone)
+    """City plus its current UTC offset; falls back to the raw zone for device-set ones."""
+    label = next((value for _key, known, value in TIMEZONE_OPTIONS if known == zone), zone)
+    offset = utc_offset_label(zone)
+    return f"{label} ({offset})" if offset else label
+
+
+def utc_offset_label(zone: str) -> str:
+    """`UTC+5`, `UTC-3:30`, or an empty string when the zone is unknown."""
+    try:
+        offset = datetime.now(ZoneInfo(zone)).utcoffset()
+    except (ZoneInfoNotFoundError, ValueError, KeyError):
+        return ""
+    if offset is None:
+        return ""
+    total_minutes = int(offset.total_seconds() // 60)
+    sign = "+" if total_minutes >= 0 else "-"
+    hours, minutes = divmod(abs(total_minutes), 60)
+    return f"UTC{sign}{hours}" + (f":{minutes:02d}" if minutes else "")

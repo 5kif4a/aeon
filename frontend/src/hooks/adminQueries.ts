@@ -106,6 +106,19 @@ export function useGrantPro(userId: number) {
   });
 }
 
+export function useRefundPayment(userId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (paymentId: string) => adminApi.refundPayment(userId, paymentId),
+    onSuccess: () => {
+      // The refund changes the payment row, the user's plan and the event log at once.
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "payments"] });
+    },
+  });
+}
+
 export function useAdminConversations(params: {
   userId?: number;
   agentId: string;

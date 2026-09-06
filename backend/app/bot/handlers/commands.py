@@ -9,8 +9,8 @@ from app.bot.handlers.onboarding import send_home
 from app.bot.handlers.payments import (
     SubscriptionUpdateHandler,
     cancel_subscription_command,
-    paysupport_command,
     precheckout_callback,
+    refunded_payment_callback,
     subscribe_command,
     subscription_update_callback,
     successful_payment_callback,
@@ -159,7 +159,9 @@ async def _handle_settings_callback(
             user.id,
             query.message.message_id,
             t(user.language, "choose_reminder_time"),
-            ui.reminder_time_keyboard(user.language),
+            ui.reminder_time_keyboard(
+                user.language, user.reminder_hour if user.reminder_hour is not None else 9
+            ),
         )
         return
     if data == "settings:timezone":
@@ -168,7 +170,7 @@ async def _handle_settings_callback(
             user.id,
             query.message.message_id,
             t(user.language, "choose_timezone"),
-            ui.timezone_keyboard(user.language),
+            ui.timezone_keyboard(user.language, user.reminder_timezone or "UTC"),
         )
         return
 
@@ -258,9 +260,9 @@ def build_command_handlers() -> list:
         CommandHandler("council", council_command, filters=private),
         CommandHandler("subscribe", subscribe_command, filters=private),
         CommandHandler("cancel_subscription", cancel_subscription_command, filters=private),
-        CommandHandler("paysupport", paysupport_command, filters=private),
         PreCheckoutQueryHandler(precheckout_callback),
         MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback),
+        MessageHandler(filters.StatusUpdate.REFUNDED_PAYMENT, refunded_payment_callback),
         SubscriptionUpdateHandler(subscription_update_callback),
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(

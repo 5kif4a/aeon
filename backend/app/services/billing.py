@@ -429,6 +429,84 @@ async def mark_subscription_payment_failed(session: AsyncSession, user_id: int) 
     return user
 
 
+class PaymentNotFound(Exception):
+    """No payment with that charge id belongs to the user."""
+
+
+async def get_payment(session: AsyncSession, user_id: int, payment_id) -> BillingPayment | None:
+    return await session.scalar(
+        select(BillingPayment).where(
+            BillingPayment.id == payment_id, BillingPayment.user_id == user_id
+        )
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class RefundResult:
+    user: User
+    payment: BillingPayment
+    changed: bool  # False when the payment had already been marked refunded
+    pro_revoked: bool
+
+
+async def mark_payment_refunded(
+    session: AsyncSession,
+    *,
+    user_id: int,
+    telegram_payment_charge_id: str,
+    source: str,
+    refunded_by: int | None = None,
+    now: datetime | None = None,
+) -> RefundResult:
+    """Record a Stars refund and take Pro away for the period that payment bought.
+
+    ``source`` is ``admin`` (we called ``refundStarPayment``) or ``telegram`` (Telegram's
+    support refunded it and the bot received ``refunded_payment``). Idempotent: a payment
+    already marked refunded is returned unchanged, so both paths can fire for one refund.
+    Pro is revoked only when the refunded charge covers the user's current Pro period; an
+    older, already superseded payment leaves the entitlement alone.
+    """
+    current = now or utc_now()
+    user = await _locked_user(session, user_id)
+    payment = await session.scalar(
+        select(BillingPayment).where(
+            BillingPayment.telegram_payment_charge_id == telegram_payment_charge_id,
+            BillingPayment.user_id == user_id,
+        )
+    )
+    if payment is None:
+        raise PaymentNotFound(telegram_payment_charge_id)
+    if payment.status == "refunded":
+        return RefundResult(user=user, payment=payment, changed=False, pro_revoked=False)
+
+    payment.status = "refunded"
+    pro_expires_at = _aware(user.pro_expires_at)
+    paid_until = _aware(payment.subscription_expires_at)
+    revoked = (
+        pro_expires_at is not None
+        and pro_expires_at > current
+        and (paid_until is None or paid_until >= pro_expires_at)
+    )
+    if revoked:
+        user.pro_expires_at = current
+        user.pro_auto_renew = False
+        user.plan = effective_plan(user, current)
+    events.record(
+        session,
+        events.PAYMENT_REFUNDED,
+        user.id,
+        amount=payment.amount,
+        currency=payment.currency,
+        source=source,
+        refunded_by=refunded_by,
+        pro_revoked=revoked,
+    )
+    await session.commit()
+    await session.refresh(user)
+    await session.refresh(payment)
+    return RefundResult(user=user, payment=payment, changed=True, pro_revoked=revoked)
+
+
 def pending_billing_reminder(user: User, now: datetime | None = None) -> BillingReminder | None:
     """Which Stars upsell reminder the user is owed right now, if any.
 

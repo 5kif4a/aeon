@@ -1,7 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
-import { useAdminUser, useGrantPro } from "../../hooks/adminQueries";
+import { useAdminUser, useGrantPro, useRefundPayment } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
 import { agentLabel, planChipClass } from "../../lib/adminFormat";
 import {
@@ -27,7 +27,10 @@ export function AdminUserDetailView() {
   const id = Number(userId);
   const detail = useAdminUser(id);
   const grant = useGrantPro(id);
+  const refund = useRefundPayment(id);
   const [days, setDays] = useState(30);
+  // Two-step confirm inside the row instead of a browser dialog: refunds are irreversible.
+  const [refundArmed, setRefundArmed] = useState<string | null>(null);
 
   if (detail.isPending) return <p className="text-muted">{t("admin_loading")}</p>;
   if (detail.isError || !detail.data) return <p className="text-danger">{t("admin_error")}</p>;
@@ -104,6 +107,14 @@ export function AdminUserDetailView() {
       </header>
       {grant.isSuccess ? <p className="text-success text-[13px]">{t("admin_grant_done")}</p> : null}
       {grant.isError ? <p className="text-danger text-[13px]">{t("admin_error")}</p> : null}
+      {refund.isSuccess ? (
+        <p className="text-success text-[13px]">{t("admin_refund_done")}</p>
+      ) : null}
+      {refund.isError ? (
+        <p className="text-danger text-[13px]">
+          {t("admin_refund_failed")}: {refund.error.message}
+        </p>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-[1fr_1fr]">
         <article className={adminCard}>
@@ -211,6 +222,7 @@ export function AdminUserDetailView() {
                   <th className={`${adminTh} text-right`}>{t("admin_col_amount")}</th>
                   <th className={adminTh}>{t("admin_col_status")}</th>
                   <th className={adminTh}>{t("admin_col_until")}</th>
+                  <th className={adminTh}></th>
                 </tr>
               </thead>
               <tbody>
@@ -229,11 +241,43 @@ export function AdminUserDetailView() {
                     <td className={`${adminTd} text-muted whitespace-nowrap`}>
                       {formatDate(payment.subscriptionExpiresAt)}
                     </td>
+                    <td className={`${adminTd} text-right whitespace-nowrap`}>
+                      {payment.status === "paid" && refundArmed !== payment.id ? (
+                        <button
+                          type="button"
+                          className={`${adminButton} h-7 px-2 text-[12px]`}
+                          onClick={() => setRefundArmed(payment.id)}
+                        >
+                          {t("admin_refund")}
+                        </button>
+                      ) : null}
+                      {refundArmed === payment.id ? (
+                        <span className="inline-flex gap-1">
+                          <button
+                            type="button"
+                            className={`${adminButton} text-danger border-danger h-7 px-2 text-[12px]`}
+                            disabled={refund.isPending}
+                            onClick={() =>
+                              refund.mutate(payment.id, { onSettled: () => setRefundArmed(null) })
+                            }
+                          >
+                            {t("admin_refund_confirm")}
+                          </button>
+                          <button
+                            type="button"
+                            className={`${adminButton} h-7 px-2 text-[12px]`}
+                            onClick={() => setRefundArmed(null)}
+                          >
+                            {t("admin_cancel")}
+                          </button>
+                        </span>
+                      ) : null}
+                    </td>
                   </tr>
                 ))}
                 {payments.length === 0 ? (
                   <tr>
-                    <td className={`${adminTd} text-soft text-center`} colSpan={4}>
+                    <td className={`${adminTd} text-soft text-center`} colSpan={5}>
                       {t("admin_empty")}
                     </td>
                   </tr>

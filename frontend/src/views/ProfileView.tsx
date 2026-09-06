@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { AboutForm } from "../components/AboutForm";
 import { Modal } from "../components/Modal";
+import { NotificationsForm } from "../components/NotificationsForm";
 import { ProfileSheet } from "../components/ProfileSheet";
 import { Skeleton } from "../components/Skeleton";
 import {
   useBillingStatus,
   useCancelSubscription,
   useCreateCheckout,
+  useNotificationSettings,
   useProfile,
   useStartTrial,
 } from "../hooks/queries";
@@ -23,8 +25,9 @@ import {
   type TranslationKey,
 } from "../lib/i18n";
 import { formatDateOnly, parseLocalDate } from "../lib/life";
+import { timezoneLabel } from "../lib/options";
 import { openInvoice } from "../lib/telegram";
-import type { BillingStatus, Profile } from "../lib/types";
+import type { BillingStatus, NotificationSettings, Profile } from "../lib/types";
 import { goldButton } from "../lib/ui";
 import type { ProfileSheet as SheetName } from "../lib/views";
 
@@ -58,6 +61,7 @@ export function ProfileView() {
   const queryClient = useQueryClient();
   const profileQuery = useProfile();
   const billingQuery = useBillingStatus();
+  const notificationsQuery = useNotificationSettings();
   const profile = profileQuery.data;
   const billing = billingQuery.data;
   const profilePending = profileQuery.isPending;
@@ -155,6 +159,14 @@ export function ProfileView() {
             <em className="text-muted text-[13px] font-[750] not-italic">{LANGUAGE_NAMES[lang]}</em>
             <i className="text-muted text-[20px] not-italic">›</i>
           </button>
+          <button type="button" className={settingRow} onClick={() => setSheet("notifications")}>
+            <span className={settingIcon}>◔</span>
+            <strong className="text-[14px]">{t("notifications_label")}</strong>
+            <em className="text-muted text-[13px] font-[750] not-italic">
+              {notificationsSummary(notificationsQuery.data, LOCALES[lang], t)}
+            </em>
+            <i className="text-muted text-[20px] not-italic">›</i>
+          </button>
           <button type="button" className={settingRow} onClick={() => setSheet("pro")}>
             <span className={settingIcon}>★</span>
             <strong className="text-[14px]">{t("plan_label")}</strong>
@@ -230,6 +242,11 @@ export function ProfileView() {
       {sheet === "about" && (
         <ProfileSheet title={t("about_title")} onClose={closeSheet}>
           <AboutForm profile={profile} onSaved={closeSheet} />
+        </ProfileSheet>
+      )}
+      {sheet === "notifications" && (
+        <ProfileSheet title={t("notifications_title")} onClose={closeSheet}>
+          <NotificationsForm />
         </ProfileSheet>
       )}
       {sheet === "language" && (
@@ -359,6 +376,18 @@ function BillingRow({ label, value }: { label: string; value: string }) {
       <strong className="text-right">{value}</strong>
     </div>
   );
+}
+
+/** "09:00 · Almaty" on the settings row, or "Off" when nothing is delivered. */
+function notificationsSummary(
+  settings: NotificationSettings | undefined,
+  locale: string,
+  t: TFunc,
+): string {
+  if (!settings) return "—";
+  if (!settings.dailyEnabled && !settings.weeklyEnabled) return t("notifications_off");
+  const hour = `${String(settings.reminderHour).padStart(2, "0")}:00`;
+  return `${hour} · ${timezoneLabel(settings.reminderTimezone, locale).split(" · ")[0]}`;
 }
 
 function planLabel(plan: string, t: TFunc): string {

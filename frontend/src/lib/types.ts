@@ -33,6 +33,19 @@ export interface ProfileUpdate {
   language?: string;
 }
 
+export interface NotificationSettings {
+  dailyEnabled: boolean;
+  weeklyEnabled: boolean;
+  reminderHour: number;
+  reminderTimezone: string;
+  /** Nothing is delivered until the birth date is set; the form says so. */
+  birthDateSet: boolean;
+}
+
+export type NotificationSettingsUpdate = Partial<
+  Pick<NotificationSettings, "dailyEnabled" | "weeklyEnabled" | "reminderHour" | "reminderTimezone">
+>;
+
 export interface Goal {
   id: string;
   text: string;

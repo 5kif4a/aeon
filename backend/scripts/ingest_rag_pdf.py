@@ -8,6 +8,15 @@ from pathlib import Path
 from pypdf import PdfReader
 
 CHAPTER_RE = re.compile(r"^(ГЛАВА\s+[IVXLCDM]+\.?[^\n]*)", re.IGNORECASE)
+BOOK_RE = re.compile(r"^Книга\s+(первая|вторая|третья|четвертая|четвёртая|пятая)\b", re.IGNORECASE)
+BOOK_NUMERALS = {
+    "первая": "I",
+    "вторая": "II",
+    "третья": "III",
+    "четвертая": "IV",
+    "четвёртая": "IV",
+    "пятая": "V",
+}
 SENTENCE_RE = re.compile(r"(?<=[.!?…])\s+")
 
 
@@ -15,6 +24,15 @@ def clean_page_text(text: str) -> str:
     text = text.replace("\u00ad", "").replace("\u00a0", " ")
     text = re.sub(r"(?<=\w)-\s*\n\s*(?=\w)", "", text)
     return re.sub(r"\s+", " ", text).strip()
+
+
+def book_from_page(raw_text: str, current: str) -> str:
+    """Track "Книга первая/вторая/..." headings in multi-book works such as the Discourses."""
+    for line in raw_text.splitlines():
+        match = BOOK_RE.match(re.sub(r"\s+", " ", line).strip())
+        if match:
+            return f"Книга {BOOK_NUMERALS[match.group(1).lower()]}"
+    return current
 
 
 def chapter_from_page(raw_text: str, current: str) -> str:
@@ -60,38 +78,57 @@ def split_chunks(text: str, chunk_size: int, overlap_size: int) -> list[str]:
     return [chunk for chunk in chunks if len(chunk) >= 120]
 
 
+def parse_work(value: str) -> tuple[str, int, int | None]:
+    """`--work "Title:start[:end]"`; pages are 1-based and inclusive."""
+    parts = value.rsplit(":", 2)
+    if len(parts) < 2 or not parts[1].isdigit():
+        raise argparse.ArgumentTypeError(f"expected 'Title:start[:end]', got {value!r}")
+    if len(parts) == 3 and parts[2].isdigit():
+        return parts[0], int(parts[1]), int(parts[2])
+    if len(parts) == 3:
+        return f"{parts[0]}:{parts[1]}", int(parts[2]), None
+    return parts[0], int(parts[1]), None
+
+
 def ingest(
     input_path: Path,
     output_path: Path,
-    source: str,
-    start_page: int,
+    works: list[tuple[str, int, int | None]],
     chunk_size: int,
     overlap_size: int,
 ) -> dict:
+    """Index one PDF holding one or several works, each with its own page range and source label."""
     reader = PdfReader(input_path)
     chunks = []
-    current_chapter = "Посвящение"
-    for page_number, page in enumerate(reader.pages, start=1):
-        if page_number < start_page:
-            continue
-        raw_text = page.extract_text() or ""
-        current_chapter = chapter_from_page(raw_text, current_chapter)
-        text = clean_page_text(raw_text)
-        for chunk_number, chunk in enumerate(split_chunks(text, chunk_size, overlap_size), start=1):
-            chunks.append(
-                {
-                    "id": f"machiavelli-p{page_number:03d}-c{chunk_number:02d}",
-                    "source": source,
-                    "page": page_number,
-                    "chapter": current_chapter,
-                    "text": chunk,
-                }
-            )
+    for source, start_page, end_page in works:
+        current_chapter = "Посвящение"
+        current_book = ""
+        last_page = min(end_page or len(reader.pages), len(reader.pages))
+        for page_number in range(start_page, last_page + 1):
+            raw_text = reader.pages[page_number - 1].extract_text() or ""
+            book = book_from_page(raw_text, current_book)
+            if book != current_book:
+                current_book, current_chapter = book, "Вступление"
+            current_chapter = chapter_from_page(raw_text, current_chapter)
+            chapter = f"{current_book}, {current_chapter}" if current_book else current_chapter
+            text = clean_page_text(raw_text)
+            for chunk_number, chunk in enumerate(
+                split_chunks(text, chunk_size, overlap_size), start=1
+            ):
+                chunks.append(
+                    {
+                        "id": f"machiavelli-p{page_number:03d}-c{chunk_number:02d}",
+                        "source": source,
+                        "page": page_number,
+                        "chapter": chapter,
+                        "text": chunk,
+                    }
+                )
 
     payload = {
         "version": 1,
         "agent": "machiavelli",
-        "source": source,
+        "source": "; ".join(source for source, _, _ in works),
         "language": "ru",
         "page_count": len(reader.pages),
         "chunks": chunks,
@@ -107,17 +144,19 @@ def main() -> None:
     parser.add_argument("--output", type=Path, default=Path("data/rag/machiavelli.json"))
     parser.add_argument("--source", default="Никколо Макиавелли, «Государь»")
     parser.add_argument("--start-page", type=int, default=4)
+    parser.add_argument(
+        "--work",
+        action="append",
+        type=parse_work,
+        default=None,
+        help="'Title:start[:end]' for a PDF holding several works; repeatable. "
+        "Overrides --source/--start-page.",
+    )
     parser.add_argument("--chunk-size", type=int, default=1400)
     parser.add_argument("--overlap-size", type=int, default=220)
     args = parser.parse_args()
-    payload = ingest(
-        args.input,
-        args.output,
-        args.source,
-        args.start_page,
-        args.chunk_size,
-        args.overlap_size,
-    )
+    works = args.work or [(args.source, args.start_page, None)]
+    payload = ingest(args.input, args.output, works, args.chunk_size, args.overlap_size)
     print(f"Indexed {len(payload['chunks'])} chunks from {payload['page_count']} pages")
     print(args.output.resolve())
 

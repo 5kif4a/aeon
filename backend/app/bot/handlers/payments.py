@@ -5,14 +5,23 @@ from dataclasses import dataclass
 from datetime import timedelta
 from typing import Any
 
+from sqlalchemy import select
 from telegram import LabeledPrice, Update
-from telegram.ext import BaseHandler, ContextTypes
+from telegram.ext import (
+    BaseHandler,
+    CommandHandler,
+    ContextTypes,
+    ConversationHandler,
+    MessageHandler,
+    filters,
+)
 
 from app.bot import ui
 from app.core.config import get_settings
+from app.db.models import BillingPayment
 from app.db.session import SessionFactory
 from app.i18n import t
-from app.services import billing, ops, users
+from app.services import billing, events, ops, users
 
 logger = logging.getLogger(__name__)
 
@@ -123,9 +132,118 @@ async def cancel_subscription_command(update: Update, context: ContextTypes.DEFA
     )
 
 
-async def paysupport_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+# --- /paysupport -------------------------------------------------------------------------------
+#
+# Telegram requires every bot that accepts payments to answer /paysupport. Ours explains the
+# policy and then waits for one message, which is forwarded to the ops group together with the
+# user's recent charges so the operator can act (refund from the admin panel, grant Pro, reply).
+
+PAYSUPPORT_MESSAGE = 1
+PAYSUPPORT_TIMEOUT_SECONDS = 15 * 60
+
+
+async def paysupport_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = await _user(update.effective_user.id)
     await context.bot.send_message(user.id, t(user.language, "payment_support"))
+    return PAYSUPPORT_MESSAGE
+
+
+async def paysupport_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    text = (update.effective_message.text or "").strip()
+    if not text:
+        return PAYSUPPORT_MESSAGE
+    user_id = update.effective_user.id
+    async with SessionFactory() as session:
+        user = await users.get_or_create_user(session, user_id)
+        payments = list(
+            await session.scalars(
+                select(BillingPayment)
+                .where(BillingPayment.user_id == user_id)
+                .order_by(BillingPayment.created_at.desc())
+                .limit(3)
+            )
+        )
+        events.record(session, events.PAYSUPPORT_REQUEST, user_id, text=text[:1000])
+        await session.commit()
+    ops.paysupport_request(user, text, payments)
+    await context.bot.send_message(
+        user.id,
+        t(user.language, "payment_support_received"),
+        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+    )
+    return ConversationHandler.END
+
+
+async def paysupport_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    user = await _user(update.effective_user.id)
+    await context.bot.send_message(
+        user.id,
+        t(user.language, "payment_support_canceled"),
+        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+    )
+    return ConversationHandler.END
+
+
+async def paysupport_timeout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    return ConversationHandler.END
+
+
+def build_paysupport_handler() -> ConversationHandler:
+    private = filters.ChatType.PRIVATE
+    return ConversationHandler(
+        entry_points=[CommandHandler("paysupport", paysupport_command, filters=private)],
+        states={
+            PAYSUPPORT_MESSAGE: [
+                MessageHandler(private & filters.TEXT & ~filters.COMMAND, paysupport_message),
+            ],
+            ConversationHandler.TIMEOUT: [MessageHandler(filters.ALL, paysupport_timeout)],
+        },
+        fallbacks=[CommandHandler("cancel", paysupport_cancel, filters=private)],
+        conversation_timeout=PAYSUPPORT_TIMEOUT_SECONDS,
+        allow_reentry=True,
+    )
+
+
+# --- refunds -------------------------------------------------------------------------------------
+
+
+async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Telegram refunded a Stars payment (its support, or our own refundStarPayment call)."""
+    message = update.effective_message
+    refund = message.refunded_payment if message else None
+    if refund is None:
+        return
+    user_id = update.effective_user.id
+    async with SessionFactory() as session:
+        try:
+            result = await billing.mark_payment_refunded(
+                session,
+                user_id=user_id,
+                telegram_payment_charge_id=refund.telegram_payment_charge_id,
+                source="telegram",
+            )
+        except billing.PaymentNotFound:
+            logger.error(
+                "Refund for an unknown charge (user_id=%s charge_id=%s)",
+                user_id,
+                refund.telegram_payment_charge_id,
+            )
+            return
+    if not result.changed:  # already handled by the admin-panel refund
+        return
+    user = result.user
+    ops.payment_refunded(
+        user,
+        amount=refund.total_amount,
+        currency=refund.currency,
+        source="telegram",
+        pro_revoked=result.pro_revoked,
+    )
+    await context.bot.send_message(
+        user.id,
+        t(user.language, "payment_refunded", amount=refund.total_amount),
+        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+    )
 
 
 # --- Bot API 10.2 `subscription` updates ---------------------------------------------------

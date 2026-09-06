@@ -258,7 +258,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_canceled": "Automatic renewal is canceled. Pro remains active until {date}.",
         "payment_restored": "Automatic renewal is back on. Pro continues after {date}.",
         "payment_renewal_failed": "Telegram could not charge the renewal, most likely there were not enough Stars. Pro stays active until {date}; top up your Stars or subscribe again with /subscribe to keep it.",
-        "payment_support": "Aeon Pro is a digital subscription paid in Telegram Stars; payments are not refundable. You can stop the renewal at any time with /cancel_subscription, and Pro stays active until the end of the paid period. If a payment went through but Pro did not activate, describe the issue and the approximate payment date and we will check the transaction.",
+        "payment_support": "Aeon Pro is a digital subscription paid in Telegram Stars. You can stop the renewal at any time with /cancel_subscription; Pro stays active until the end of the paid period. Refunds are made only when a payment went through but Pro did not activate, or for a duplicate charge.\n\nDescribe the issue in one message (what happened and the approximate payment date) and we will check the transaction. Send /cancel to leave without a request.",
+        "payment_support_received": "Thank you, your request has been passed to the team. We will reply here within a day.",
+        "payment_support_canceled": "No request was sent.",
+        "payment_refunded": "Your payment of {amount} Stars has been refunded. Pro is switched off; the Stars return to your Telegram balance.",
         "billing_trial_ending": (
             "Your 7-day Trial ends tomorrow. After that the advisors answer without their books "
             "and the Council of Three closes. Continue with Aeon Pro for {price} ★ per month: "
@@ -318,6 +321,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "weekly_setting": "Weekly",
         "notifications_on": "On",
         "notifications_off": "Off",
+        "settings_open_app": "Open in the app",
         "reminder_time_button": "Time {hour:02d}:00",
         "timezone_button": "Zone: {timezone}",
         "choose_reminder_time": "When should Aeon send your reflections?",
@@ -408,7 +412,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_canceled": "Автопродление отключено. Pro продолжит работать до {date}.",
         "payment_restored": "Автопродление снова включено. Pro продолжится после {date}.",
         "payment_renewal_failed": "Telegram не смог списать оплату за продление, скорее всего не хватило Stars. Pro работает до {date}; пополните баланс Stars или оформите подписку заново через /subscribe, чтобы сохранить доступ.",
-        "payment_support": "Aeon Pro — цифровая подписка, оплаченная Telegram Stars; средства за неё не возвращаются. Автопродление можно отключить в любой момент командой /cancel_subscription, Pro продолжит работать до конца оплаченного периода. Если платёж прошёл, а Pro не активировался, опишите проблему и укажите примерную дату платежа, мы проверим транзакцию.",
+        "payment_support": "Aeon Pro — цифровая подписка, оплаченная Telegram Stars. Автопродление можно отключить в любой момент командой /cancel_subscription, Pro продолжит работать до конца оплаченного периода. Возврат делаем только если платёж прошёл, а Pro не активировался, или при двойном списании.\n\nОпишите проблему одним сообщением (что случилось и примерную дату платежа), мы проверим транзакцию. Чтобы выйти без обращения, отправьте /cancel.",
+        "payment_support_received": "Спасибо, обращение передано команде. Ответим здесь в течение суток.",
+        "payment_support_canceled": "Обращение не отправлено.",
+        "payment_refunded": "Ваш платёж на {amount} Stars возвращён. Pro отключён, Stars вернулись на Ваш баланс Telegram.",
         "billing_trial_ending": (
             "Ваш 7-дневный пробный период заканчивается завтра. После этого советники будут "
             "отвечать без опоры на книги, а Совет трёх закроется. Продолжите с Aeon Pro за "
@@ -467,6 +474,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "weekly_setting": "Еженедельные",
         "notifications_on": "Вкл.",
         "notifications_off": "Выкл.",
+        "settings_open_app": "Открыть в приложении",
         "reminder_time_button": "Время {hour:02d}:00",
         "timezone_button": "Пояс: {timezone}",
         "choose_reminder_time": "В какое время Aeon должен присылать размышления?",

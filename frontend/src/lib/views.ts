@@ -11,7 +11,7 @@ export const VIEW_PATHS = {
 export const PRACTICE_TABS = ["life", "goal", "diary"] as const;
 export type PracticeTab = (typeof PRACTICE_TABS)[number];
 
-export const PROFILE_SHEETS = ["about", "language", "pro"] as const;
+export const PROFILE_SHEETS = ["about", "language", "notifications", "pro"] as const;
 export type ProfileSheet = (typeof PROFILE_SHEETS)[number];
 
 export function viewFromPathname(pathname: string): ViewName {

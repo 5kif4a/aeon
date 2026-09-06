@@ -48,6 +48,51 @@ class TestProfile:
         assert response.json()["language"] == "en"
 
 
+class TestNotificationSettings:
+    async def test_defaults_are_returned(self, client, auth_headers):
+        response = await client.get("/api/me/notifications", headers=auth_headers)
+
+        assert response.status_code == 200
+        settings = response.json()
+        assert settings["dailyEnabled"] is True and settings["weeklyEnabled"] is True
+        assert 0 <= settings["reminderHour"] <= 23
+        assert settings["reminderTimezone"]
+        assert settings["birthDateSet"] is False
+
+    async def test_patch_saves_hour_zone_and_toggles(self, client, auth_headers):
+        response = await client.patch(
+            "/api/me/notifications",
+            headers=auth_headers,
+            json={"reminderHour": 21, "reminderTimezone": "Asia/Almaty", "weeklyEnabled": False},
+        )
+
+        assert response.status_code == 200
+        settings = response.json()
+        assert settings["reminderHour"] == 21
+        assert settings["reminderTimezone"] == "Asia/Almaty"
+        assert settings["weeklyEnabled"] is False
+        # Untouched fields keep their value.
+        assert settings["dailyEnabled"] is True
+        assert (await client.get("/api/me/notifications", headers=auth_headers)).json() == settings
+
+    async def test_birth_date_is_reflected(self, client, auth_headers):
+        await client.patch("/api/me", headers=auth_headers, json={"birthDate": "1990-03-12"})
+
+        response = await client.get("/api/me/notifications", headers=auth_headers)
+        assert response.json()["birthDateSet"] is True
+
+    async def test_invalid_hour_and_zone_are_rejected(self, client, auth_headers):
+        for payload in (
+            {"reminderHour": 24},
+            {"reminderHour": -1},
+            {"reminderTimezone": "Mars/Base"},
+        ):
+            response = await client.patch(
+                "/api/me/notifications", headers=auth_headers, json=payload
+            )
+            assert response.status_code == 422, payload
+
+
 class TestGoal:
     async def test_goal_lifecycle(self, client, auth_headers):
         assert (await client.get("/api/goal", headers=auth_headers)).json() is None

@@ -8,6 +8,7 @@ from telegram.ext import Application, ApplicationBuilder
 from app.bot.handlers.commands import build_command_handlers
 from app.bot.handlers.onboarding import build_onboarding_handler
 from app.bot.handlers.ops import build_ops_handlers, send_ops_digests
+from app.bot.handlers.payments import build_paysupport_handler
 from app.bot.jobs import (
     send_billing_reminders,
     send_daily_notifications,
@@ -68,6 +69,9 @@ def build_application() -> Application:
     application = builder.build()
 
     application.add_handler(build_onboarding_handler())
+    # Before the plain text handler: while a /paysupport request is open, the next message
+    # goes to the ops group instead of the active agent.
+    application.add_handler(build_paysupport_handler())
     for handler in (*build_ops_handlers(), *build_command_handlers()):
         application.add_handler(handler)
 

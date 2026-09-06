@@ -21,6 +21,7 @@ const START_PARAM_ROUTES: Record<string, string> = {
   profile: "/profile",
   profile_about: "/profile?sheet=about",
   profile_pro: "/profile?sheet=pro",
+  profile_notifications: "/profile?sheet=notifications",
 };
 
 /** The route to start on, or null to keep the current URL. */

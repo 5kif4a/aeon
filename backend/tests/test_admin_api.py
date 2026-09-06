@@ -1,6 +1,7 @@
 """Postgres-backed tests for /api/admin/*: access control, login flow, and read models."""
 
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -174,4 +175,43 @@ async def test_grant_pro_extends_expiry(client):
     ).status_code == 422
     assert (
         await client.post("/api/admin/users/1/grant-pro", json={"days": 1}, headers=headers)
+    ).status_code == 404
+
+
+async def test_refund_payment_calls_telegram_and_revokes_pro(client, monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock
+
+    from app.bot import runtime
+
+    bot = SimpleNamespace(
+        refund_star_payment=AsyncMock(return_value=True), send_message=AsyncMock()
+    )
+    monkeypatch.setattr(runtime, "get_application", lambda: SimpleNamespace(bot=bot))
+    headers = admin_tma_headers()
+
+    detail = await client.get(f"/api/admin/users/{SUBJECT_ID}", headers=headers)
+    payment = next(p for p in detail.json()["payments"] if p["status"] == "paid")
+
+    response = await client.post(
+        f"/api/admin/users/{SUBJECT_ID}/payments/{payment['id']}/refund", headers=headers
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["status"] == "refunded"
+    bot.refund_star_payment.assert_awaited_once_with(SUBJECT_ID, "charge-admin-1")
+    bot.send_message.assert_awaited_once()
+
+    # Idempotent: a second call does not hit Telegram again.
+    again = await client.post(
+        f"/api/admin/users/{SUBJECT_ID}/payments/{payment['id']}/refund", headers=headers
+    )
+    assert again.status_code == 200 and again.json()["status"] == "refunded"
+    assert bot.refund_star_payment.await_count == 1
+
+    after = await client.get(f"/api/admin/users/{SUBJECT_ID}", headers=headers)
+    assert "payment_refunded" in {e["type"] for e in after.json()["events"]}
+    assert (
+        await client.post(
+            f"/api/admin/users/{SUBJECT_ID}/payments/{uuid.uuid4()}/refund", headers=headers
+        )
     ).status_code == 404

@@ -75,7 +75,39 @@ def test_settings_keyboard_contains_independent_notification_toggles():
     assert "Daily: On" in labels
     assert "Weekly: Off" in labels
     assert "Time 10:00" in labels
-    assert "Zone: London" in labels
+    # The offset moves with DST, so only its shape is asserted.
+    assert any(label.startswith("Zone: London (UTC") for label in labels)
+
+
+def test_reminder_time_keyboard_offers_every_hour_and_marks_the_current_one():
+    keyboard = ui.reminder_time_keyboard("en", 10)
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+    hours = [
+        button.callback_data
+        for row in keyboard.inline_keyboard
+        for button in row
+        if button.callback_data.startswith("settings:hour:")
+    ]
+
+    assert len(hours) == 24
+    assert hours[0] == "settings:hour:0" and hours[-1] == "settings:hour:23"
+    assert "• 10:00" in labels
+    assert "09:00" in labels
+
+
+def test_timezone_keyboard_marks_the_current_zone():
+    keyboard = ui.timezone_keyboard("en", "Asia/Almaty")
+    labels = [button.text for row in keyboard.inline_keyboard for button in row]
+
+    assert "• Almaty" in labels
+    assert "Almaty" not in labels
+
+
+def test_utc_offset_label_formats_whole_and_half_hours():
+    assert ui.utc_offset_label("UTC") == "UTC+0"
+    assert ui.utc_offset_label("Asia/Almaty") == "UTC+5"
+    assert ui.utc_offset_label("Asia/Kolkata") == "UTC+5:30"
+    assert ui.utc_offset_label("Not/AZone") == ""
 
 
 def test_user_facing_errors_do_not_expose_provider_configuration():

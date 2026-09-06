@@ -111,6 +111,10 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ days }),
     }),
+  refundPayment: (userId: number, paymentId: string) =>
+    request<AdminPayment>(`/api/admin/users/${userId}/payments/${paymentId}/refund`, {
+      method: "POST",
+    }),
 
   getConversations: (params: {
     userId?: number;

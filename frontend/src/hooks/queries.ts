@@ -1,7 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../lib/api";
-import type { BillingStatus, DiaryEntry, Goal, Profile, ProfileUpdate } from "../lib/types";
+import type {
+  BillingStatus,
+  DiaryEntry,
+  Goal,
+  NotificationSettings,
+  NotificationSettingsUpdate,
+  Profile,
+  ProfileUpdate,
+} from "../lib/types";
 
 export function useProfile() {
   return useQuery({ queryKey: ["profile"], queryFn: api.getProfile });
@@ -12,6 +20,19 @@ export function useUpdateProfile() {
   return useMutation({
     mutationFn: (payload: ProfileUpdate) => api.updateProfile(payload),
     onSuccess: (profile: Profile) => queryClient.setQueryData(["profile"], profile),
+  });
+}
+
+export function useNotificationSettings() {
+  return useQuery({ queryKey: ["notifications"], queryFn: api.getNotificationSettings });
+}
+
+export function useUpdateNotificationSettings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (payload: NotificationSettingsUpdate) => api.updateNotificationSettings(payload),
+    onSuccess: (settings: NotificationSettings) =>
+      queryClient.setQueryData(["notifications"], settings),
   });
 }
 

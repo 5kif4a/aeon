@@ -157,3 +157,58 @@ async def test_subscription_state_updates_toggle_auto_renew_once():
         user = await billing.mark_subscription_payment_failed(session, USER_ID)
         assert user.pro_auto_renew is False
         assert billing.effective_plan(user, now) == "Pro"
+
+
+async def test_refund_revokes_pro_only_for_the_current_period():
+    now = datetime(2026, 7, 21, 10, tzinfo=UTC)
+    async with SessionFactory() as session:
+        for index, charge in enumerate(["charge-refund-old", "charge-refund-new"]):
+            await billing.record_successful_payment(
+                session,
+                user_id=USER_ID,
+                invoice_payload=billing.pro_invoice_payload(USER_ID),
+                currency="XTR",
+                amount=350,
+                telegram_payment_charge_id=charge,
+                subscription_expires_at=now + timedelta(days=30 * (index + 1)),
+                now=now,
+            )
+        # Refunding the superseded charge leaves the entitlement alone.
+        old = await billing.mark_payment_refunded(
+            session,
+            user_id=USER_ID,
+            telegram_payment_charge_id="charge-refund-old",
+            source="admin",
+            refunded_by=1,
+            now=now,
+        )
+        assert old.changed and not old.pro_revoked
+        assert old.payment.status == "refunded"
+        assert billing.effective_plan(old.user, now) == "Pro"
+
+        # Refunding the charge that bought the current period ends Pro right away.
+        new = await billing.mark_payment_refunded(
+            session,
+            user_id=USER_ID,
+            telegram_payment_charge_id="charge-refund-new",
+            source="telegram",
+            now=now,
+        )
+        assert new.changed and new.pro_revoked
+        assert billing.effective_plan(new.user, now) == "Free"
+        assert new.user.pro_auto_renew is False
+
+        # Telegram's refunded_payment arriving after our own refund is a no-op.
+        again = await billing.mark_payment_refunded(
+            session,
+            user_id=USER_ID,
+            telegram_payment_charge_id="charge-refund-new",
+            source="telegram",
+            now=now,
+        )
+        assert not again.changed
+
+        with pytest.raises(billing.PaymentNotFound):
+            await billing.mark_payment_refunded(
+                session, user_id=USER_ID, telegram_payment_charge_id="nope", source="admin"
+            )

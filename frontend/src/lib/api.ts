@@ -6,6 +6,8 @@ import type {
   Checkout,
   DiaryEntry,
   Goal,
+  NotificationSettings,
+  NotificationSettingsUpdate,
   Profile,
   ProfileUpdate,
   StartDialogResponse,
@@ -56,6 +58,13 @@ export const api = {
   getProfile: () => request<Profile>("/api/me"),
   updateProfile: (payload: ProfileUpdate) =>
     request<Profile>("/api/me", { method: "PATCH", body: JSON.stringify(payload) }),
+
+  getNotificationSettings: () => request<NotificationSettings>("/api/me/notifications"),
+  updateNotificationSettings: (payload: NotificationSettingsUpdate) =>
+    request<NotificationSettings>("/api/me/notifications", {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 
   getGoal: () => request<Goal | null>("/api/goal"),
   setGoal: (text: string) =>

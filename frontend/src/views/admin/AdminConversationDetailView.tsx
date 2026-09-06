@@ -44,7 +44,10 @@ export function AdminConversationDetailView() {
           {formatDateTime(conversation.createdAt)}
         </p>
       </header>
-      <section className={`${adminCard} grid gap-3`}>
+      {/* The thread scrolls inside its card; the header and back link stay put. */}
+      <section
+        className={`${adminCard} grid max-h-[calc(100dvh-14rem)] min-h-[240px] content-start gap-3 overflow-y-auto overscroll-contain`}
+      >
         {messages.map((message) => (
           <article
             key={message.id}

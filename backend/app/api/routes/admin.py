@@ -1,10 +1,12 @@
 """Product-owner panel: metrics, users, conversations, payments. Allowlisted admins only."""
 
 import asyncio
+import logging
 import uuid
 from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Query
+from telegram.error import TelegramError
 
 from app.agents import AGENTS
 from app.api.deps import AdminUser, SessionDep
@@ -33,10 +35,14 @@ from app.api.schemas import (
     GrantProIn,
     WindowOut,
 )
+from app.bot import runtime
 from app.core import admin_auth, admin_oauth
 from app.core.config import get_settings
 from app.db.models import BillingPayment, Conversation, ProductEvent, User
-from app.services import admin, agent_chat, billing, bot_settings, events, stats, users
+from app.i18n import t
+from app.services import admin, agent_chat, billing, bot_settings, events, ops, stats, users
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -289,6 +295,63 @@ async def admin_grant_pro(
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return _user_out(user, plan=billing.effective_plan(user))
+
+
+@router.post("/users/{user_id}/payments/{payment_id}/refund", response_model=AdminPaymentOut)
+async def admin_refund_payment(
+    user_id: int, payment_id: uuid.UUID, actor: AdminUser, session: SessionDep
+) -> AdminPaymentOut:
+    """Refund a Stars charge through Telegram and take Pro away for the refunded period.
+
+    Telegram is called between two short transactions (never inside one): the session's
+    connection is released with ``rollback`` before the network call. Telegram then also
+    delivers ``refunded_payment`` to the bot, which finds the payment already marked and
+    stays silent, so the user is notified exactly once, from here.
+    """
+    actor_id = actor.id  # read before the rollback below expires the actor row
+    payment = await billing.get_payment(session, user_id, payment_id)
+    if payment is None:
+        raise HTTPException(status_code=404, detail="Payment not found")
+    if payment.status == "refunded":
+        return _payment_out(payment)
+    charge_id = payment.telegram_payment_charge_id
+    # Release the connection for the network call and drop the now-stale identity map so the
+    # second transaction reloads the rows instead of lazy-refreshing expired attributes.
+    await session.rollback()
+    session.expunge_all()
+
+    application = runtime.get_application()
+    if application is None:
+        raise HTTPException(status_code=503, detail="Bot is not running")
+    try:
+        await application.bot.refund_star_payment(user_id, charge_id)
+    except TelegramError as error:
+        raise HTTPException(
+            status_code=502, detail=f"Telegram refused the refund: {error}"
+        ) from error
+
+    result = await billing.mark_payment_refunded(
+        session,
+        user_id=user_id,
+        telegram_payment_charge_id=charge_id,
+        source="admin",
+        refunded_by=actor_id,
+    )
+    user = result.user
+    ops.payment_refunded(
+        user,
+        amount=result.payment.amount,
+        currency=result.payment.currency,
+        source="admin",
+        pro_revoked=result.pro_revoked,
+    )
+    try:
+        await application.bot.send_message(
+            user.id, t(user.language, "payment_refunded", amount=result.payment.amount)
+        )
+    except TelegramError as error:  # the refund itself succeeded; the notice is best effort
+        logger.warning("Refund notice failed for %s: %s", user.id, error)
+    return _payment_out(result.payment, user.language, user.country or "")
 
 
 # --- conversations -----------------------------------------------------------------------
