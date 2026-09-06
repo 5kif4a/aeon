@@ -20,8 +20,10 @@ TIMEZONE_OPTIONS: tuple[tuple[str, str, str], ...] = (
 )
 
 
-def _mini_app_button(language: str, key: str, view: str = "home") -> InlineKeyboardButton | None:
-    url = webapp.build_webapp_url(view)
+def _mini_app_button(
+    language: str, key: str, view: str = "home", **params: str
+) -> InlineKeyboardButton | None:
+    url = webapp.build_webapp_url(view, **params)
     if not url:
         return None
     return InlineKeyboardButton(t(language, key), web_app=WebAppInfo(url=url))
@@ -87,11 +89,11 @@ def back_home_keyboard(language: str) -> InlineKeyboardMarkup:
 def limit_keyboard(language: str, plan: str) -> InlineKeyboardMarkup:
     primary: InlineKeyboardButton | None
     if plan.lower() == "free":
-        primary = _mini_app_button(language, "start_trial_button", "profile")
+        primary = _mini_app_button(language, "start_trial_button", "profile", sheet="pro")
     elif plan.lower() == "trial":
         primary = InlineKeyboardButton(t(language, "upgrade_pro_button"), callback_data="billing:subscribe")
     else:
-        primary = _mini_app_button(language, "open_aeon", "profile")
+        primary = _mini_app_button(language, "open_aeon", "profile", sheet="pro")
     return _markup(
         [
             [primary],

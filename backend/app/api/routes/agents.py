@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from fastapi import APIRouter, HTTPException
+from telegram.error import Forbidden, TelegramError
 
 from app.agents import AGENTS, agent_name, agent_role
 from app.api.deps import CurrentUser, SessionDep
@@ -63,7 +64,12 @@ async def start_agent_dialog(
         task = asyncio.create_task(chat.process_agent_message(bot, user.id, initial_message))
         task.add_done_callback(_log_dialog_task_error)
     else:
-        await bot.send_message(user.id, chat.build_agent_intro(agent_id, user.language))
+        try:
+            await bot.send_message(user.id, chat.build_agent_intro(agent_id, user.language))
+        except Forbidden as error:
+            raise HTTPException(status_code=409, detail="Bot chat is not started") from error
+        except TelegramError as error:
+            raise HTTPException(status_code=502, detail="Could not message the bot chat") from error
 
     return StartDialogResponse(
         ok=True,
@@ -74,4 +80,4 @@ async def start_agent_dialog(
 
 def _log_dialog_task_error(task: asyncio.Task) -> None:
     if not task.cancelled() and task.exception():
-        logger.warning("Mini App initiated dialog failed: %s", task.exception())
+        logger.error("Mini App initiated dialog failed: %s", task.exception())

@@ -1,13 +1,22 @@
-import type { ViewName } from "../App";
+import { useEffect, useState } from "react";
+
 import { useT } from "../lib/i18n-context";
 import type { TranslationKey } from "../lib/i18n";
-import { haptic } from "../lib/telegram";
+import { haptic, isKeyboardOpen, onViewportChanged } from "../lib/telegram";
+import type { ViewName } from "../lib/views";
 
 const TABS: { id: ViewName; icon: string; labelKey: TranslationKey }[] = [
   { id: "home", icon: "⌂", labelKey: "nav_home" },
   { id: "calendar", icon: "◫", labelKey: "nav_diary" },
   { id: "profile", icon: "◎", labelKey: "nav_cabinet" },
 ];
+
+/** Hides the nav while the on-screen keyboard shrinks Telegram's stable viewport. */
+function useKeyboardOpen(): boolean {
+  const [open, setOpen] = useState(isKeyboardOpen);
+  useEffect(() => onViewportChanged(() => setOpen(isKeyboardOpen())), []);
+  return open;
+}
 
 export function BottomNav({
   view,
@@ -17,6 +26,9 @@ export function BottomNav({
   onChange: (view: ViewName) => void;
 }) {
   const { t } = useT();
+  const keyboardOpen = useKeyboardOpen();
+  if (keyboardOpen) return null;
+
   return (
     <nav
       aria-label={t("nav_aria")}

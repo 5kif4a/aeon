@@ -1,5 +1,6 @@
 import { tg } from "./telegram";
 import type {
+  ActiveConversation,
   Agent,
   BillingStatus,
   Checkout,
@@ -78,11 +79,11 @@ export const api = {
       body: JSON.stringify({ message }),
     }),
 
+  getActiveConversation: () => request<ActiveConversation | null>("/api/conversations/active"),
+
   getBillingStatus: () => request<BillingStatus>("/api/billing/status"),
   startTrial: () => request<BillingStatus>("/api/billing/trial", { method: "POST" }),
   createCheckout: () => request<Checkout>("/api/billing/checkout", { method: "POST" }),
-  cancelSubscription: () => request<{ ok: boolean; activeUntil: string | null }>(
-    "/api/billing/cancel",
-    { method: "POST" },
-  ),
+  cancelSubscription: () =>
+    request<{ ok: boolean; activeUntil: string | null }>("/api/billing/cancel", { method: "POST" }),
 };

@@ -4,19 +4,23 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.db.models import User
+from app.agents import agent_name
+from app.core.admin_auth import is_admin
+from app.db.models import Conversation, User
 from app.i18n import SUPPORTED_LANGUAGES
 from app.services.billing import BillingSnapshot, effective_plan
 from app.services.users import calculate_age
 
 LanguageCode = Literal[SUPPORTED_LANGUAGES]  # type: ignore[valid-type]
 
+# Longest agent excerpt the Mini App shows on the "continue" card.
+LAST_MESSAGE_LIMIT = 200
+
 
 class ProfileOut(BaseModel):
     id: int
     language: str
     name: str
-    gender: str
     birthDate: date | None
     age: int | None
     country: str
@@ -28,6 +32,8 @@ class ProfileOut(BaseModel):
     plan: str
     tokens: int
     activeAgent: str | None
+    dailyCheckinStreak: int
+    isAdmin: bool = False
 
     @classmethod
     def from_user(cls, user: User) -> "ProfileOut":
@@ -35,7 +41,6 @@ class ProfileOut(BaseModel):
             id=user.id,
             language=user.language,
             name=user.name,
-            gender=user.gender,
             birthDate=user.birth_date,
             age=calculate_age(user.birth_date) if user.birth_date else None,
             country=user.country,
@@ -47,25 +52,25 @@ class ProfileOut(BaseModel):
             plan=effective_plan(user),
             tokens=user.tokens,
             activeAgent=user.active_agent,
+            dailyCheckinStreak=user.daily_checkin_streak or 0,
+            isAdmin=is_admin(user.id),
         )
 
 
 class ProfileUpdate(BaseModel):
     name: str | None = Field(default=None, max_length=64)
-    gender: str | None = Field(default=None, max_length=32)
     birthDate: date | None = None
     country: str | None = Field(default=None, max_length=64)
     location: str | None = Field(default=None, max_length=128)
     activity: str | None = Field(default=None, max_length=256)
-    interests: str | None = Field(default=None, max_length=2000)
-    mainGoal: str | None = Field(default=None, max_length=2000)
-    currentProblem: str | None = Field(default=None, max_length=2000)
+    interests: str | None = Field(default=None, max_length=300)
+    mainGoal: str | None = Field(default=None, max_length=300)
+    currentProblem: str | None = Field(default=None, max_length=300)
     language: LanguageCode | None = None
 
     def to_user_fields(self) -> dict:
         mapping = {
             "name": "name",
-            "gender": "gender",
             "birthDate": "birth_date",
             "country": "country",
             "location": "location",
@@ -125,6 +130,34 @@ class AgentOut(BaseModel):
     role: str
 
 
+class ActiveConversationOut(BaseModel):
+    agentId: str
+    agentName: str
+    title: str
+    lastMessage: str
+    messageCount: int
+    updatedAt: datetime
+
+    @classmethod
+    def from_conversation(
+        cls, conversation: Conversation, last_message: str, language: str
+    ) -> "ActiveConversationOut":
+        return cls(
+            agentId=conversation.agent_id,
+            agentName=agent_name(conversation.agent_id, language),
+            title=conversation.title,
+            lastMessage=_preview(last_message),
+            messageCount=conversation.message_count,
+            updatedAt=conversation.updated_at,
+        )
+
+
+def _preview(text: str) -> str:
+    """One-line excerpt for a card: whitespace collapsed, capped at LAST_MESSAGE_LIMIT."""
+    collapsed = " ".join(str(text or "").split())
+    return collapsed[:LAST_MESSAGE_LIMIT]
+
+
 class BillingStatusOut(BaseModel):
     plan: str
     dailyMode: str
@@ -181,3 +214,161 @@ class CheckoutOut(BaseModel):
 class CancelSubscriptionOut(BaseModel):
     ok: bool
     activeUntil: datetime | None
+
+
+# --- admin panel -------------------------------------------------------------------------
+
+
+class AdminAuthConfigOut(BaseModel):
+    botUsername: str
+    enabled: bool
+
+
+class AdminLoginIn(BaseModel):
+    """Telegram Login Widget payload (https://core.telegram.org/widgets/login)."""
+
+    id: int
+    first_name: str = ""
+    last_name: str | None = None
+    username: str | None = None
+    photo_url: str | None = None
+    auth_date: int
+    hash: str
+
+
+class AdminMeOut(BaseModel):
+    id: int
+    name: str
+    language: str
+
+
+class AdminSessionOut(BaseModel):
+    token: str
+    expiresAt: datetime
+    admin: AdminMeOut
+
+
+class WindowOut(BaseModel):
+    label: str
+    since: datetime
+    until: datetime
+
+
+class AdminStatsTotalsOut(BaseModel):
+    usersTotal: int
+    newUsers: int
+    onboardingCompleted: int
+    activeUsers: int
+    promptQuestions: int
+    ragQuestions: int
+    councilQuestions: int
+    conversationsStarted: int
+    conversationsByAgent: dict[str, int]
+    trialsStarted: int
+    paymentsCount: int
+    paymentsStars: int
+    subscriptionsCanceled: int
+    limitHits: int
+    generationFailures: int
+    proActive: int
+    trialActive: int
+    proExpiringSoon: int
+    proNotRenewing: int
+
+
+class AdminDailyPointOut(BaseModel):
+    day: date
+    newUsers: int
+    activeUsers: int
+    questions: int
+    paymentsStars: int
+    paymentsCount: int
+
+
+class AdminStatsOut(BaseModel):
+    window: WindowOut
+    totals: AdminStatsTotalsOut
+    series: list[AdminDailyPointOut]
+
+
+class AdminUserOut(BaseModel):
+    id: int
+    name: str
+    language: str
+    country: str
+    activity: str
+    mainGoal: str
+    plan: str
+    birthDate: date | None
+    createdAt: datetime
+    lastActiveAt: datetime | None
+    questionsTotal: int
+    conversations: int
+    paymentsStars: int
+    proExpiresAt: datetime | None
+    trialExpiresAt: datetime | None
+    proAutoRenew: bool
+
+
+class AdminPageOut[T](BaseModel):
+    items: list[T]
+    total: int
+
+
+class AdminPaymentOut(BaseModel):
+    id: uuid.UUID
+    userId: int
+    amount: int
+    currency: str
+    status: str
+    isRecurring: bool
+    subscriptionExpiresAt: datetime | None
+    createdAt: datetime
+    userLanguage: str = ""
+    userCountry: str = ""
+
+
+class AdminConversationOut(BaseModel):
+    id: uuid.UUID
+    userId: int
+    agentId: str
+    title: str
+    status: str
+    messageCount: int
+    createdAt: datetime
+    updatedAt: datetime
+    userLanguage: str = ""
+    userPlan: str = ""
+    preview: str = ""
+
+
+class AdminEventOut(BaseModel):
+    id: uuid.UUID
+    type: str
+    payload: dict
+    createdAt: datetime
+
+
+class AdminUserDetailOut(BaseModel):
+    user: AdminUserOut
+    usage30d: dict[str, int]
+    payments: list[AdminPaymentOut]
+    conversations: list[AdminConversationOut]
+    events: list[AdminEventOut]
+
+
+class AdminMessageOut(BaseModel):
+    id: uuid.UUID
+    position: int
+    role: str
+    text: str
+    createdAt: datetime
+
+
+class AdminConversationDetailOut(BaseModel):
+    conversation: AdminConversationOut
+    messages: list[AdminMessageOut]
+
+
+class GrantProIn(BaseModel):
+    days: int = Field(ge=1, le=365)

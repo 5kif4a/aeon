@@ -11,7 +11,7 @@ from app.api.schemas import BillingStatusOut, CancelSubscriptionOut, CheckoutOut
 from app.bot import runtime
 from app.core.config import get_settings
 from app.i18n import t
-from app.services import billing
+from app.services import billing, ops
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
@@ -32,6 +32,7 @@ async def activate_trial(user: CurrentUser, session: SessionDep) -> BillingStatu
         user = await billing.start_trial(session, user.id)
     except billing.TrialUnavailable as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
+    ops.trial_started(user)
     return await _status(session, user)
 
 
@@ -74,4 +75,5 @@ async def cancel_subscription(
     except TelegramError as error:
         raise HTTPException(status_code=502, detail="Could not cancel Telegram subscription") from error
     user = await billing.mark_subscription_canceled(session, user.id)
+    ops.subscription_canceled(user)
     return CancelSubscriptionOut(ok=True, activeUntil=user.pro_expires_at)

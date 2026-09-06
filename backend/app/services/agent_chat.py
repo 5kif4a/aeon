@@ -11,8 +11,6 @@ import re
 from collections.abc import Awaitable, Callable
 from datetime import date
 
-import redis.asyncio as aioredis
-
 from app.agents import (
     AGENT_HISTORY_LIMIT,
     GEMINI_HISTORY_LIMIT,
@@ -33,10 +31,6 @@ OnText = Callable[[str], Awaitable[None]]
 logger = logging.getLogger(__name__)
 
 NOT_SPECIFIED = "not specified"
-
-_redis_client: aioredis.Redis | None = None
-_redis_failed = False
-
 
 # --- prompt building ---------------------------------------------------------
 
@@ -96,6 +90,7 @@ def _build_user_prompt(
         "name": (user.name if user else "") or NOT_SPECIFIED,
         "age": _age_label(user),
         "location": ((user.location or user.country) if user else "") or NOT_SPECIFIED,
+        "occupation": (user.activity if user else "") or NOT_SPECIFIED,
         "interests": (user.interests if user else "") or NOT_SPECIFIED,
         "main_goal": (user.main_goal if user else "") or NOT_SPECIFIED,
         "active_goal": active_goal or NOT_SPECIFIED,
@@ -425,112 +420,27 @@ async def generate_council_answer(
 # --- Dialogue history --------------------------------------------------------
 
 
-def _history_key(chat_id: int, agent_id: str, conversation_id: object) -> str:
-    return f"aeon:agent_history:{chat_id}:{agent_id}:{conversation_id}"
-
-
-async def _get_redis() -> aioredis.Redis | None:
-    global _redis_client, _redis_failed
-    if _redis_client is not None:
-        return _redis_client
-    settings = get_settings()
-    if _redis_failed:
-        return None
-    if not settings.redis_url:
-        logger.warning("REDIS_URL is not set; agent dialogue history is disabled")
-        _redis_failed = True
-        return None
-    try:
-        client = aioredis.from_url(
-            settings.redis_url,
-            decode_responses=True,
-            protocol=2,
-            socket_connect_timeout=2,
-            socket_timeout=2,
-        )
-        await client.ping()
-        _redis_client = client
-        return client
-    except Exception:
-        logger.warning(
-            "Failed to connect to Redis; agent dialogue history is disabled", exc_info=True
-        )
-        _redis_failed = True
-        return None
-
-
 async def get_history(chat_id: int, agent_id: str) -> list[dict]:
+    """Recent exchanges of the active session with this agent, oldest first."""
     try:
         async with SessionFactory() as session:
-            conversation_id = await conversations.get_active_session_id(
-                session, chat_id, agent_id
+            conversation_id = await conversations.get_active_session_id(session, chat_id, agent_id)
+            if conversation_id is None:
+                return []
+            return await conversations.list_session_history(
+                session, conversation_id, AGENT_HISTORY_LIMIT
             )
     except Exception:
         logger.warning("Failed to read agent history from PostgreSQL", exc_info=True)
         return []
-    if conversation_id is None:
-        return []
-
-    client = await _get_redis()
-    if client is not None:
-        key = _history_key(chat_id, agent_id, conversation_id)
-        try:
-            raw_items = await client.lrange(key, 0, -1)
-        except Exception:
-            logger.warning("Failed to read agent history from Redis", exc_info=True)
-        else:
-            history = []
-            for raw_item in raw_items:
-                try:
-                    item = json.loads(raw_item)
-                except (TypeError, json.JSONDecodeError):
-                    continue
-                if isinstance(item, dict) and item.get("text"):
-                    history.append(item)
-            if history:
-                return history[-AGENT_HISTORY_LIMIT:]
-    try:
-        async with SessionFactory() as session:
-            database_history = await conversations.list_session_history(
-                session, conversation_id, AGENT_HISTORY_LIMIT
-            )
-    except Exception:
-        logger.warning("Failed to read session messages from PostgreSQL", exc_info=True)
-        return []
-    if client is not None and database_history:
-        await _replace_cached_history(client, key, database_history)
-    return database_history
 
 
 async def append_history(chat_id: int, agent_id: str, user_text: str, agent_text: str) -> None:
     try:
         async with SessionFactory() as session:
-            conversation = await conversations.append_exchange(
-                session, chat_id, agent_id, user_text, agent_text
-            )
+            await conversations.append_exchange(session, chat_id, agent_id, user_text, agent_text)
     except Exception:
         logger.warning("Failed to write agent history to PostgreSQL", exc_info=True)
-        return
-
-    client = await _get_redis()
-    if client is None:
-        return
-    settings = get_settings()
-    key = _history_key(chat_id, agent_id, conversation.id)
-    entries = [
-        {"role": "user", "text": str(user_text or "")[:1200]},
-        {"role": "agent", "text": str(agent_text or "")[:1800]},
-    ]
-    try:
-        pipe = client.pipeline()
-        for entry in entries:
-            pipe.rpush(key, json.dumps(entry, ensure_ascii=False))
-        pipe.ltrim(key, -AGENT_HISTORY_LIMIT, -1)
-        if settings.redis_agent_history_ttl > 0:
-            pipe.expire(key, settings.redis_agent_history_ttl)
-        await pipe.execute()
-    except Exception:
-        logger.warning("Failed to write agent history to Redis", exc_info=True)
 
 
 async def store_completed_session(
@@ -543,26 +453,3 @@ async def store_completed_session(
             )
     except Exception:
         logger.warning("Failed to store completed conversation session", exc_info=True)
-
-
-async def _replace_cached_history(
-    client: aioredis.Redis, key: str, history: list[dict]
-) -> None:
-    settings = get_settings()
-    entries = []
-    for item in history[-AGENT_HISTORY_LIMIT:]:
-        role = str(item.get("role", ""))[:20]
-        text_limit = 1800 if role == "agent" else 1200
-        entries.append({"role": role, "text": str(item.get("text", ""))[:text_limit]})
-    if not entries:
-        return
-    try:
-        pipe = client.pipeline()
-        pipe.delete(key)
-        for entry in entries:
-            pipe.rpush(key, json.dumps(entry, ensure_ascii=False))
-        if settings.redis_agent_history_ttl > 0:
-            pipe.expire(key, settings.redis_agent_history_ttl)
-        await pipe.execute()
-    except Exception:
-        logger.warning("Failed to warm agent history in Redis", exc_info=True)

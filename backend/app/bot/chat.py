@@ -1,7 +1,9 @@
 """Agent dialogue inside the bot chat: streaming answers edited into one message."""
 
+import asyncio
 import logging
 import time
+from collections import defaultdict
 
 from telegram import Bot
 
@@ -11,9 +13,24 @@ from app.clients.gemini import GeminiError
 from app.core.config import get_settings
 from app.db.session import SessionFactory
 from app.i18n import t
-from app.services import agent_chat, billing, conversations, diary, goals, users
+from app.services import agent_chat, billing, conversations, diary, events, goals, ops, users
 
 logger = logging.getLogger(__name__)
+
+# One generation at a time per chat: a second message while an answer is still
+# streaming would double the Gemini spend and interleave message edits.
+_generation_locks: defaultdict[int, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+async def _reject_if_generating(bot: Bot, chat_id: int) -> bool:
+    """Tell the user to wait if a generation is already running for this chat."""
+    if not _generation_locks[chat_id].locked():
+        return False
+    async with SessionFactory() as session:
+        user = await users.get_user(session, chat_id)
+    language = user.language if user else "en"
+    await bot.send_message(chat_id, t(language, "generation_in_progress"))
+    return True
 
 
 async def set_active_agent(bot: Bot, chat_id: int, agent_id: str, announce: bool = True) -> bool:
@@ -46,6 +63,13 @@ def build_agent_intro(agent_id: str, language: str) -> str:
 
 async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
     """Answer a chat message with the active agent. Returns False if no agent is active."""
+    if await _reject_if_generating(bot, chat_id):
+        return True
+    async with _generation_locks[chat_id]:
+        return await _process_agent_message(bot, chat_id, text)
+
+
+async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
     settings = get_settings()
     async with SessionFactory() as session:
         user = await users.get_user(session, chat_id)
@@ -64,6 +88,10 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
         try:
             grant = await billing.reserve_agent_question(session, chat_id)
         except billing.AccessLimitExceeded as error:
+            events.record(
+                session, events.QUESTION_LIMIT_HIT, chat_id, kind="agent", plan=error.plan
+            )
+            await session.commit()
             await bot.send_message(
                 chat_id,
                 t(language, f"question_limit_{error.plan.lower()}"),
@@ -112,6 +140,8 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
                 )
                 async with SessionFactory() as session:
                     await billing.release_agent_question(session, chat_id, grant)
+                    await _record_generation_failure(session, chat_id, "agent", fallback_error)
+                ops.generation_failed("agent", chat_id, fallback_error)
                 return True
         else:
             await messaging.send_or_edit(
@@ -119,6 +149,8 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
             )
             async with SessionFactory() as session:
                 await billing.release_agent_question(session, chat_id, grant)
+                await _record_generation_failure(session, chat_id, "agent", error)
+            ops.generation_failed("agent", chat_id, error)
             return True
 
     await agent_chat.append_history(chat_id, agent_id, text, answer)
@@ -133,6 +165,13 @@ async def process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
 
 
 async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
+    if await _reject_if_generating(bot, chat_id):
+        return False
+    async with _generation_locks[chat_id]:
+        return await _process_council_message(bot, chat_id, text)
+
+
+async def _process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
     settings = get_settings()
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
@@ -143,6 +182,10 @@ async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
         try:
             grant = await billing.reserve_council(session, chat_id)
         except billing.CouncilUnavailable as error:
+            events.record(
+                session, events.QUESTION_LIMIT_HIT, chat_id, kind="council", plan=error.plan
+            )
+            await session.commit()
             await bot.send_message(
                 chat_id,
                 t(language, f"council_limit_{error.plan.lower()}"),
@@ -166,6 +209,8 @@ async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
         logger.warning("Council generation error: %s", error)
         async with SessionFactory() as session:
             await billing.release_council(session, chat_id, grant)
+            await _record_generation_failure(session, chat_id, "council", error)
+        ops.generation_failed("council", chat_id, error)
         await messaging.send_or_edit(
             bot, chat_id, progress.message_id, _build_error_message(error, language)
         )
@@ -205,6 +250,17 @@ def _create_stream_editor(bot: Bot, chat_id: int, message_id: int, language: str
             state["last_edit_at"] = now
 
     return update
+
+
+async def _record_generation_failure(session, chat_id: int, kind: str, error: Exception) -> None:
+    events.record(
+        session,
+        events.GENERATION_FAILED,
+        chat_id,
+        kind=kind,
+        error=f"{type(error).__name__}: {str(error)[:300]}",
+    )
+    await session.commit()
 
 
 def _should_try_non_stream_fallback(error: Exception) -> bool:

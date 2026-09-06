@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { closeButton } from "../lib/ui";
+
 export function ProfileSheet({
   title,
   onClose,
@@ -16,12 +18,7 @@ export function ProfileSheet({
         <div className="mx-auto mb-3 h-1 w-11 rounded-full bg-[rgba(255,255,255,0.18)]"></div>
         <header className="mb-3 flex items-center justify-between gap-3">
           <h3 className="font-serif text-[22px]">{title}</h3>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="text-text border-line h-[38px] w-[38px] cursor-pointer rounded-[8px] border bg-transparent text-[24px]"
-          >
+          <button type="button" onClick={onClose} aria-label="Close" className={closeButton}>
             ×
           </button>
         </header>

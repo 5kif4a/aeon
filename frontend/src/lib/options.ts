@@ -23,12 +23,6 @@ export const COUNTRIES: SelectOption[] = [
   { code: "other", labels: { ru: "Другая страна", en: "Other" } },
 ];
 
-export const GENDERS: SelectOption[] = [
-  { code: "male", labels: { ru: "Мужской", en: "Male" } },
-  { code: "female", labels: { ru: "Женский", en: "Female" } },
-  { code: "other", labels: { ru: "Другой", en: "Other" } },
-];
-
 /**
  * Resolve a stored value to its option regardless of the language it was saved
  * in (the bot may have written "Казахстан" while the UI is now English), so the

@@ -17,7 +17,7 @@ from app.bot import messaging, ui, webapp
 from app.db.models import User
 from app.db.session import SessionFactory
 from app.i18n import DEFAULT_LANGUAGE, birth_picker_text, month_labels, normalize_language, t
-from app.services import users
+from app.services import events, ops, users
 
 BIRTH = 1
 
@@ -147,7 +147,10 @@ async def _save_birthdate(
     chat_id = update.effective_chat.id
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
+        first_completion = user.birth_date is None
         today = users.local_datetime(user).date()
+        if first_completion:
+            events.record(session, events.ONBOARDING_COMPLETED, chat_id, birth_date=birth)
         user = await users.update_user(
             session,
             user,
@@ -157,6 +160,8 @@ async def _save_birthdate(
                 "last_life_weekly_date": today,
             },
         )
+    if first_completion:
+        ops.onboarding_completed(user)
     message_id = context.user_data.get("registration_message_id")
     context.user_data.clear()
     await send_home(context.bot, chat_id, user, edit_message_id=message_id)
@@ -284,16 +289,19 @@ async def _edit_registration(
 def build_onboarding_handler() -> ConversationHandler:
     return ConversationHandler(
         entry_points=[
-            CommandHandler("start", start),
+            CommandHandler("start", start, filters=filters.ChatType.PRIVATE),
             CallbackQueryHandler(start_profile_setup, pattern=r"^profile:setup$"),
         ],
         states={
             BIRTH: [
                 CallbackQueryHandler(cancel_profile_setup, pattern=r"^menu:home$"),
                 CallbackQueryHandler(birth_callback, pattern=r"^birth_"),
-                MessageHandler(filters.TEXT & ~filters.COMMAND, receive_typed_birthdate),
+                MessageHandler(
+                    filters.ChatType.PRIVATE & filters.TEXT & ~filters.COMMAND,
+                    receive_typed_birthdate,
+                ),
             ]
         },
-        fallbacks=[CommandHandler("start", start)],
+        fallbacks=[CommandHandler("start", start, filters=filters.ChatType.PRIVATE)],
         allow_reentry=True,
     )

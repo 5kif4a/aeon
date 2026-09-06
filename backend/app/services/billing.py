@@ -4,13 +4,22 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Literal
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.models import BillingPayment, DailyUsage, User
+from app.services import events
 
 PRO_PAYLOAD_PREFIX = "aeon:pro:v1:"
+
+BillingReminder = Literal["trial_ending", "trial_ended", "pro_expired"]
+# "Trial ends tomorrow" goes out once the trial has less than this left.
+TRIAL_ENDING_WINDOW = timedelta(hours=24)
+# Telegram charges the renewal around the expiry moment; wait before calling Pro expired.
+PRO_EXPIRED_GRACE = timedelta(hours=1)
+# Never resurface an expiry older than this (protects existing users on first deploy).
+REMINDER_MAX_AGE = timedelta(days=3)
 
 
 class BillingError(RuntimeError):
@@ -131,9 +140,7 @@ async def _daily_usage(
     return usage
 
 
-async def start_trial(
-    session: AsyncSession, user_id: int, now: datetime | None = None
-) -> User:
+async def start_trial(session: AsyncSession, user_id: int, now: datetime | None = None) -> User:
     current = now or utc_now()
     user = await _locked_user(session, user_id)
     if effective_plan(user, current) == "Pro":
@@ -149,6 +156,7 @@ async def start_trial(
     user.trial_expires_at = current + timedelta(days=settings.trial_days)
     user.trial_rag_used = 0
     user.trial_council_used = False
+    events.record(session, events.TRIAL_STARTED, user.id, expires_at=user.trial_expires_at)
     await session.commit()
     await session.refresh(user)
     return user
@@ -192,9 +200,7 @@ async def reserve_agent_question(
     return grant
 
 
-async def release_agent_question(
-    session: AsyncSession, user_id: int, grant: AccessGrant
-) -> None:
+async def release_agent_question(session: AsyncSession, user_id: int, grant: AccessGrant) -> None:
     user = await _locked_user(session, user_id)
     usage = await _daily_usage(session, user_id, grant.usage_date, lock=True)
     if grant.mode == "rag":
@@ -262,9 +268,17 @@ async def get_billing_snapshot(
         council_limit = settings.pro_daily_council_questions
     elif plan == "Trial":
         has_rag = user.trial_rag_used < settings.trial_total_rag_questions
-        daily_mode = "rag" if has_rag and usage.rag_questions < settings.trial_daily_rag_questions else "prompt"
+        daily_mode = (
+            "rag"
+            if has_rag and usage.rag_questions < settings.trial_daily_rag_questions
+            else "prompt"
+        )
         daily_used = usage.rag_questions if daily_mode == "rag" else usage.prompt_questions
-        daily_limit = settings.trial_daily_rag_questions if daily_mode == "rag" else settings.free_daily_questions
+        daily_limit = (
+            settings.trial_daily_rag_questions
+            if daily_mode == "rag"
+            else settings.free_daily_questions
+        )
         prompt_limit = settings.free_daily_questions
         rag_limit = settings.trial_daily_rag_questions
         council_used = int(user.trial_council_used)
@@ -347,6 +361,15 @@ async def record_successful_payment(
     if is_first_recurring or not user.pro_subscription_charge_id:
         user.pro_subscription_charge_id = telegram_payment_charge_id
     user.pro_auto_renew = is_recurring
+    events.record(
+        session,
+        events.PAYMENT_SUCCEEDED,
+        user.id,
+        amount=amount,
+        currency=currency,
+        renewal=is_recurring and not is_first_recurring,
+        expires_at=expires_at,
+    )
     await session.commit()
     await session.refresh(user)
     return user
@@ -355,26 +378,76 @@ async def record_successful_payment(
 async def mark_subscription_canceled(session: AsyncSession, user_id: int) -> User:
     user = await _locked_user(session, user_id)
     user.pro_auto_renew = False
+    events.record(session, events.SUBSCRIPTION_CANCELED, user.id, expires_at=user.pro_expires_at)
     await session.commit()
     await session.refresh(user)
     return user
 
 
-async def mark_payment_refunded(
-    session: AsyncSession, user_id: int, telegram_payment_charge_id: str
-) -> User:
-    user = await _locked_user(session, user_id)
-    payment = await session.scalar(
-        select(BillingPayment).where(
-            BillingPayment.telegram_payment_charge_id == telegram_payment_charge_id
+def pending_billing_reminder(user: User, now: datetime | None = None) -> BillingReminder | None:
+    """Which Stars upsell reminder the user is owed right now, if any.
+
+    Pure function over the user row so the job stays testable without a database.
+    Each reminder is sent once per expiry; the ``*_reminded_at`` columns are the dedupe.
+    """
+    current = now or utc_now()
+    plan = effective_plan(user, current)
+    trial_expires_at = _aware(user.trial_expires_at)
+    pro_expires_at = _aware(user.pro_expires_at)
+
+    if plan == "Pro":
+        return None
+
+    if (
+        pro_expires_at is not None
+        and current - REMINDER_MAX_AGE <= pro_expires_at <= current - PRO_EXPIRED_GRACE
+    ):
+        reminded_at = _aware(user.pro_expired_reminded_at)
+        if reminded_at is None or reminded_at < pro_expires_at:
+            return "pro_expired"
+        return None
+
+    if trial_expires_at is None or pro_expires_at is not None:
+        return None
+
+    if plan == "Trial":
+        if (
+            trial_expires_at - current <= TRIAL_ENDING_WINDOW
+            and user.trial_ending_reminded_at is None
+        ):
+            return "trial_ending"
+        return None
+
+    if current - REMINDER_MAX_AGE <= trial_expires_at and user.trial_ended_reminded_at is None:
+        return "trial_ended"
+    return None
+
+
+async def billing_reminder_candidates(
+    session: AsyncSession, now: datetime | None = None
+) -> list[User]:
+    """Users whose trial or Pro is ending or has recently ended; the job filters further."""
+    current = now or utc_now()
+    cutoff = current - REMINDER_MAX_AGE
+    result = await session.execute(
+        select(User).where(
+            or_(
+                User.trial_expires_at >= cutoff,
+                User.pro_expires_at >= cutoff,
+            )
         )
     )
-    if payment is not None:
-        payment.status = "refunded"
-    if user.pro_subscription_charge_id == telegram_payment_charge_id:
-        user.plan = "Free"
-        user.pro_expires_at = None
-        user.pro_auto_renew = False
+    return list(result.scalars().all())
+
+
+async def mark_billing_reminder_sent(
+    session: AsyncSession, user: User, reminder: BillingReminder, now: datetime | None = None
+) -> None:
+    current = now or utc_now()
+    if reminder == "trial_ending":
+        user.trial_ending_reminded_at = current
+    elif reminder == "trial_ended":
+        user.trial_ended_reminded_at = current
+    else:
+        user.pro_expired_reminded_at = current
     await session.commit()
-    await session.refresh(user)
-    return user

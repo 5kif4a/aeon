@@ -1,15 +1,19 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 from app.bot import webapp
 from app.bot.jobs import (
+    _billing_keyboard,
     _calendar_keyboard,
     _daily_keyboard,
+    billing_reminder_is_due,
+    build_billing_reminder,
     build_daily_notification,
     build_life_weekly_message,
     reminder_today,
 )
 from app.db.models import Goal, User
 from app.i18n import daily_notification_content, life_weekly_content, notification_agent_id
+from app.services.billing import pending_billing_reminder
 from app.services.users import notification_is_due
 
 
@@ -59,7 +63,13 @@ def test_build_life_weekly_message_uses_russian_localization():
 
 
 def test_calendar_keyboard_opens_calendar(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view: f"https://aeon.test/?view={view}")
+    monkeypatch.setattr(
+        webapp,
+        "build_webapp_url",
+        lambda view, **params: (
+            f"https://aeon.test/{view}?" + "&".join(f"{k}={v}" for k, v in params.items())
+        ),
+    )
 
     keyboard = _calendar_keyboard("ru", "jung")
 
@@ -67,7 +77,7 @@ def test_calendar_keyboard_opens_calendar(monkeypatch):
     button = keyboard.inline_keyboard[0][0]
     assert button.text == "Открыть календарь"
     assert button.web_app is not None
-    assert button.web_app.url == "https://aeon.test/?view=calendar"
+    assert button.web_app.url == "https://aeon.test/calendar?tab=life"
     assert keyboard.inline_keyboard[1][0].callback_data == "agent:jung"
 
 
@@ -123,7 +133,13 @@ def test_daily_notification_without_goal_uses_english_fallback():
 
 
 def test_daily_keyboard_opens_calendar_with_goal_label(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view: f"https://aeon.test/?view={view}")
+    monkeypatch.setattr(
+        webapp,
+        "build_webapp_url",
+        lambda view, **params: (
+            f"https://aeon.test/{view}?" + "&".join(f"{k}={v}" for k, v in params.items())
+        ),
+    )
 
     keyboard = _daily_keyboard("ru", has_goal=True, agent_id="jung")
 
@@ -136,7 +152,7 @@ def test_daily_keyboard_opens_calendar_with_goal_label(monkeypatch):
     assert done_button.callback_data == "daily:done"
     assert goal_button.text == "Открыть цель"
     assert goal_button.web_app is not None
-    assert goal_button.web_app.url == "https://aeon.test/?view=calendar"
+    assert goal_button.web_app.url == "https://aeon.test/calendar?tab=goal"
     assert author_button.text == "Спросить автора"
     assert author_button.callback_data == "agent:jung"
     assert settings_button.callback_data == "settings:open"
@@ -162,3 +178,81 @@ def test_notification_is_not_due_outside_the_users_local_hour():
     now = datetime(2026, 1, 15, 14, 30, tzinfo=UTC)
 
     assert not notification_is_due(user, now)
+
+
+NOW = datetime(2026, 9, 6, 12, 0, tzinfo=UTC)
+
+
+def test_trial_ending_reminder_fires_once_within_the_last_day():
+    user = User(id=1, trial_expires_at=NOW + timedelta(hours=20))
+
+    assert pending_billing_reminder(user, NOW) == "trial_ending"
+
+    user.trial_ending_reminded_at = NOW
+    assert pending_billing_reminder(user, NOW) is None
+
+
+def test_trial_with_more_than_a_day_left_gets_no_reminder():
+    user = User(id=1, trial_expires_at=NOW + timedelta(days=3))
+
+    assert pending_billing_reminder(user, NOW) is None
+
+
+def test_trial_ended_reminder_only_for_recent_expiry_without_pro():
+    user = User(id=1, trial_expires_at=NOW - timedelta(hours=2))
+    assert pending_billing_reminder(user, NOW) == "trial_ended"
+
+    user.trial_ended_reminded_at = NOW
+    assert pending_billing_reminder(user, NOW) is None
+
+    stale = User(id=2, trial_expires_at=NOW - timedelta(days=10))
+    assert pending_billing_reminder(stale, NOW) is None
+
+    bought = User(
+        id=3, trial_expires_at=NOW - timedelta(hours=2), pro_expires_at=NOW + timedelta(days=20)
+    )
+    assert pending_billing_reminder(bought, NOW) is None
+
+
+def test_pro_expired_reminder_waits_for_the_renewal_grace_and_repeats_per_period():
+    user = User(id=1, pro_expires_at=NOW - timedelta(minutes=30))
+    assert pending_billing_reminder(user, NOW) is None
+
+    user.pro_expires_at = NOW - timedelta(hours=2)
+    assert pending_billing_reminder(user, NOW) == "pro_expired"
+
+    user.pro_expired_reminded_at = NOW
+    assert pending_billing_reminder(user, NOW) is None
+
+    later = NOW + timedelta(days=60)
+    user.pro_expires_at = later - timedelta(hours=2)
+    assert pending_billing_reminder(user, later) == "pro_expired"
+
+
+def test_active_pro_never_gets_billing_reminders():
+    user = User(
+        id=1,
+        trial_expires_at=NOW - timedelta(days=1),
+        pro_expires_at=NOW + timedelta(days=10),
+    )
+
+    assert pending_billing_reminder(user, NOW) is None
+
+
+def test_billing_reminder_respects_local_daytime_window():
+    user = User(id=1, reminder_timezone="Asia/Almaty")
+
+    assert billing_reminder_is_due(user, datetime(2026, 9, 6, 4, 0, tzinfo=UTC))  # 09:00 local
+    assert not billing_reminder_is_due(user, datetime(2026, 9, 6, 20, 0, tzinfo=UTC))  # 01:00 local
+
+
+def test_billing_reminder_text_and_keyboard_are_localized():
+    user = User(id=1, language="ru")
+
+    text = build_billing_reminder(user, "trial_ending")
+    keyboard = _billing_keyboard("ru").inline_keyboard
+
+    assert "заканчивается завтра" in text
+    assert "350 ★" in text
+    assert keyboard[0][0].callback_data == "billing:subscribe"
+    assert keyboard[0][0].text == "Продолжить с Pro"

@@ -256,7 +256,21 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_success": "Aeon Pro is active. Your agents now answer with their books and the Council of Three is available.",
         "payment_no_subscription": "You do not have an active renewable Pro subscription.",
         "payment_canceled": "Automatic renewal is canceled. Pro remains active until {date}.",
-        "payment_support": "For payment help, describe the issue and include the approximate payment date. We will check the Telegram Stars transaction and help with cancellation or a legitimate refund.",
+        "payment_support": "Aeon Pro is a digital subscription paid in Telegram Stars; payments are not refundable. You can stop the renewal at any time with /cancel_subscription, and Pro stays active until the end of the paid period. If a payment went through but Pro did not activate, describe the issue and the approximate payment date and we will check the transaction.",
+        "billing_trial_ending": (
+            "Your 7-day Trial ends tomorrow. After that the advisors answer without their books "
+            "and the Council of Three closes. Continue with Aeon Pro for {price} ★ per month: "
+            "30 book-grounded answers and 3 councils a day, cancel anytime."
+        ),
+        "billing_trial_ended": (
+            "Your Trial has ended and you are back on Free: 3 questions a day, no sources. "
+            "Aeon Pro keeps the books open for {price} ★ per month, cancel anytime."
+        ),
+        "billing_pro_expired": (
+            "Your Aeon Pro has ended and was not renewed, so the advisors answer without their "
+            "books again. Renew for {price} ★ per month to bring back the sources and the "
+            "Council of Three."
+        ),
         "question_limit_free": "You have used today's 3 free questions. Your limit resets tomorrow. Start the 7-day Trial to continue with answers grounded in the original books.",
         "question_limit_trial": "Today's Trial questions are used. Your book-grounded allowance resets tomorrow, or you can continue with Pro.",
         "question_limit_pro": "Today's Pro questions are used. Your allowance resets tomorrow.",
@@ -275,6 +289,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "agent_thinking": "{name} is thinking...",
         "agent_continue": "Continuing...",
         "stream_fallback": "Streaming did not respond. Trying the regular mode...",
+        "generation_in_progress": "The previous answer is still being written. Please wait for it to finish, then send your next message.",
         "gemini_not_configured": "The advisors are temporarily unavailable. Please try again later.",
         # Pickers and menus
         "choose_agent": "Whose perspective do you need?",
@@ -390,7 +405,20 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_success": "Aeon Pro активирован. Агенты теперь отвечают с опорой на книги, а Совет трёх доступен.",
         "payment_no_subscription": "У Вас нет активной Pro-подписки с автопродлением.",
         "payment_canceled": "Автопродление отключено. Pro продолжит работать до {date}.",
-        "payment_support": "Для помощи с оплатой опишите проблему и укажите примерную дату платежа. Мы проверим транзакцию Telegram Stars и поможем с отменой или обоснованным возвратом.",
+        "payment_support": "Aeon Pro — цифровая подписка, оплаченная Telegram Stars; средства за неё не возвращаются. Автопродление можно отключить в любой момент командой /cancel_subscription, Pro продолжит работать до конца оплаченного периода. Если платёж прошёл, а Pro не активировался, опишите проблему и укажите примерную дату платежа, мы проверим транзакцию.",
+        "billing_trial_ending": (
+            "Ваш 7-дневный пробный период заканчивается завтра. После этого советники будут "
+            "отвечать без опоры на книги, а Совет трёх закроется. Продолжите с Aeon Pro за "
+            "{price} ★ в месяц: 30 ответов по книгам и 3 совета в день, отключить можно в любой момент."
+        ),
+        "billing_trial_ended": (
+            "Пробный период завершён, Вы снова на Free: 3 вопроса в день без источников. "
+            "Aeon Pro сохраняет доступ к книгам за {price} ★ в месяц, отключить можно в любой момент."
+        ),
+        "billing_pro_expired": (
+            "Ваш Aeon Pro закончился и не был продлён, советники снова отвечают без опоры на книги. "
+            "Продлите за {price} ★ в месяц, чтобы вернуть источники и Совет трёх."
+        ),
         "question_limit_free": "Сегодняшние 3 бесплатных вопроса использованы. Лимит обновится завтра. Запустите 7-дневный пробный период, чтобы продолжить с ответами на основе оригинальных книг.",
         "question_limit_trial": "Вопросы пробного периода на сегодня использованы. Лимит ответов по книгам обновится завтра, либо Вы можете продолжить с Pro.",
         "question_limit_pro": "Вопросы Pro на сегодня использованы. Лимит обновится завтра.",
@@ -409,6 +437,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "agent_thinking": "{name} размышляет...",
         "agent_continue": "Продолжаю...",
         "stream_fallback": "Потоковая генерация не ответила. Пробую обычный режим...",
+        "generation_in_progress": "Предыдущий ответ ещё пишется. Дождитесь его окончания, затем отправьте следующее сообщение.",
         "gemini_not_configured": "Советники временно недоступны. Пожалуйста, попробуйте позже.",
         # Pickers and menus
         "choose_agent": "Чья точка зрения Вам нужна?",

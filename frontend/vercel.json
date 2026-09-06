@@ -4,6 +4,10 @@
     {
       "source": "/api/:path*",
       "destination": "https://aeon-production-2d0c.up.railway.app/api/:path*"
+    },
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }

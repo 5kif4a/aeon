@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { closeButton } from "../lib/ui";
+
 /** Centered modal dialog. Use for focused, action-oriented content. */
 export function Modal({
   title,
@@ -16,12 +18,7 @@ export function Modal({
       <div className="border-line relative z-[1] max-h-[min(86vh,760px)] w-[min(100%,460px)] overflow-auto rounded-[8px] border bg-[rgba(18,17,16,0.98)] p-5 shadow-[0_28px_80px_rgba(0,0,0,0.55)]">
         <header className="mb-4 flex items-center justify-between gap-3">
           {title ? <h3 className="font-serif text-[22px]">{title}</h3> : <span />}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="text-text border-line h-[38px] w-[38px] shrink-0 cursor-pointer rounded-[8px] border bg-transparent text-[24px]"
-          >
+          <button type="button" onClick={onClose} aria-label="Close" className={closeButton}>
             ×
           </button>
         </header>

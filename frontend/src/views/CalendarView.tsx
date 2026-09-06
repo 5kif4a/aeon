@@ -1,6 +1,8 @@
+import { getRouteApi } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { LifeGrid } from "../components/LifeGrid";
+import { Skeleton } from "../components/Skeleton";
 import {
   useAddDiaryEntry,
   useCloseGoal,
@@ -11,6 +13,8 @@ import {
   useSetGoal,
   useUpdateProfile,
 } from "../hooks/queries";
+import { useClosingConfirmation } from "../hooks/useClosingConfirmation";
+import { useInlineStatus } from "../hooks/useInlineStatus";
 import { useT } from "../lib/i18n-context";
 import { LOCALES, type TFunc } from "../lib/i18n";
 import {
@@ -22,9 +26,10 @@ import {
   TOTAL_LIFE_WEEKS,
 } from "../lib/life";
 import { haptic } from "../lib/telegram";
-import { cardPanel, goldButton, textareaField } from "../lib/ui";
+import { cardPanel, focusable, goldButton, inlineStatus, textareaField } from "../lib/ui";
+import type { PracticeTab } from "../lib/views";
 
-type PracticeTab = "life" | "goal" | "diary";
+const route = getRouteApi("/app/calendar");
 
 const TABS = [
   { id: "life", icon: "◫", labelKey: "journal_tab_life" },
@@ -38,35 +43,52 @@ const DIARY_PROMPTS = [
   { labelKey: "diary_prompt_oneact_label", promptKey: "diary_prompt_oneact" },
 ] as const;
 
-export function CalendarView({ onMessage }: { onMessage: (text: string) => void }) {
+export function CalendarView({
+  onMessage,
+  onStartDialog,
+}: {
+  onMessage: (text: string) => void;
+  onStartDialog: (message: string) => void;
+}) {
   const { t, lang } = useT();
   const locale = LOCALES[lang];
   const { data: profile } = useProfile();
-  const { data: goal } = useGoal();
-  const { data: diary } = useDiary();
+  const { data: goal, isPending: goalPending } = useGoal();
+  const { data: diary, isPending: diaryPending } = useDiary();
   const updateProfile = useUpdateProfile();
   const setGoal = useSetGoal();
   const closeGoal = useCloseGoal();
   const addEntry = useAddDiaryEntry();
   const deleteEntry = useDeleteDiaryEntry();
 
-  const [tab, setTab] = useState<PracticeTab>("goal");
+  // The active tab lives in the URL (`/calendar?tab=goal`) so bot deep links can open it.
+  const { tab: routeTab } = route.useSearch();
+  const navigate = route.useNavigate();
+  const tab: PracticeTab = routeTab ?? "goal";
+  const setTab = (next: PracticeTab) => void navigate({ search: { tab: next }, replace: true });
   const [birthDate, setBirthDate] = useState("");
+  // The form only occupies space when there is nothing to show yet, or on request.
+  const [editingBirthDate, setEditingBirthDate] = useState(false);
   const [goalText, setGoalText] = useState("");
   const [diaryText, setDiaryText] = useState("");
+  const goalSaved = useInlineStatus();
+  const diarySaved = useInlineStatus();
+  // A draft in either textarea asks Telegram to confirm before closing the app.
+  useClosingConfirmation(goalText.trim().length > 0 || diaryText.trim().length > 0);
 
   useEffect(() => {
     if (profile?.birthDate) setBirthDate(profile.birthDate);
   }, [profile?.birthDate]);
 
   const stats = profile?.birthDate ? calculateLifeStats(profile.birthDate) : null;
+  const showBirthDateForm = !profile?.birthDate || editingBirthDate;
   const activeGoal = goal?.status === "active" ? goal : null;
   const entries = diary ?? [];
 
   const saveBirthDate = (event: React.FormEvent) => {
     event.preventDefault();
     if (!birthDate) return;
-    updateProfile.mutate({ birthDate });
+    updateProfile.mutate({ birthDate }, { onSuccess: () => setEditingBirthDate(false) });
     haptic("impact");
   };
 
@@ -77,7 +99,8 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
     setGoal.mutate(text, {
       onSuccess: () => {
         setGoalText("");
-        onMessage(t("goal_set_toast"));
+        goalSaved.show();
+        haptic("impact");
       },
     });
   };
@@ -89,24 +112,17 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
     addEntry.mutate(text, {
       onSuccess: () => {
         setDiaryText("");
-        onMessage(t("diary_saved_toast"));
+        diarySaved.show();
+        haptic("impact");
       },
     });
   };
 
   return (
     <section className="animate-view-in block" aria-label={t("nav_diary")}>
-      <header className="pt-7 pb-5">
-        <span className="text-gold block text-[12px] font-[750] tracking-[0.14em] uppercase">
-          {t("journal_eyebrow")}
-        </span>
-        <h1 className="mt-2 max-w-[390px] font-serif text-[32px] leading-[1.05]">
-          {t("journal_title")}
-        </h1>
-      </header>
-
+      {/* No page header: the bottom navigation names the screen, the tabs name the section. */}
       <div
-        className="border-line bg-surface mb-6 grid h-[58px] grid-cols-3 rounded-[8px] border p-1"
+        className="border-line bg-surface mt-2 mb-4 grid h-11 grid-cols-3 rounded-[8px] border p-1"
         role="tablist"
         aria-label={t("journal_tabs_aria")}
       >
@@ -123,7 +139,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
                 haptic("selection");
               }}
               className={`grid min-w-0 grid-cols-[18px_auto] place-content-center items-center gap-1.5 rounded-[6px] text-[12px] font-[750] ${
-                selected ? "bg-surface-strong text-gold-strong" : "text-muted"
+                selected ? "bg-surface-strong text-text" : "text-muted"
               }`}
             >
               <span className="text-[17px] leading-none" aria-hidden="true">
@@ -137,32 +153,38 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
 
       {tab === "life" && (
         <div role="tabpanel" className="animate-view-in">
-          <div className="mb-4">
-            <h2 className="font-serif text-[24px]">{t("cal_title")}</h2>
-            <p className="text-muted mt-1 text-[14px] leading-[1.45]">{t("journal_life_intro")}</p>
-          </div>
+          {showBirthDateForm ? (
+            <form className={`${cardPanel} p-[14px]`} onSubmit={saveBirthDate}>
+              <label htmlFor="birthDateInput" className="text-muted mb-2 block text-[13px]">
+                {t("cal_birthdate_label")}
+              </label>
+              <div className="grid grid-cols-[1fr_auto] gap-2 max-[390px]:grid-cols-1">
+                <input
+                  id="birthDateInput"
+                  type="date"
+                  required
+                  max={todayKey()}
+                  value={birthDate}
+                  onChange={(event) => setBirthDate(event.target.value)}
+                  className={`border-line text-text h-[46px] min-w-0 rounded-[8px] border bg-black/20 px-3 outline-none ${focusable}`}
+                />
+                <button type="submit" className={`${goldButton} h-[46px] px-4 font-[750]`}>
+                  {t("cal_calculate")}
+                </button>
+              </div>
+            </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditingBirthDate(true)}
+              className="text-muted min-h-11 text-[12px]"
+            >
+              {t("cal_birthdate_edit")}
+            </button>
+          )}
 
-          <form className={`${cardPanel} p-[14px]`} onSubmit={saveBirthDate}>
-            <label htmlFor="birthDateInput" className="text-muted mb-2 block text-[13px]">
-              {t("cal_birthdate_label")}
-            </label>
-            <div className="grid grid-cols-[1fr_auto] gap-2 max-[390px]:grid-cols-1">
-              <input
-                id="birthDateInput"
-                type="date"
-                required
-                max={todayKey()}
-                value={birthDate}
-                onChange={(event) => setBirthDate(event.target.value)}
-                className="border-line text-text h-[46px] min-w-0 rounded-[8px] border bg-black/20 px-3 outline-none"
-              />
-              <button type="submit" className={`${goldButton} h-[46px] px-4 font-[750]`}>
-                {t("cal_calculate")}
-              </button>
-            </div>
-          </form>
-
-          <section className="mt-3 grid grid-cols-3 gap-2">
+          {/* One row instead of three cards: the grid below is what this screen is for. */}
+          <section className="border-line bg-surface mt-2 grid grid-cols-3 rounded-[8px] border">
             {[
               {
                 value: (stats?.weeksLived ?? 0).toLocaleString(locale),
@@ -173,31 +195,32 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
                 label: t("cal_weeks_left"),
               },
               { value: `${stats?.percent ?? 0}%`, label: t("cal_progress") },
-            ].map((item) => (
+            ].map((item, index) => (
               <article
                 key={item.label}
-                className="border-line bg-surface grid min-h-[88px] min-w-0 content-center rounded-[8px] border p-2 text-center"
+                className={`grid min-w-0 place-items-center px-2 py-[7px] ${
+                  index > 0 ? "border-line border-l" : ""
+                }`}
               >
-                <strong className="text-gold-strong text-[22px] leading-none max-[390px]:text-[19px]">
+                <strong className="text-text text-[15px] leading-none font-[750] [font-variant-numeric:tabular-nums]">
                   {item.value}
                 </strong>
-                <span className="text-muted mt-2 text-[10px] leading-[1.2]">{item.label}</span>
+                <span className="text-muted mt-1 block max-w-full truncate text-[10px] leading-[1.2]">
+                  {item.label}
+                </span>
               </article>
             ))}
           </section>
 
           <section className="mt-3 rounded-[8px] border border-[#d7cab0] bg-[#e8deca] p-[clamp(14px,4vw,24px)] text-[#25231f] shadow-[0_18px_42px_rgba(0,0,0,0.3)]">
-            <div className="mb-4 text-center font-serif text-[24px] tracking-[0.16em] text-[#24231f]">
-              {t("cal_memento_print")}
-            </div>
-            <div className="mb-4 grid grid-cols-[1fr_48px] items-start gap-3 border-y border-[#2d2a241f] py-3">
-              <div>
-                <h3 className="mb-1 font-serif text-[19px]">{mementoTitle(stats, t)}</h3>
-                <p className="text-[13px] leading-[1.42] text-[#5c5548]">
+            <div className="mb-3 grid grid-cols-[1fr_40px] items-center gap-3 border-b border-[#2d2a241f] pb-3">
+              <div className="min-w-0">
+                <h3 className="font-serif text-[16px] leading-tight">{mementoTitle(stats, t)}</h3>
+                <p className="mt-0.5 text-[12px] leading-[1.35] text-[#5c5548]">
                   {mementoText(stats, t, locale)}
                 </p>
               </div>
-              <span className="grid h-12 w-12 place-items-center border border-[#25231f6b] text-[20px] font-[850]">
+              <span className="grid h-10 w-10 place-items-center border border-[#25231f6b] text-[17px] font-[850]">
                 {stats?.age ?? 0}
               </span>
             </div>
@@ -218,20 +241,27 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
             <p className="text-muted mt-1 text-[14px] leading-[1.45]">{t("journal_goal_intro")}</p>
           </div>
 
-          <section
-            className={`mb-3 rounded-[8px] border p-4 ${
-              activeGoal
-                ? "border-[rgba(166,196,138,0.35)] bg-[rgba(166,196,138,0.08)]"
-                : "border-line bg-surface"
-            }`}
-          >
-            <span className="text-muted text-[11px] font-[750] tracking-[0.12em] uppercase">
-              {activeGoal ? t("goal_status_active") : t("goal_status_empty")}
-            </span>
-            <p className="mt-2 text-[17px] leading-[1.4] font-[650]">
-              {activeGoal ? activeGoal.text : t("goal_none")}
-            </p>
-          </section>
+          {goalPending ? (
+            <section className="border-line bg-surface mb-3 grid gap-3 rounded-[8px] border p-4">
+              <Skeleton className="h-3 w-[120px]" />
+              <Skeleton className="h-5 w-[80%]" />
+            </section>
+          ) : (
+            <section
+              className={`mb-3 rounded-[8px] border p-4 ${
+                activeGoal
+                  ? "border-[rgba(166,196,138,0.35)] bg-[rgba(166,196,138,0.08)]"
+                  : "border-line bg-surface"
+              }`}
+            >
+              <span className="text-muted text-[11px] font-[750] tracking-[0.12em] uppercase">
+                {activeGoal ? t("goal_status_active") : t("goal_status_empty")}
+              </span>
+              <p className="mt-2 text-[17px] leading-[1.4] font-[650]">
+                {activeGoal ? activeGoal.text : t("goal_none")}
+              </p>
+            </section>
+          )}
 
           <form className={`${cardPanel} grid gap-3 p-4`} onSubmit={submitGoal}>
             <label htmlFor="goalInput" className="text-muted text-[13px]">
@@ -253,6 +283,11 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
             >
               {activeGoal ? t("goal_replace_button") : t("goal_set_button")}
             </button>
+            {goalSaved.visible && (
+              <p role="status" className={inlineStatus}>
+                ✓ {t("goal_saved_inline")}
+              </p>
+            )}
           </form>
 
           {activeGoal && (
@@ -278,7 +313,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
               <h2 className="font-serif text-[24px]">{t("diary_title")}</h2>
               <p className="text-muted mt-1 text-[14px] leading-[1.45]">{t("diary_subtitle")}</p>
             </div>
-            <span className="border-line bg-surface text-gold-strong rounded-[8px] border px-3 py-2 text-[12px] font-[750]">
+            <span className="border-line bg-surface text-text rounded-[8px] border px-3 py-2 text-[12px] font-[750]">
               {entries.length}
             </span>
           </div>
@@ -312,16 +347,51 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
             >
               {t("diary_save_button")}
             </button>
+            {diarySaved.visible && (
+              <p role="status" className={inlineStatus}>
+                ✓ {t("diary_saved_inline")}
+              </p>
+            )}
           </form>
+
+          {/* The backend already puts the active goal and recent entries into the prompt. */}
+          {activeGoal && (
+            <div className="mt-3">
+              <button
+                type="button"
+                onClick={() => {
+                  haptic("impact");
+                  onStartDialog(t("diary_ask_advisor_message", { goal: activeGoal.text }));
+                }}
+                className="border-line bg-surface text-text min-h-[46px] w-full rounded-[8px] border px-3 font-[750]"
+              >
+                {t("diary_ask_advisor")}
+              </button>
+              <p className="text-muted mt-2 text-[11px] leading-[1.35]">
+                {t("diary_ask_advisor_hint")}
+              </p>
+            </div>
+          )}
 
           <section className="mt-5">
             <h3 className="text-muted mb-3 text-[13px] font-[750] tracking-[0.12em] uppercase">
               {t("diary_recent")}
             </h3>
             <div className="grid gap-2">
-              {entries.length === 0 ? (
+              {diaryPending ? (
+                [0, 1].map((index) => (
+                  <article
+                    key={index}
+                    className="border-line bg-surface grid gap-3 rounded-[8px] border p-4"
+                  >
+                    <Skeleton className="h-3 w-[110px]" />
+                    <Skeleton className="h-4 w-full" />
+                    <Skeleton className="h-4 w-[70%]" />
+                  </article>
+                ))
+              ) : entries.length === 0 ? (
                 <article className="border-line bg-surface rounded-[8px] border p-4">
-                  <strong className="text-gold-strong mb-1 block">{t("diary_empty_title")}</strong>
+                  <strong className="text-text mb-1 block">{t("diary_empty_title")}</strong>
                   <p className="text-muted text-[14px] leading-[1.45]">{t("diary_empty_text")}</p>
                 </article>
               ) : (
@@ -331,7 +401,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
                     className="border-line bg-surface rounded-[8px] border p-4"
                   >
                     <div className="mb-2 flex items-center justify-between gap-3">
-                      <time className="text-gold text-[12px]">
+                      <time className="text-muted text-[12px]">
                         {formatDiaryDate(entry.created_at, locale)}
                       </time>
                       <button
@@ -339,7 +409,7 @@ export function CalendarView({ onMessage }: { onMessage: (text: string) => void 
                         title={t("diary_delete_aria")}
                         aria-label={t("diary_delete_aria")}
                         onClick={() => deleteEntry.mutate(entry.id)}
-                        className="text-muted border-line grid h-8 w-8 place-items-center rounded-[8px] border bg-transparent text-[18px]"
+                        className="text-muted border-line -m-1 grid h-10 w-10 place-items-center rounded-[8px] border bg-transparent p-1 text-[20px]"
                       >
                         ×
                       </button>

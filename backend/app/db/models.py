@@ -16,7 +16,7 @@ from sqlalchemy import (
     func,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -40,13 +40,26 @@ class User(Base):
     current_problem: Mapped[str] = mapped_column(Text, default="")
     plan: Mapped[str] = mapped_column(String(32), default="Free")
     tokens: Mapped[int] = mapped_column(default=120)
-    trial_started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    trial_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    trial_started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    trial_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     trial_rag_used: Mapped[int] = mapped_column(Integer, default=0)
     trial_council_used: Mapped[bool] = mapped_column(Boolean, default=False)
     pro_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     pro_subscription_charge_id: Mapped[str | None] = mapped_column(String(256), nullable=True)
     pro_auto_renew: Mapped[bool] = mapped_column(Boolean, default=False)
+    trial_ending_reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    trial_ended_reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    pro_expired_reminded_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     active_agent: Mapped[str | None] = mapped_column(String(32), nullable=True)
     daily_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     weekly_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -143,9 +156,7 @@ class ConversationMessage(Base):
     __tablename__ = "conversation_messages"
     __table_args__ = (
         CheckConstraint("role IN ('user', 'agent')", name="ck_conversation_messages_role"),
-        UniqueConstraint(
-            "conversation_id", "position", name="uq_conversation_messages_position"
-        ),
+        UniqueConstraint("conversation_id", "position", name="uq_conversation_messages_position"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
@@ -202,3 +213,21 @@ class BillingPayment(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     user: Mapped[User] = relationship(back_populates="payments")
+
+
+class ProductEvent(Base):
+    """Append-only product analytics log (signups, payments, limits, failures, ops markers)."""
+
+    __tablename__ = "product_events"
+    __table_args__ = (Index("ix_product_events_type_created_at", "type", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    # Nullable: ops markers (digest sent) and system alerts are not tied to a user.
+    user_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True
+    )
+    type: Mapped[str] = mapped_column(String(64), index=True)
+    payload: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )

@@ -1,12 +1,21 @@
 """PTB Application assembly: handlers, command menu, and scheduled jobs."""
 
-from telegram import BotCommand
+import logging
+
+from telegram import BotCommand, BotCommandScopeChat
 from telegram.ext import Application, ApplicationBuilder
 
 from app.bot.handlers.commands import build_command_handlers
 from app.bot.handlers.onboarding import build_onboarding_handler
-from app.bot.jobs import send_daily_notifications, send_life_weekly_reviews
+from app.bot.handlers.ops import build_ops_handlers, send_ops_digests
+from app.bot.jobs import (
+    send_billing_reminders,
+    send_daily_notifications,
+    send_life_weekly_reviews,
+)
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 async def configure_commands(application: Application) -> None:
@@ -29,6 +38,16 @@ async def configure_commands(application: Application) -> None:
     await application.bot.set_my_commands(english)
     await application.bot.set_my_commands(russian, language_code="ru")
 
+    ops_chat_id = get_settings().ops_chat_id
+    if ops_chat_id:
+        try:
+            await application.bot.set_my_commands(
+                [BotCommand("stats", "Product stats: today | 7 | 30")],
+                scope=BotCommandScopeChat(ops_chat_id),
+            )
+        except Exception as error:  # the bot may not be in the group yet
+            logger.warning("Could not register /stats for the ops chat %s: %s", ops_chat_id, error)
+
 
 def build_application() -> Application:
     settings = get_settings()
@@ -38,7 +57,7 @@ def build_application() -> Application:
     application = builder.build()
 
     application.add_handler(build_onboarding_handler())
-    for handler in build_command_handlers():
+    for handler in (*build_ops_handlers(), *build_command_handlers()):
         application.add_handler(handler)
 
     application.job_queue.run_repeating(
@@ -53,6 +72,20 @@ def build_application() -> Application:
         interval=15 * 60,
         first=30,
         name="daily_notifications",
+    )
+
+    application.job_queue.run_repeating(
+        send_billing_reminders,
+        interval=15 * 60,
+        first=45,
+        name="billing_reminders",
+    )
+
+    application.job_queue.run_repeating(
+        send_ops_digests,
+        interval=15 * 60,
+        first=60,
+        name="ops_digests",
     )
 
     return application

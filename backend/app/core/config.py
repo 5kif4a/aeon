@@ -20,8 +20,6 @@ class Settings(BaseSettings):
     cors_origins: str = ""
 
     database_url: str = "postgresql+asyncpg://aeon:aeon@localhost:5432/aeon"
-    redis_url: str = ""
-    redis_agent_history_ttl: int = 2_592_000
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-2.5-flash"
@@ -29,7 +27,7 @@ class Settings(BaseSettings):
 
     rag_enabled: bool = True
     rag_allow_basic: bool = False
-    pro_price_stars: int = 299
+    pro_price_stars: int = 350
     free_daily_questions: int = 3
     trial_days: int = 7
     trial_daily_rag_questions: int = 5
@@ -43,6 +41,22 @@ class Settings(BaseSettings):
     reminder_tz: str = "UTC"
     init_data_max_age: int = 172_800
 
+    # Product-owner notifications: a Telegram group (negative chat id) that receives
+    # sales/user events, alerts and periodic digests. Empty/0 disables everything.
+    ops_chat_id: int = 0
+    # Optional forum-topic ids inside the ops group; 0 sends to the general chat.
+    ops_thread_sales: int = 0
+    ops_thread_alerts: int = 0
+    ops_thread_digests: int = 0
+    # Telegram user ids (CSV) allowed to run /stats in a private chat with the bot.
+    ops_admin_ids: str = ""
+    # Local hour (in ops_tz, defaults to reminder_tz) at which digests are sent.
+    ops_digest_hour: int = 9
+    ops_tz: str = ""
+    # Signs browser admin sessions (Telegram Login Widget flow). Empty derives a key
+    # from BOT_TOKEN.
+    admin_session_secret: str = ""
+
     web_port: int = 5173
     static_dir: str = ""  # path to built frontend (frontend/dist); empty disables static serving
 
@@ -55,6 +69,19 @@ class Settings(BaseSettings):
             if origin and origin not in origins:
                 origins.append(origin)
         return origins
+
+    @property
+    def ops_admin_id_list(self) -> list[int]:
+        ids: list[int] = []
+        for value in self.ops_admin_ids.split(","):
+            value = value.strip()
+            if value.lstrip("-").isdigit():
+                ids.append(int(value))
+        return ids
+
+    @property
+    def ops_timezone(self) -> str:
+        return self.ops_tz or self.reminder_tz or "UTC"
 
     @property
     def async_database_url(self) -> str:

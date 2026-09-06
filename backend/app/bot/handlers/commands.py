@@ -244,15 +244,17 @@ async def _send_agent_picker(
 def build_command_handlers() -> list:
     from telegram.ext import PreCheckoutQueryHandler
 
+    # The bot also lives in the ops group: user-facing commands answer in private chats only.
+    private = filters.ChatType.PRIVATE
     return [
-        CommandHandler(["agents", "agent"], agents_command),
-        CommandHandler(["app", "menu"], menu_command),
-        CommandHandler("settings", settings_command),
-        CommandHandler(["stop", "reset_agent"], stop_command),
-        CommandHandler("council", council_command),
-        CommandHandler("subscribe", subscribe_command),
-        CommandHandler("cancel_subscription", cancel_subscription_command),
-        CommandHandler("paysupport", paysupport_command),
+        CommandHandler(["agents", "agent"], agents_command, filters=private),
+        CommandHandler(["app", "menu"], menu_command, filters=private),
+        CommandHandler("settings", settings_command, filters=private),
+        CommandHandler(["stop", "reset_agent"], stop_command, filters=private),
+        CommandHandler("council", council_command, filters=private),
+        CommandHandler("subscribe", subscribe_command, filters=private),
+        CommandHandler("cancel_subscription", cancel_subscription_command, filters=private),
+        CommandHandler("paysupport", paysupport_command, filters=private),
         PreCheckoutQueryHandler(precheckout_callback),
         MessageHandler(filters.SUCCESSFUL_PAYMENT, successful_payment_callback),
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
@@ -260,5 +262,5 @@ def build_command_handlers() -> list:
             navigation_callback,
             pattern=r"^(menu:home|council:start|billing:subscribe|daily:done|settings:)",
         ),
-        MessageHandler(filters.TEXT & ~filters.COMMAND, text_message),
+        MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
     ]

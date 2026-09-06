@@ -1,5 +1,6 @@
 """Telegram Stars subscription commands and payment update handlers."""
 
+import logging
 from datetime import timedelta
 
 from telegram import LabeledPrice, Update
@@ -9,7 +10,9 @@ from app.bot import ui
 from app.core.config import get_settings
 from app.db.session import SessionFactory
 from app.i18n import t
-from app.services import billing, users
+from app.services import billing, ops, users
+
+logger = logging.getLogger(__name__)
 
 
 async def _user(chat_id: int):
@@ -58,6 +61,13 @@ async def successful_payment_callback(
         return
     user_id = update.effective_user.id
     if billing.payload_user_id(payment.invoice_payload) != user_id:
+        logger.error(
+            "Successful payment ignored: payload does not match payer "
+            "(user_id=%s payload=%r charge_id=%s)",
+            user_id,
+            payment.invoice_payload,
+            payment.telegram_payment_charge_id,
+        )
         return
 
     async with SessionFactory() as session:
@@ -73,6 +83,13 @@ async def successful_payment_callback(
             is_recurring=bool(payment.is_recurring),
             is_first_recurring=bool(payment.is_first_recurring),
         )
+    ops.payment_succeeded(
+        user,
+        amount=payment.total_amount,
+        currency=payment.currency,
+        renewal=bool(payment.is_recurring) and not bool(payment.is_first_recurring),
+        expires_at=user.pro_expires_at,
+    )
     await context.bot.send_message(
         user_id,
         t(user.language, "payment_success"),
@@ -96,6 +113,7 @@ async def cancel_subscription_command(
     )
     async with SessionFactory() as session:
         user = await billing.mark_subscription_canceled(session, user.id)
+    ops.subscription_canceled(user)
     await context.bot.send_message(
         user.id,
         t(

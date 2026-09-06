@@ -7,14 +7,22 @@ from telegram import Bot, MenuButtonWebApp, WebAppInfo
 from app.core.config import get_settings
 from app.i18n import t
 
+VIEW_PATHS = {"home": "", "calendar": "calendar", "profile": "profile"}
 
-def build_webapp_url(view: str = "home") -> str:
+
+def build_webapp_url(view: str = "home", **params: str) -> str:
+    """Deep link into the Mini App: `/calendar?tab=goal`, `/profile?sheet=pro`, ...
+
+    The frontend router owns these paths (frontend/src/router.tsx); `?view=` links
+    from older messages are still understood there.
+    """
     settings = get_settings()
-    base = settings.mini_app_url
+    base = settings.mini_app_url.rstrip("/")
     if not base:
         return ""
-    separator = "&" if "?" in base else "?"
-    return f"{base}{separator}{urlencode({'view': view})}"
+    url = f"{base}/{VIEW_PATHS.get(view, view)}"
+    query = urlencode({key: value for key, value in params.items() if value})
+    return f"{url}?{query}" if query else url
 
 
 async def set_chat_menu_button(bot: Bot, chat_id: int, language: str = "en") -> None:

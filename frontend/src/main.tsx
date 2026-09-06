@@ -1,11 +1,10 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
-import App from "./App";
-import { LanguageProvider } from "./lib/i18n-context";
-import { initTelegram, tg } from "./lib/telegram";
-import { LandingView } from "./views/LandingView";
+import { initTelegram } from "./lib/telegram";
+import { router } from "./router";
 import "./styles.css";
 
 initTelegram();
@@ -22,14 +21,8 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {tg?.initData ? (
-      <QueryClientProvider client={queryClient}>
-        <LanguageProvider>
-          <App />
-        </LanguageProvider>
-      </QueryClientProvider>
-    ) : (
-      <LandingView />
-    )}
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>
   </StrictMode>,
 );

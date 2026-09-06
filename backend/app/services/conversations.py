@@ -10,6 +10,22 @@ from app.db.models import Conversation, ConversationMessage
 
 
 async def start_session(session: AsyncSession, user_id: int, agent_id: str) -> Conversation:
+    """Return the active session for this agent, or replace whatever is active with a new one.
+
+    Re-selecting the same agent (Mini App tap, notification button) must keep the
+    accumulated history; only switching to another agent starts a fresh session.
+    """
+    existing = await session.scalar(
+        select(Conversation)
+        .where(
+            Conversation.user_id == user_id,
+            Conversation.agent_id == agent_id,
+            Conversation.status == "active",
+        )
+        .with_for_update()
+    )
+    if existing is not None:
+        return existing
     await close_active_session(session, user_id)
     conversation = Conversation(user_id=user_id, agent_id=agent_id)
     session.add(conversation)
@@ -36,6 +52,34 @@ async def get_active_history(
     if conversation_id is None:
         return None, []
     return conversation_id, await list_session_history(session, conversation_id, limit)
+
+
+async def get_active_overview(session: AsyncSession, user_id: int) -> Conversation | None:
+    """The user's single active conversation, whichever agent it belongs to.
+
+    A partial unique index keeps at most one active conversation per user, so the
+    Mini App can offer to continue it without asking which agent to resume.
+    """
+    return await session.scalar(
+        select(Conversation).where(
+            Conversation.user_id == user_id,
+            Conversation.status == "active",
+        )
+    )
+
+
+async def get_last_agent_message(session: AsyncSession, conversation_id: uuid.UUID) -> str:
+    """Text of the newest agent reply in the conversation, empty when there is none."""
+    text = await session.scalar(
+        select(ConversationMessage.text)
+        .where(
+            ConversationMessage.conversation_id == conversation_id,
+            ConversationMessage.role == "agent",
+        )
+        .order_by(ConversationMessage.position.desc())
+        .limit(1)
+    )
+    return text or ""
 
 
 async def get_active_session_id(
@@ -109,17 +153,6 @@ async def append_completed_session(
 async def _get_or_create_active_session(
     session: AsyncSession, user_id: int, agent_id: str
 ) -> Conversation:
-    conversation = await session.scalar(
-        select(Conversation)
-        .where(
-            Conversation.user_id == user_id,
-            Conversation.agent_id == agent_id,
-            Conversation.status == "active",
-        )
-        .with_for_update()
-    )
-    if conversation is not None:
-        return conversation
     return await start_session(session, user_id, agent_id)
 
 

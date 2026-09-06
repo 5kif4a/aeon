@@ -13,7 +13,7 @@ def _callbacks(keyboard) -> list[str]:
 
 
 def test_home_keyboard_exposes_primary_bot_actions(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home": f"https://aeon.test/{view}")
+    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}")
 
     keyboard = ui.home_keyboard("en", profile_complete=False)
     callbacks = _callbacks(keyboard)
@@ -25,7 +25,7 @@ def test_home_keyboard_exposes_primary_bot_actions(monkeypatch):
 
 
 def test_completed_profile_does_not_show_setup_again(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home": f"https://aeon.test/{view}")
+    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}")
 
     keyboard = ui.home_keyboard("en", profile_complete=True)
 
@@ -33,7 +33,7 @@ def test_completed_profile_does_not_show_setup_again(monkeypatch):
 
 
 def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home": "")
+    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: "")
 
     keyboard = ui.home_keyboard("en", profile_complete=True)
 
@@ -42,7 +42,7 @@ def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch):
 
 
 def test_free_limit_leads_to_trial(monkeypatch):
-    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home": f"https://aeon.test/{view}")
+    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}")
 
     keyboard = ui.limit_keyboard("en", "Free")
     primary = keyboard.inline_keyboard[0][0]
@@ -88,3 +88,14 @@ def test_user_facing_errors_do_not_expose_provider_configuration():
         )
         assert "Gemini" not in combined
         assert "GEMINI_" not in combined
+
+
+def test_build_webapp_url_produces_router_paths(monkeypatch):
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "mini_app_url", "https://aeon.test/")
+    assert webapp.build_webapp_url() == "https://aeon.test/"
+    assert webapp.build_webapp_url("calendar", tab="goal") == "https://aeon.test/calendar?tab=goal"
+    assert webapp.build_webapp_url("profile", sheet="pro") == "https://aeon.test/profile?sheet=pro"
+    monkeypatch.setattr(get_settings(), "mini_app_url", "")
+    assert webapp.build_webapp_url("calendar") == ""

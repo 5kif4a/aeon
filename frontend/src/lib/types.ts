@@ -7,7 +7,6 @@ export interface Profile {
   id: number;
   language: string;
   name: string;
-  gender: string;
   birthDate: string | null;
   age: number | null;
   country: string;
@@ -19,11 +18,11 @@ export interface Profile {
   plan: string;
   tokens: number;
   activeAgent: string | null;
+  dailyCheckinStreak: number;
 }
 
 export interface ProfileUpdate {
   name?: string;
-  gender?: string;
   birthDate?: string;
   country?: string;
   location?: string;
@@ -58,6 +57,16 @@ export interface StartDialogResponse {
   ok: boolean;
   agentName: string;
   botUsername: string;
+}
+
+/** The dialogue still open in the bot chat, used to offer "continue" on the home screen. */
+export interface ActiveConversation {
+  agentId: string;
+  agentName: string;
+  title: string;
+  lastMessage: string;
+  messageCount: number;
+  updatedAt: string;
 }
 
 export interface BillingStatus {

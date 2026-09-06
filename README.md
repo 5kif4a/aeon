@@ -18,10 +18,9 @@ Mini App (React SPA)          Telegram
 │  ├─ services/     shared business logic  │
 │  ├─ clients/      Gemini API client      │
 │  └─ db/           SQLAlchemy models      │
-└──────────┬────────────────┬──────────────┘
-        PostgreSQL        Redis
-   (source of truth)  (agent dialogue
-                       history, TTL)
+└──────────┬───────────────────────────────┘
+        PostgreSQL
+   (single source of truth, incl. dialogue history)
 ```
 
 PostgreSQL is the single source of truth: profiles, goals, and diary entries created in the Mini App are the same rows the bot reads for reminders and agent context.
@@ -33,7 +32,6 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 - FastAPI + Uvicorn — Mini App REST API, Telegram webhook endpoint, static frontend serving
 - python-telegram-bot v21 — onboarding `ConversationHandler`, agent chat, and scheduled daily/weekly notifications
 - SQLAlchemy 2.0 (async, asyncpg) + Alembic migrations
-- Redis — per-agent dialogue history with TTL
 - Gemini API (httpx, streaming SSE) — agent answers
 
 **Frontend** (`frontend/`)
@@ -73,12 +71,12 @@ Frontend types in `src/lib/types.ts` mirror the backend schemas; regenerate with
 
 ## Local development
 
-Requirements: Python 3.12+, uv, Node 22+, pnpm, Docker or Podman for PostgreSQL/Redis.
+Requirements: Python 3.12+, uv, Node 22+, pnpm, Docker or Podman for PostgreSQL.
 
 1. Start databases:
 
 ```bash
-docker compose up -d postgres redis
+docker compose up -d postgres
 ```
 
 2. Backend (port 8000):
@@ -87,7 +85,6 @@ docker compose up -d postgres redis
 cd backend
 cp ../.env.example .env   # fill in BOT_TOKEN, GEMINI_API_KEY
 # for local dev use: DATABASE_URL=postgresql+asyncpg://aeon:aeon@localhost:5432/aeon
-#                    REDIS_URL=redis://localhost:6379/0
 uv sync
 uv run alembic upgrade head
 uv run uvicorn app.main:app --reload --port 8000
@@ -100,6 +97,10 @@ cd frontend
 pnpm install
 pnpm dev
 ```
+
+Routing (TanStack Router, `src/router.tsx`): `/` home, `/calendar?tab=life|goal|diary`, `/profile?sheet=about|language|pro`, `/landing` marketing page. Every route renders in a plain browser too (outside Telegram the API answers 401 and the views show empty states), so Mini App screens can be developed at `http://localhost:5173/calendar` and the landing at `/landing`.
+
+Deep links: bot `web_app` buttons link straight to a path (`backend/app/bot/webapp.py`). `https://t.me/<bot>/<app>?startapp=<key>` links cannot carry a path, so `start_param` keys (`calendar`, `calendar_goal`, `calendar_diary`, `calendar_life`, `profile`, `profile_about`, `profile_pro`) are mapped to routes in `src/lib/deeplinks.ts`; legacy `?view=calendar` links from older bot messages are mapped there too. `frontend/vercel.json` rewrites every non-API path to `index.html`.
 
 4. Telegram testing — expose the frontend over HTTPS and point the bot at it:
 
@@ -148,14 +149,9 @@ The billing tier is server-owned and cannot be changed through `PATCH /api/me`.
 
 - Free: 3 prompt-only answers per UTC day.
 - Trial: 7 days, 5 RAG answers per day, 35 total, one Council of Three. After the RAG allowance, 3 prompt-only answers remain available that day.
-- Pro: 299 Stars per recurring 30-day period, 30 RAG answers and 3 councils per day.
+- Pro: 350 Stars per recurring 30-day period, 30 RAG answers and 3 councils per day.
 
-The Mini App starts Trial through `POST /api/billing/trial` and opens a native Stars invoice returned by `POST /api/billing/checkout`. Pro is activated only after Telegram sends `successful_payment`. The bot supports `/subscribe`, `/cancel_subscription`, and the required `/paysupport` command. For an approved refund, run:
-
-```bash
-cd backend
-uv run python -m scripts.refund_star_payment <telegram_user_id> <telegram_payment_charge_id>
-```
+The Mini App starts Trial through `POST /api/billing/trial` and opens a native Stars invoice returned by `POST /api/billing/checkout`. Pro is activated only after Telegram sends `successful_payment`. The bot supports `/subscribe`, `/cancel_subscription`, and the required `/paysupport` command. Payments are not refundable by policy; `/paysupport` explains how to stop the renewal. There is no refund tooling: if Telegram itself reverses a Stars payment, Pro stays active until the end of the paid period.
 
 ## Docker
 
@@ -228,8 +224,7 @@ Optional (have defaults):
 | --- | --- |
 | `WEBHOOK_SECRET` | auto-generated if empty |
 | `CORS_ORIGINS` | extra browser origins (CSV) beyond `MINI_APP_URL`, e.g. Vercel preview domains |
-| `REDIS_URL` | `${{ Redis.REDIS_URL }}` to enable per-agent dialogue history |
-| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REDIS_AGENT_HISTORY_TTL`, `REMINDER_HOUR`, `REMINDER_TZ`, `INIT_DATA_MAX_AGE` | tuning |
+| `GEMINI_MODEL`, `GEMINI_MAX_OUTPUT_TOKENS`, `REMINDER_HOUR`, `REMINDER_TZ`, `INIT_DATA_MAX_AGE` | tuning |
 
 Do **not** set `PORT` (Railway injects it), `STATIC_DIR` (the frontend is on Vercel), or `WEB_PORT` (dev only). Database migrations run automatically before each deploy via `preDeployCommand` (`alembic upgrade head`) in `railway.toml`.
 
@@ -268,8 +263,6 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `RAG_DATA_DIR` | `data/rag` | directory containing per-agent JSON indexes |
 | `RAG_TOP_K` | `4` | number of book chunks added to an agent prompt |
 | `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
-| `REDIS_URL` | — | Redis DSN; empty disables dialogue history |
-| `REDIS_AGENT_HISTORY_TTL` | `2592000` | dialogue history TTL, seconds |
 | `REMINDER_HOUR` | `9` | default notification hour for new users; each user can change it in the bot |
 | `REMINDER_TZ` | `UTC` | default notification timezone for new users; each user can change it in the bot |
 | `STATIC_DIR` | — | path to built frontend (set in Docker) |

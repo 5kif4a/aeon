@@ -12,7 +12,10 @@ from app.core.config import get_settings
 from app.db.models import Goal, User
 from app.db.session import SessionFactory
 from app.i18n import daily_notification_content, life_weekly_content, notification_agent_id, t
-from app.services import users
+from app.services import billing, users
+
+# Billing reminders are sent only inside the user's local daytime window.
+BILLING_REMINDER_HOURS = range(9, 22)
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,7 @@ def build_life_weekly_message(user: User, today: date) -> str:
 
 
 def _calendar_keyboard(language: str, agent_id: str) -> InlineKeyboardMarkup:
-    url = webapp.build_webapp_url("calendar")
+    url = webapp.build_webapp_url("calendar", tab="life")
     rows = []
     if url:
         rows.append(
@@ -81,14 +84,17 @@ async def send_life_weekly_reviews(context: ContextTypes.DEFAULT_TYPE) -> None:
             if not users.notification_is_due(user, now):
                 continue
             today = users.local_datetime(user, now).date()
-            if user.last_life_weekly_date and user.last_life_weekly_date > today - timedelta(days=7):
+            if user.last_life_weekly_date and user.last_life_weekly_date > today - timedelta(
+                days=7
+            ):
                 continue
             try:
                 await context.bot.send_message(
                     user.id,
                     build_life_weekly_message(user, today),
                     reply_markup=_calendar_keyboard(
-                        user.language, notification_agent_id(life_weeks_lived(user.birth_date, today))
+                        user.language,
+                        notification_agent_id(life_weeks_lived(user.birth_date, today)),
                     ),
                 )
             except Exception as error:
@@ -117,7 +123,7 @@ def build_daily_notification(user: User, goal: Goal | None, today: date) -> str:
 
 
 def _daily_keyboard(language: str, has_goal: bool, agent_id: str) -> InlineKeyboardMarkup:
-    url = webapp.build_webapp_url("calendar")
+    url = webapp.build_webapp_url("calendar", tab="goal" if has_goal else "life")
     key = "daily_goal_button" if has_goal else "daily_calendar_button"
     rows = [[InlineKeyboardButton(t(language, "daily_done_button"), callback_data="daily:done")]]
     if url:
@@ -163,3 +169,49 @@ async def send_daily_notifications(context: ContextTypes.DEFAULT_TYPE) -> None:
                 logger.warning("Daily notification failed for %s: %s", user.id, error)
                 continue
             await users.mark_daily_notification_sent(session, user, goal, today)
+
+
+def build_billing_reminder(user: User, reminder: billing.BillingReminder) -> str:
+    return t(
+        user.language,
+        f"billing_{reminder}",
+        price=get_settings().pro_price_stars,
+    )
+
+
+def _billing_keyboard(language: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    t(language, "upgrade_pro_button"), callback_data="billing:subscribe"
+                )
+            ],
+            [InlineKeyboardButton(t(language, "back_home"), callback_data="menu:home")],
+        ]
+    )
+
+
+def billing_reminder_is_due(user: User, now: datetime) -> bool:
+    return users.local_datetime(user, now).hour in BILLING_REMINDER_HOURS
+
+
+async def send_billing_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Stars upsell: trial ends tomorrow, trial ended, Pro expired without renewal."""
+    now = datetime.now(UTC)
+    async with SessionFactory() as session:
+        candidates = await billing.billing_reminder_candidates(session, now)
+        for user in candidates:
+            reminder = billing.pending_billing_reminder(user, now)
+            if reminder is None or not billing_reminder_is_due(user, now):
+                continue
+            try:
+                await context.bot.send_message(
+                    user.id,
+                    build_billing_reminder(user, reminder),
+                    reply_markup=_billing_keyboard(user.language),
+                )
+            except Exception as error:
+                logger.warning("Billing reminder %s failed for %s: %s", reminder, user.id, error)
+                continue
+            await billing.mark_billing_reminder_sent(session, user, reminder, now)

@@ -177,6 +177,66 @@ class TestConversationStorage:
         assert any(row["role"] == "agent" and row["text"] == long_answer for row in message_rows)
 
 
+class TestActiveConversation:
+    """`GET /api/conversations/active` backs the Mini App "continue" card."""
+
+    @staticmethod
+    async def _exchange(agent_id: str, question: str, answer: str) -> None:
+        from app.db.session import SessionFactory
+        from app.services import conversations
+        from tests.conftest import TEST_USER_ID
+
+        async with SessionFactory() as session:
+            await conversations.start_session(session, TEST_USER_ID, agent_id)
+            await session.commit()
+            await conversations.append_exchange(
+                session, TEST_USER_ID, agent_id, question, answer
+            )
+
+    async def test_without_an_active_session_the_response_is_null(self, client, auth_headers):
+        response = await client.get("/api/conversations/active", headers=auth_headers)
+        assert response.status_code == 200
+        assert response.json() is None
+
+    async def test_active_session_is_summarized_for_the_card(self, client, auth_headers):
+        assert (await client.get("/api/me", headers=auth_headers)).status_code == 200
+        await self._exchange("aurelius", "How do I stay calm?", "Separate what is yours to control.")
+
+        payload = (await client.get("/api/conversations/active", headers=auth_headers)).json()
+
+        assert payload["agentId"] == "aurelius"
+        # initData carries language_code "ru", so the name is localized.
+        assert payload["agentName"] == "Марк Аврелий"
+        assert payload["title"] == "How do I stay calm?"
+        assert payload["lastMessage"] == "Separate what is yours to control."
+        assert payload["messageCount"] == 2
+        assert payload["updatedAt"]
+
+    async def test_last_message_is_collapsed_and_capped_at_200_chars(self, client, auth_headers):
+        assert (await client.get("/api/me", headers=auth_headers)).status_code == 200
+        await self._exchange("jung", "What recurs?", "The shadow\n\n  returns. " + "A" * 500)
+
+        payload = (await client.get("/api/conversations/active", headers=auth_headers)).json()
+
+        assert len(payload["lastMessage"]) == 200
+        assert payload["lastMessage"].startswith("The shadow returns. AAA")
+
+    async def test_switching_agent_replaces_the_active_session(self, client, auth_headers):
+        assert (await client.get("/api/me", headers=auth_headers)).status_code == 200
+        await self._exchange("aurelius", "First question", "First answer")
+        await self._exchange("machiavelli", "Second question", "Second answer")
+
+        payload = (await client.get("/api/conversations/active", headers=auth_headers)).json()
+
+        assert payload["agentId"] == "machiavelli"
+        assert payload["lastMessage"] == "Second answer"
+
+    async def test_profile_exposes_the_daily_checkin_streak(self, client, auth_headers):
+        profile = (await client.get("/api/me", headers=auth_headers)).json()
+
+        assert profile["dailyCheckinStreak"] == 0
+
+
 class TestAgents:
     async def test_agents_list(self, client, auth_headers):
         response = await client.get("/api/agents", headers=auth_headers)
@@ -199,7 +259,7 @@ class TestBilling:
         assert status["plan"] == "Free"
         assert status["dailyLimit"] == 3
         assert status["canStartTrial"] is True
-        assert status["proPriceStars"] == 299
+        assert status["proPriceStars"] == 350
 
     async def test_trial_can_only_start_once(self, client, auth_headers):
         started = await client.post("/api/billing/trial", headers=auth_headers)

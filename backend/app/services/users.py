@@ -2,11 +2,13 @@ from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from sqlalchemy import and_, select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
 from app.db.models import Goal, User
 from app.i18n import normalize_language
+from app.services import events, ops
 
 
 async def get_user(session: AsyncSession, user_id: int) -> User | None:
@@ -17,18 +19,32 @@ async def get_or_create_user(
     session: AsyncSession, user_id: int, *, name: str = "", language: str = ""
 ) -> User:
     user = await session.get(User, user_id)
-    if user is None:
-        settings = get_settings()
-        user = User(
+    if user is not None:
+        return user
+
+    # Concurrent first requests (the Mini App fires several in parallel) must not
+    # collide on the primary key: insert-or-ignore, then read whichever row won.
+    settings = get_settings()
+    result = await session.execute(
+        insert(User)
+        .values(
             id=user_id,
             name=name[:64],
             language=normalize_language(language),
             reminder_timezone=settings.reminder_tz,
             reminder_hour=settings.reminder_hour,
         )
-        session.add(user)
-        await session.commit()
-        await session.refresh(user)
+        .on_conflict_do_nothing(index_elements=["id"])
+    )
+    created = result.rowcount == 1
+    if created:
+        events.record(session, events.USER_CREATED, user_id, language=normalize_language(language))
+    await session.commit()
+    user = await session.get(User, user_id)
+    if user is None:  # pragma: no cover - defensive, the row exists after the upsert
+        raise RuntimeError(f"User {user_id} could not be created")
+    if created:
+        ops.user_created(user)
     return user
 
 

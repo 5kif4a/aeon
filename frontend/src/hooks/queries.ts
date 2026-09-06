@@ -79,6 +79,19 @@ export function useStartCouncil() {
   return useMutation({ mutationFn: (message: string) => api.startCouncil(message) });
 }
 
+/**
+ * The dialogue still open in the bot chat. The endpoint is optional from the
+ * client's point of view: while it is missing the query just fails and the
+ * "continue" card stays hidden, so no retry is worth the round trip.
+ */
+export function useActiveConversation() {
+  return useQuery({
+    queryKey: ["conversation"],
+    queryFn: api.getActiveConversation,
+    retry: false,
+  });
+}
+
 export function useBillingStatus() {
   return useQuery({ queryKey: ["billing"], queryFn: api.getBillingStatus });
 }
