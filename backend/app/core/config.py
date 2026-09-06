@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     # re-running scripts/embed_rag.py --force.
     rag_embedding_model: str = "gemini-embedding-001"
     rag_embedding_dim: int = 768
+    # Weight of the embedding ranking against BM25 (1.0) in reciprocal rank fusion.
+    rag_semantic_weight: float = 1.0
 
     reminder_hour: int = 9
     reminder_tz: str = "UTC"

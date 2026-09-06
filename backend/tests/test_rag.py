@@ -326,6 +326,20 @@ def test_rrf_fusion_prefers_chunks_ranked_by_both_signals():
     assert len(rag.rrf_fuse([semantic, lexical], top_k=10)) == 5
 
 
+def test_rrf_fusion_weights_scale_one_ranking():
+    def hit(chunk_id: str, score: float) -> RagHit:
+        return RagHit(RagChunk(chunk_id, PRINCE, 1, "", chunk_id), score)
+
+    semantic = [hit("s1", 0.9)]
+    lexical = [hit("l1", 12.0)]
+
+    fused = rag.rrf_fuse([semantic, lexical], top_k=2, weights=[0.5, 1.0])
+
+    assert [hit.chunk.chunk_id for hit in fused] == ["l1", "s1"]
+    assert fused[0].score == pytest.approx(1 / 61)
+    assert fused[1].score == pytest.approx(0.5 / 61)
+
+
 async def test_retrieve_fuses_embeddings_with_bm25(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
     rows = _vector_rows(

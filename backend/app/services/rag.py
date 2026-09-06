@@ -485,13 +485,19 @@ class VectorIndex:
         return [RagHit(chunk=self.chunks[int(i)], score=float(scores[i])) for i in order]
 
 
-def rrf_fuse(rankings: Sequence[Sequence[RagHit]], top_k: int, k: int = RRF_K) -> list[RagHit]:
-    """Reciprocal rank fusion; the returned score is the fused RRF score."""
+def rrf_fuse(
+    rankings: Sequence[Sequence[RagHit]],
+    top_k: int,
+    k: int = RRF_K,
+    weights: Sequence[float] | None = None,
+) -> list[RagHit]:
+    """Reciprocal rank fusion; the returned score is the fused (optionally weighted) RRF score."""
     fused: dict[str, float] = {}
     chunks: dict[str, RagChunk] = {}
-    for ranking in rankings:
+    for index, ranking in enumerate(rankings):
+        weight = weights[index] if weights and index < len(weights) else 1.0
         for rank, hit in enumerate(ranking, start=1):
-            fused[hit.chunk.chunk_id] = fused.get(hit.chunk.chunk_id, 0.0) + 1.0 / (k + rank)
+            fused[hit.chunk.chunk_id] = fused.get(hit.chunk.chunk_id, 0.0) + weight / (k + rank)
             chunks.setdefault(hit.chunk.chunk_id, hit.chunk)
     ordered = sorted(fused.items(), key=lambda item: (-item[1], chunks[item[0]].page))
     return [RagHit(chunk=chunks[chunk_id], score=score) for chunk_id, score in ordered[:top_k]]
@@ -688,7 +694,9 @@ async def retrieve(
         return lexical_hits[:limit]
     if not lexical_hits:
         return semantic_hits[:limit]
-    return rrf_fuse([semantic_hits, lexical_hits], limit)
+    return rrf_fuse(
+        [semantic_hits, lexical_hits], limit, weights=[settings.rag_semantic_weight, 1.0]
+    )
 
 
 async def build_context(agent_id: str, query: str, plan: str, language: str = "ru") -> str:

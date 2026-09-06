@@ -120,7 +120,10 @@ Build the ignored local JSON corpus from a text-based PDF, then inspect retrieva
 
 ```bash
 cd backend
-uv run python scripts/ingest_rag_pdf.py "/path/to/The Prince.pdf"
+# one PDF with several works: repeat --work "Title:first_page:last_page"
+uv run python scripts/ingest_rag_pdf.py "/path/to/Machiavelli.pdf" \
+  --work "Никколо Макиавелли, «Государь»:6:82" \
+  --work "Никколо Макиавелли, «Рассуждения о первой декаде Тита Ливия»:83:356"
 uv run python -m scripts.query_rag "Когда правителю быть львом, а когда лисой?" --top-k 3
 
 uv run python scripts/build_machiavelli_discourses_en_rag.py "/path/to/Discourses-1883.pdf"
