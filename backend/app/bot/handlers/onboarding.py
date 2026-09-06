@@ -141,9 +141,7 @@ async def receive_typed_birthdate(update: Update, context: ContextTypes.DEFAULT_
     return await _save_birthdate(update, context, birth)
 
 
-async def _save_birthdate(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, birth: date
-) -> int:
+async def _save_birthdate(update: Update, context: ContextTypes.DEFAULT_TYPE, birth: date) -> int:
     chat_id = update.effective_chat.id
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
@@ -169,7 +167,13 @@ async def _save_birthdate(
         chat_id,
         t(user.language, "profile_saved", age=users.calculate_age(birth)),
         reply_markup=InlineKeyboardMarkup(
-            [[InlineKeyboardButton(t(user.language, "settings_button"), callback_data="settings:open")]]
+            [
+                [
+                    InlineKeyboardButton(
+                        t(user.language, "settings_button"), callback_data="settings:open"
+                    )
+                ]
+            ]
         ),
     )
     return ConversationHandler.END

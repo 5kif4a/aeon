@@ -142,23 +142,31 @@ class TestConversationStorage:
                 session, TEST_USER_ID, "machiavelli", limit=3
             )
             overview_rows = (
-                await session.execute(
-                    sa.text(
-                        "SELECT telegram_id, user_name, agent_id, status, message_count "
-                        "FROM conversation_overview WHERE telegram_id = :user_id"
-                    ),
-                    {"user_id": TEST_USER_ID},
+                (
+                    await session.execute(
+                        sa.text(
+                            "SELECT telegram_id, user_name, agent_id, status, message_count "
+                            "FROM conversation_overview WHERE telegram_id = :user_id"
+                        ),
+                        {"user_id": TEST_USER_ID},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
             message_rows = (
-                await session.execute(
-                    sa.text(
-                        "SELECT agent_id, role, text FROM conversation_messages_view "
-                        "WHERE telegram_id = :user_id"
-                    ),
-                    {"user_id": TEST_USER_ID},
+                (
+                    await session.execute(
+                        sa.text(
+                            "SELECT agent_id, role, text FROM conversation_messages_view "
+                            "WHERE telegram_id = :user_id"
+                        ),
+                        {"user_id": TEST_USER_ID},
+                    )
                 )
-            ).mappings().all()
+                .mappings()
+                .all()
+            )
 
         assert aurelius_history == [
             {"role": "user", "text": "New session"},
@@ -189,9 +197,7 @@ class TestActiveConversation:
         async with SessionFactory() as session:
             await conversations.start_session(session, TEST_USER_ID, agent_id)
             await session.commit()
-            await conversations.append_exchange(
-                session, TEST_USER_ID, agent_id, question, answer
-            )
+            await conversations.append_exchange(session, TEST_USER_ID, agent_id, question, answer)
 
     async def test_without_an_active_session_the_response_is_null(self, client, auth_headers):
         response = await client.get("/api/conversations/active", headers=auth_headers)
@@ -200,7 +206,9 @@ class TestActiveConversation:
 
     async def test_active_session_is_summarized_for_the_card(self, client, auth_headers):
         assert (await client.get("/api/me", headers=auth_headers)).status_code == 200
-        await self._exchange("aurelius", "How do I stay calm?", "Separate what is yours to control.")
+        await self._exchange(
+            "aurelius", "How do I stay calm?", "Separate what is yours to control."
+        )
 
         payload = (await client.get("/api/conversations/active", headers=auth_headers)).json()
 

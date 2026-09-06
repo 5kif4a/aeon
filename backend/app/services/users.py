@@ -93,8 +93,7 @@ async def users_due_for_life_weekly(session: AsyncSession, today: date) -> list[
     result = await session.execute(
         select(User).where(
             User.birth_date.is_not(None),
-            (User.last_life_weekly_date.is_(None))
-            | (User.last_life_weekly_date <= cutoff),
+            (User.last_life_weekly_date.is_(None)) | (User.last_life_weekly_date <= cutoff),
         )
     )
     return list(result.scalars())

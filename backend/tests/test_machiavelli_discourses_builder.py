@@ -36,9 +36,7 @@ def test_page_sections_updates_chapter_and_keeps_prefix():
 def test_page_sections_does_not_treat_prose_as_a_heading():
     text = "As shown in the previous chapter concerning liberty, the people understood this."
 
-    assert page_sections(text, 1, "Book 1, Chapter IV") == [
-        ("Book 1, Chapter IV", text)
-    ]
+    assert page_sections(text, 1, "Book 1, Chapter IV") == [("Book 1, Chapter IV", text)]
 
 
 def test_overridden_page_sections_repairs_ocr_heading_and_preserves_prefix():

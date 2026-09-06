@@ -19,7 +19,9 @@ def configured(monkeypatch):
     settings = get_settings()
     monkeypatch.setattr(settings, "telegram_oauth_client_id", CLIENT_ID)
     monkeypatch.setattr(settings, "telegram_oauth_client_secret", "secret")
-    monkeypatch.setattr(settings, "admin_oauth_redirect_uri", "https://panel.example/admin/callback")
+    monkeypatch.setattr(
+        settings, "admin_oauth_redirect_uri", "https://panel.example/admin/callback"
+    )
     admin_oauth._pending.clear()
     yield settings
     admin_oauth._pending.clear()

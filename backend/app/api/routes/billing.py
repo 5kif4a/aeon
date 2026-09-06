@@ -49,9 +49,7 @@ async def create_checkout(user: CurrentUser) -> CheckoutOut:
             description=t(user.language, "payment_pro_description"),
             payload=billing.pro_invoice_payload(user.id),
             currency="XTR",
-            prices=[
-                LabeledPrice(t(user.language, "payment_pro_price"), settings.pro_price_stars)
-            ],
+            prices=[LabeledPrice(t(user.language, "payment_pro_price"), settings.pro_price_stars)],
             subscription_period=timedelta(days=30),
         )
     except TelegramError as error:
@@ -60,9 +58,7 @@ async def create_checkout(user: CurrentUser) -> CheckoutOut:
 
 
 @router.post("/cancel", response_model=CancelSubscriptionOut)
-async def cancel_subscription(
-    user: CurrentUser, session: SessionDep
-) -> CancelSubscriptionOut:
+async def cancel_subscription(user: CurrentUser, session: SessionDep) -> CancelSubscriptionOut:
     if billing.effective_plan(user) != "Pro" or not user.pro_subscription_charge_id:
         raise HTTPException(status_code=409, detail="No active Pro subscription")
     application = runtime.get_application()
@@ -73,7 +69,9 @@ async def cancel_subscription(
             user.id, user.pro_subscription_charge_id, is_canceled=True
         )
     except TelegramError as error:
-        raise HTTPException(status_code=502, detail="Could not cancel Telegram subscription") from error
+        raise HTTPException(
+            status_code=502, detail="Could not cancel Telegram subscription"
+        ) from error
     user = await billing.mark_subscription_canceled(session, user.id)
     ops.subscription_canceled(user)
     return CancelSubscriptionOut(ok=True, activeUntil=user.pro_expires_at)
