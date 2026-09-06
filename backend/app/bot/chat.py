@@ -160,6 +160,7 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
         progress.message_id,
         answer,
         reply_markup=ui.post_answer_keyboard(language),
+        markdown=True,
     )
     return True
 
@@ -223,6 +224,7 @@ async def _process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
         progress.message_id,
         answer,
         reply_markup=ui.post_answer_keyboard(language),
+        markdown=True,
     )
     return True
 
@@ -245,7 +247,7 @@ def _create_stream_editor(bot: Bot, chat_id: int, message_id: int, language: str
         if not is_first_text and not (has_meaningful_change and enough_time_passed):
             return
 
-        if await messaging.try_edit(bot, chat_id, message_id, preview):
+        if await messaging.try_edit(bot, chat_id, message_id, preview, markdown=True):
             state["last_text"] = preview
             state["last_edit_at"] = now
 
