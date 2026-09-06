@@ -31,6 +31,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True)  # Telegram chat id
     language: Mapped[str] = mapped_column(String(8), default="en")
     name: Mapped[str] = mapped_column(String(64), default="")
+    # Telegram @username without the "@", refreshed whenever the user contacts us.
+    username: Mapped[str] = mapped_column(String(64), default="")
     gender: Mapped[str] = mapped_column(String(32), default="")
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     country: Mapped[str] = mapped_column(String(64), default="")

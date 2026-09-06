@@ -16,10 +16,23 @@ async def get_user(session: AsyncSession, user_id: int) -> User | None:
 
 
 async def get_or_create_user(
-    session: AsyncSession, user_id: int, *, name: str = "", language: str = ""
+    session: AsyncSession,
+    user_id: int,
+    *,
+    name: str = "",
+    language: str = "",
+    username: str | None = None,
 ) -> User:
+    """Return the user, creating the row on first contact.
+
+    ``username`` is the Telegram handle as seen in this request; ``None`` means unknown
+    (callers that only have a chat id), an empty string means the user has none.
+    """
     user = await session.get(User, user_id)
     if user is not None:
+        if username is not None and user.username != username[:64]:
+            user.username = username[:64]
+            await session.commit()
         return user
 
     # Concurrent first requests (the Mini App fires several in parallel) must not
@@ -30,6 +43,7 @@ async def get_or_create_user(
         .values(
             id=user_id,
             name=name[:64],
+            username=(username or "")[:64],
             language=normalize_language(language),
             reminder_timezone=settings.reminder_tz,
             reminder_hour=settings.reminder_hour,

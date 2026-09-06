@@ -355,6 +355,7 @@ class AdminStatsOut(BaseModel):
 class AdminUserOut(BaseModel):
     id: int
     name: str
+    username: str = ""
     language: str
     country: str
     activity: str

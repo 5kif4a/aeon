@@ -96,12 +96,43 @@ def reset_alert_throttle() -> None:
 # --- event announcements -------------------------------------------------------------
 
 
+def _display_name(user: User) -> str:
+    return html.escape((user.name or "").strip() or "no name")
+
+
+def _admin_url(user: User) -> str:
+    base = get_settings().mini_app_url.rstrip("/")
+    return f"{base}/admin/users/{user.id}" if base else ""
+
+
 def _user_line(user: User) -> str:
-    parts = [f"<code>{user.id}</code>", html.escape(user.language or "?")]
+    """Who this is, in one line: name as a Telegram profile link, @username, id, language,
+    country, plan. The name link opens the profile from the group; the id is what the
+    admin panel and logs use."""
+    parts = [f'<a href="tg://user?id={user.id}">{_display_name(user)}</a>']
+    if user.username:
+        parts.append(f"@{html.escape(user.username)}")
+    parts.append(f"<code>{user.id}</code>")
+    parts.append(html.escape(user.language or "?"))
     if user.country:
         parts.append(html.escape(user.country))
     parts.append(f"plan {billing.effective_plan(user)}")
     return " · ".join(parts)
+
+
+def _admin_line(user: User) -> str:
+    url = _admin_url(user)
+    return f'<a href="{html.escape(url)}">admin card</a>' if url else ""
+
+
+def _age(user: User, now: datetime | None = None) -> int | None:
+    if user.birth_date is None:
+        return None
+    today = (now or datetime.now(UTC)).date()
+    years = today.year - user.birth_date.year
+    if (today.month, today.day) < (user.birth_date.month, user.birth_date.day):
+        years -= 1
+    return years
 
 
 def _days_since_signup(user: User, now: datetime | None = None) -> int | None:
@@ -112,37 +143,59 @@ def _days_since_signup(user: User, now: datetime | None = None) -> int | None:
     return max((current - created).days, 0)
 
 
+def _compose(title: str, user: User, *details: str) -> str:
+    lines = [title, _user_line(user), *[d for d in details if d]]
+    admin = _admin_line(user)
+    if admin:
+        lines.append(admin)
+    return "\n".join(lines)
+
+
 def format_user_created(user: User) -> str:
-    return f"🆕 New user\n{_user_line(user)}"
+    return _compose("🆕 New user", user)
 
 
 def format_onboarding_completed(user: User) -> str:
-    lines = [f"✅ Onboarding completed\n{_user_line(user)}"]
-    if user.main_goal:
-        lines.append(f"goal: {html.escape(user.main_goal[:200])}")
-    if user.activity:
-        lines.append(f"activity: {html.escape(user.activity[:120])}")
-    return "\n".join(lines)
+    facts = []
+    age = _age(user)
+    if age is not None:
+        facts.append(f"{age} y.o.")
+    if user.gender:
+        facts.append(html.escape(user.gender))
+    if user.location:
+        facts.append(html.escape(user.location[:64]))
+    details = [
+        " · ".join(facts),
+        f"activity: {html.escape(user.activity[:120])}" if user.activity else "",
+        f"interests: {html.escape(user.interests[:120])}" if user.interests else "",
+        f"goal: {html.escape(user.main_goal[:200])}" if user.main_goal else "",
+        f"problem: {html.escape(user.current_problem[:200])}" if user.current_problem else "",
+    ]
+    return _compose("✅ Onboarding completed", user, *details)
 
 
 def format_trial_started(user: User) -> str:
     days = _days_since_signup(user)
-    suffix = f" · day {days} since signup" if days is not None else ""
-    return f"🎯 Trial started\n{_user_line(user)}{suffix}"
+    until = user.trial_expires_at.date().isoformat() if user.trial_expires_at else "—"
+    return _compose(
+        "🎯 Trial started",
+        user,
+        f"day {days} since signup" if days is not None else "",
+        f"trial until {until}",
+    )
 
 
 def format_payment_succeeded(
     user: User, *, amount: int, currency: str, renewal: bool, expires_at: datetime | None
 ) -> str:
     title = "🔁 Subscription renewed" if renewal else "💫 New Pro subscription"
-    lines = [f"{title} · <b>{amount} {'★' if currency == 'XTR' else html.escape(currency)}</b>"]
-    lines.append(_user_line(user))
     days = _days_since_signup(user)
-    if days is not None:
-        lines.append(f"day {days} since signup")
-    if expires_at is not None:
-        lines.append(f"active until {expires_at.date().isoformat()}")
-    return "\n".join(lines)
+    return _compose(
+        f"{title} · <b>{amount} {'★' if currency == 'XTR' else html.escape(currency)}</b>",
+        user,
+        f"day {days} since signup" if days is not None else "",
+        f"active until {expires_at.date().isoformat()}" if expires_at is not None else "",
+    )
 
 
 def _pro_until(user: User) -> str:
@@ -151,7 +204,7 @@ def _pro_until(user: User) -> str:
 
 def format_subscription_canceled(user: User, *, source: str = "bot") -> str:
     via = " (from Telegram settings)" if source == "telegram" else ""
-    return f"📉 Auto-renew canceled{via}\n{_user_line(user)}\nPro active until {_pro_until(user)}"
+    return _compose(f"📉 Auto-renew canceled{via}", user, f"Pro active until {_pro_until(user)}")
 
 
 def format_payment_refunded(
@@ -160,13 +213,15 @@ def format_payment_refunded(
     unit = "★" if currency == "XTR" else html.escape(currency)
     via = "by Telegram support" if source == "telegram" else "from the admin panel"
     effect = "Pro revoked" if pro_revoked else "entitlement unchanged"
-    return f"↩️ Refund {amount} {unit} {via}\n{_user_line(user)}\n{effect}"
+    return _compose(f"↩️ Refund {amount} {unit} {via}", user, effect)
 
 
 def format_paysupport_request(user: User, text: str, payments: list[BillingPayment]) -> str:
     """/paysupport message. Deliberately carries the user's text: it is addressed to us,
     not to an agent, and the operator cannot act on a payment complaint without it."""
     lines = [f"🛟 Payment support request\n{_user_line(user)}"]
+    if _admin_line(user):
+        lines.append(_admin_line(user))
     if user.pro_expires_at:
         lines.append(f"pro until {user.pro_expires_at.date().isoformat()}")
     for payment in payments[:3]:
@@ -182,11 +237,11 @@ def format_paysupport_request(user: User, text: str, payments: list[BillingPayme
 
 
 def format_subscription_restored(user: User) -> str:
-    return f"🔂 Auto-renew restored\n{_user_line(user)}\nnext charge {_pro_until(user)}"
+    return _compose("🔂 Auto-renew restored", user, f"next charge {_pro_until(user)}")
 
 
 def format_subscription_payment_failed(user: User) -> str:
-    return f"⚠️ Renewal charge failed\n{_user_line(user)}\nPro active until {_pro_until(user)}"
+    return _compose("⚠️ Renewal charge failed", user, f"Pro active until {_pro_until(user)}")
 
 
 def user_created(user: User) -> None:
@@ -237,9 +292,24 @@ def subscription_payment_failed(user: User) -> None:
     notify(format_subscription_payment_failed(user))
 
 
-def generation_failed(kind: str, user_id: int, error: Exception) -> None:
+def format_generation_failed(
+    user: User, error: Exception, *, kind: str, agent_id: str = "", mode: str = ""
+) -> str:
+    """Enough to triage without opening logs: who, which agent and mode, HTTP status."""
+    where = " · ".join(p for p in (kind, agent_id, mode) if p)
+    status = getattr(error, "status", None)
+    status_text = f"HTTP {status} · " if status else ""
+    return _compose(
+        f"gemini failed · {html.escape(where)}",
+        user,
+        f"{status_text}{html.escape(type(error).__name__)}: {html.escape(str(error)[:300])}",
+    )
+
+
+def generation_failed(
+    kind: str, user: User, error: Exception, *, agent_id: str = "", mode: str = ""
+) -> None:
     alert(
         f"gemini:{kind}",
-        f"user <code>{user_id}</code>: {html.escape(type(error).__name__)}: "
-        f"{html.escape(str(error)[:300])}",
+        format_generation_failed(user, error, kind=kind, agent_id=agent_id, mode=mode),
     )

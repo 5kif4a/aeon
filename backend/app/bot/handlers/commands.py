@@ -28,6 +28,7 @@ async def _user_for_update(update: Update):
             update.effective_chat.id,
             name=(telegram_user.first_name or "")[:64],
             language=normalize_language(telegram_user.language_code),
+            username=telegram_user.username or "",
         )
 
 

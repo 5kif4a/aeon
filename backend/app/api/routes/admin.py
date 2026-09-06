@@ -185,6 +185,7 @@ def _user_out(
     return AdminUserOut(
         id=user.id,
         name=user.name,
+        username=user.username or "",
         language=user.language,
         country=user.country,
         activity=user.activity,

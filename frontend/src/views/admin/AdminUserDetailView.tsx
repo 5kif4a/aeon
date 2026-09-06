@@ -65,7 +65,22 @@ export function AdminUserDetailView() {
               {user.plan}
             </span>
           </h1>
-          <p className={adminMuted}>ID {user.id}</p>
+          <p className={adminMuted}>
+            ID {user.id}
+            {user.username ? (
+              <>
+                {" · "}
+                <a
+                  href={`https://t.me/${user.username}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={adminLink}
+                >
+                  @{user.username}
+                </a>
+              </>
+            ) : null}
+          </p>
         </div>
         <form
           className="flex items-center gap-2"

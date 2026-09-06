@@ -104,8 +104,13 @@ def test_stats_access_is_limited_to_ops_chat_and_admins(monkeypatch):
     assert not ops.is_ops_request(500, None)
 
 
-def test_payment_message_marks_renewals_and_hides_names():
-    user = _user(name="Secret Name", pro_expires_at=datetime(2026, 10, 7, tzinfo=UTC))
+def test_payment_message_marks_renewals_and_identifies_the_user(monkeypatch):
+    monkeypatch.setattr(get_settings(), "mini_app_url", "https://aeon.example")
+    user = _user(
+        name="Ada <Lovelace>",
+        username="ada_l",
+        pro_expires_at=datetime(2026, 10, 7, tzinfo=UTC),
+    )
 
     text = ops.format_payment_succeeded(
         user, amount=350, currency="XTR", renewal=False, expires_at=user.pro_expires_at
@@ -115,18 +120,51 @@ def test_payment_message_marks_renewals_and_hides_names():
     )
 
     assert "New Pro subscription" in text and "350 ★" in text
-    assert "Secret Name" not in text
+    # Name is a profile link (escaped), username and id follow, then the admin card link.
+    assert '<a href="tg://user?id=900000777">Ada &lt;Lovelace&gt;</a>' in text
+    assert "@ada_l" in text
     assert "900000777" in text and "Kazakhstan" in text and "plan Pro" in text
+    assert 'href="https://aeon.example/admin/users/900000777"' in text
     assert "day 3 since signup" in text and "active until 2026-10-07" in text
     assert "Subscription renewed" in renewal
 
 
 def test_onboarding_message_escapes_user_text():
-    user = _user(main_goal="Build <b>company</b> & retire")
+    user = _user(
+        main_goal="Build <b>company</b> & retire",
+        birth_date=date(1999, 5, 7),
+        activity="founder",
+        location="Almaty",
+    )
 
     text = ops.format_onboarding_completed(user)
 
     assert "&lt;b&gt;company&lt;/b&gt; &amp; retire" in text
+    assert "y.o." in text and "Almaty" in text and "activity: founder" in text
+
+
+def test_new_user_message_without_username_or_admin_url(monkeypatch):
+    monkeypatch.setattr(get_settings(), "mini_app_url", "")
+    user = _user(name="", username="")
+
+    text = ops.format_user_created(user)
+
+    assert text.startswith("🆕 New user\n")
+    assert '<a href="tg://user?id=900000777">no name</a>' in text
+    assert "@" not in text and "admin card" not in text
+
+
+def test_generation_failure_alert_names_agent_mode_and_status():
+    from app.clients.gemini import GeminiError
+
+    user = _user(name="Ada", username="ada_l")
+    error = GeminiError("Gemini API failed with HTTP 429: quota", status=429)
+
+    text = ops.format_generation_failed(user, error, kind="agent", agent_id="jung", mode="rag")
+
+    assert text.startswith("gemini failed · agent · jung · rag\n")
+    assert "@ada_l" in text
+    assert "HTTP 429 · GeminiError: Gemini API failed with HTTP 429: quota" in text
 
 
 def test_digests_due_only_at_the_configured_hour():

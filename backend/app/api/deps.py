@@ -31,6 +31,7 @@ async def get_current_user(
         session,
         int(telegram_user["id"]),
         name=telegram_user.get("first_name", ""),
+        username=telegram_user.get("username", "") or "",
         language=telegram_user.get("language_code", ""),
     )
 

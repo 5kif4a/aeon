@@ -141,7 +141,9 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
                 async with SessionFactory() as session:
                     await billing.release_agent_question(session, chat_id, grant)
                     await _record_generation_failure(session, chat_id, "agent", fallback_error)
-                ops.generation_failed("agent", chat_id, fallback_error)
+                ops.generation_failed(
+                    "agent", user, fallback_error, agent_id=agent_id, mode=grant.mode
+                )
                 return True
         else:
             await messaging.send_or_edit(
@@ -150,7 +152,7 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
             async with SessionFactory() as session:
                 await billing.release_agent_question(session, chat_id, grant)
                 await _record_generation_failure(session, chat_id, "agent", error)
-            ops.generation_failed("agent", chat_id, error)
+            ops.generation_failed("agent", user, error, agent_id=agent_id, mode=grant.mode)
             return True
 
     await agent_chat.append_history(chat_id, agent_id, text, answer)
@@ -211,7 +213,7 @@ async def _process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
         async with SessionFactory() as session:
             await billing.release_council(session, chat_id, grant)
             await _record_generation_failure(session, chat_id, "council", error)
-        ops.generation_failed("council", chat_id, error)
+        ops.generation_failed("council", user, error, mode="council")
         await messaging.send_or_edit(
             bot, chat_id, progress.message_id, _build_error_message(error, language)
         )

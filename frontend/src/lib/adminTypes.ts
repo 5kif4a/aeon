@@ -76,6 +76,7 @@ export type PlanName = "Free" | "Trial" | "Pro";
 export interface AdminUser {
   id: number;
   name: string;
+  username: string;
   language: string;
   country: string;
   activity: string;

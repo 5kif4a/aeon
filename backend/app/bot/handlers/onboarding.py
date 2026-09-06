@@ -54,9 +54,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
                 chat_id,
                 name=telegram_name or t(detected_language, "traveler_name"),
                 language=detected_language,
+                username=getattr(telegram_user, "username", "") or "",
             )
-        elif not user.name and telegram_name:
-            user = await users.update_user(session, user, {"name": telegram_name})
+        else:
+            changes = {}
+            if not user.name and telegram_name:
+                changes["name"] = telegram_name
+            username = (getattr(telegram_user, "username", "") or "")[:64]
+            if user.username != username:
+                changes["username"] = username
+            if changes:
+                user = await users.update_user(session, user, changes)
 
     await webapp.set_chat_menu_button(context.bot, chat_id, user.language)
     await send_home(context.bot, chat_id, user, welcome=is_new)

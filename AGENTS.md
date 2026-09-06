@@ -118,9 +118,10 @@ The bot/API layer announces to the product-owner group through `services/ops.py`
 (`OPS_CHAT_ID`, optional forum threads); sends are fire-and-forget and never raise, alerts are
 throttled per kind. `/stats [7|30]` answers only in the ops group or to `OPS_ADMIN_IDS`; the
 `ops_digests` job posts daily/weekly/monthly digests at `OPS_DIGEST_HOUR` and dedupes through
-`ops_digest_sent` events. Ops texts are internal English and carry user ids, never names or
-message content; the one exception is the `/paysupport` request, which is the user's message to
-the operator, not to an agent. Because the bot sits in a group, every user-facing handler is filtered to
+`ops_digest_sent` events. Ops texts are internal English; every message starts with `ops._user_line` (name as a
+`tg://user` link, @username, id, language, country, plan) and ends with a link to the admin card
+(`MINI_APP_URL/admin/users/<id>`). They never quote dialogue content; the one exception is the
+`/paysupport` request, which is the user's message to the operator, not to an agent. Because the bot sits in a group, every user-facing handler is filtered to
 `filters.ChatType.PRIVATE`; keep it that way for new handlers.
 
 **Admin panel.** `/admin` on the frontend (`src/views/admin/*`, own layout, not the Mini App
