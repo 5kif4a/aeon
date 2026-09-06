@@ -61,7 +61,12 @@ function AdminGate() {
   const me = useAdminMe();
   const logout = useAdminLogout();
   const failure = authFailure(me.error);
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
 
+  // The OAuth callback is the one admin path that runs before a credential exists.
+  if (pathname === "/admin/callback") {
+    return <Outlet />;
+  }
   if (!hasAdminCredential() || failure === "unauthenticated") {
     return <AdminLoginView />;
   }

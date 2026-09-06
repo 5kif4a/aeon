@@ -12,6 +12,7 @@ import { resolveEntryHref } from "./lib/deeplinks";
 import { LanguageProvider } from "./lib/i18n-context";
 import { pickPracticeTab, pickProfileSheet } from "./lib/views";
 import { pickOptionalId, pickPage, pickStatsRange, pickString } from "./lib/adminFormat";
+import { AdminCallbackView } from "./views/admin/AdminCallbackView";
 import { AdminConversationDetailView } from "./views/admin/AdminConversationDetailView";
 import { AdminConversationsView } from "./views/admin/AdminConversationsView";
 import { AdminDashboardView } from "./views/admin/AdminDashboardView";
@@ -104,6 +105,18 @@ const adminDashboardRoute = createRoute({
   component: AdminDashboardView,
 });
 
+/** Telegram OIDC return trip; rendered by the layout without an admin credential yet. */
+const adminCallbackRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/callback",
+  validateSearch: (search: Record<string, unknown>) => ({
+    code: pickString(search.code),
+    state: pickString(search.state),
+    error: pickString(search.error),
+  }),
+  component: AdminCallbackView,
+});
+
 const adminUsersRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/users",
@@ -160,6 +173,7 @@ const routeTree = rootRoute.addChildren([
   appRoute.addChildren([homeRoute, calendarRoute, profileRoute]),
   adminRoute.addChildren([
     adminDashboardRoute,
+    adminCallbackRoute,
     adminUsersRoute,
     adminUserRoute,
     adminConversationsRoute,

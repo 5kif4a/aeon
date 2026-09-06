@@ -15,6 +15,8 @@ from app.api.schemas import (
     AdminLoginIn,
     AdminMeOut,
     AdminMessageOut,
+    AdminOAuthCallbackIn,
+    AdminOAuthStartOut,
     AdminPageOut,
     AdminPaymentOut,
     AdminSessionOut,
@@ -25,7 +27,7 @@ from app.api.schemas import (
     GrantProIn,
     WindowOut,
 )
-from app.core import admin_auth
+from app.core import admin_auth, admin_oauth
 from app.core.config import get_settings
 from app.db.models import BillingPayment, Conversation, ProductEvent, User
 from app.services import admin, billing, events, stats, users
@@ -42,7 +44,37 @@ STATS_DAYS = {7, 30, 90}
 async def auth_config() -> AdminAuthConfigOut:
     settings = get_settings()
     return AdminAuthConfigOut(
-        botUsername=settings.bot_username, enabled=bool(settings.ops_admin_id_list)
+        botUsername=settings.bot_username,
+        enabled=bool(settings.ops_admin_id_list),
+        oauthEnabled=admin_oauth.is_configured(),
+    )
+
+
+@router.post("/auth/oauth/start", response_model=AdminOAuthStartOut)
+async def oauth_start() -> AdminOAuthStartOut:
+    """Begin the Telegram OIDC login; the PKCE verifier stays on the server."""
+    try:
+        authorize_url, _ = admin_oauth.begin_login()
+    except admin_auth.AdminAuthError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
+    return AdminOAuthStartOut(authorizeUrl=authorize_url)
+
+
+@router.post("/auth/oauth/callback", response_model=AdminSessionOut)
+async def oauth_callback(payload: AdminOAuthCallbackIn, session: SessionDep) -> AdminSessionOut:
+    try:
+        identity = await admin_oauth.complete_login(payload.code, payload.state)
+    except admin_auth.AdminAuthError as error:
+        raise HTTPException(status_code=401, detail=str(error)) from error
+    if not admin_auth.is_admin(identity.user_id):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    user = await users.get_or_create_user(session, identity.user_id, name=identity.name)
+    token, expires_at = admin_auth.issue_session_token(identity.user_id)
+    await admin.record_admin_event(session, events.ADMIN_LOGIN, identity.user_id, method="oidc")
+    return AdminSessionOut(
+        token=token,
+        expiresAt=datetime.fromtimestamp(expires_at, tz=UTC),
+        admin=_admin_me(user),
     )
 
 

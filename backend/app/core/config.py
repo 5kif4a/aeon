@@ -56,6 +56,13 @@ class Settings(BaseSettings):
     # Signs browser admin sessions (Telegram Login Widget flow). Empty derives a key
     # from BOT_TOKEN.
     admin_session_secret: str = ""
+    # Telegram OAuth 2.0 / OIDC credentials from BotFather (Bot Settings -> Web Login).
+    # The client id is the bot id; the secret is not BOT_TOKEN.
+    telegram_oauth_client_id: str = ""
+    telegram_oauth_client_secret: str = ""
+    # Must match one of the Web Login allowed URLs in BotFather. Defaults to the
+    # panel callback on the Mini App origin.
+    admin_oauth_redirect_uri: str = ""
 
     web_port: int = 5173
     static_dir: str = ""  # path to built frontend (frontend/dist); empty disables static serving
@@ -78,6 +85,13 @@ class Settings(BaseSettings):
             if value.lstrip("-").isdigit():
                 ids.append(int(value))
         return ids
+
+    @property
+    def admin_oauth_redirect_uri_resolved(self) -> str:
+        if self.admin_oauth_redirect_uri:
+            return self.admin_oauth_redirect_uri
+        base = self.mini_app_url.rstrip("/")
+        return f"{base}/admin/callback" if base else ""
 
     @property
     def ops_timezone(self) -> str:

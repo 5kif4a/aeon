@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 
-import { useAdminAuthConfig, useAdminLogin } from "../../hooks/adminQueries";
+import { useAdminAuthConfig, useAdminLogin, useAdminOAuthStart } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
 import type { TelegramLoginPayload } from "../../lib/adminTypes";
-import { adminCard } from "../../lib/adminUi";
+import { adminButton, adminCard } from "../../lib/adminUi";
 import { ApiError } from "../../lib/api";
 
 declare global {
@@ -15,22 +15,26 @@ declare global {
 const WIDGET_SRC = "https://telegram.org/js/telegram-widget.js?22";
 
 /**
- * Browser sign-in through the Telegram Login Widget. The widget calls
- * `window.onTelegramAuth` with a payload signed by Telegram; the backend verifies it
- * and checks the admin allowlist.
+ * Browser sign-in through Telegram.
+ *
+ * Preferred path: OAuth 2.0 / OIDC - the backend builds the authorize URL, Telegram
+ * sends the browser back to `/admin/callback`. The legacy iframe widget, which needs
+ * `/setdomain` in @BotFather, is kept for servers without OAuth credentials.
  */
 export function AdminLoginView() {
   const { t } = useAdminT();
   const config = useAdminAuthConfig();
   const login = useAdminLogin();
+  const oauthStart = useAdminOAuthStart();
   const container = useRef<HTMLDivElement>(null);
   const [widgetReady, setWidgetReady] = useState(false);
 
   const botUsername = config.data?.botUsername ?? "";
+  const oauthEnabled = config.data?.oauthEnabled ?? false;
 
   useEffect(() => {
     const host = container.current;
-    if (!host || !botUsername) return;
+    if (!host || !botUsername || oauthEnabled) return;
     window.onTelegramAuth = (user) => login.mutate(user);
     const script = document.createElement("script");
     script.src = WIDGET_SRC;
@@ -47,10 +51,10 @@ export function AdminLoginView() {
     };
     // `login` is a stable mutation object for the lifetime of the view.
     // oxlint-disable-next-line react-hooks/exhaustive-deps
-  }, [botUsername]);
+  }, [botUsername, oauthEnabled]);
 
   const errorKey = (() => {
-    const error = login.error;
+    const error = login.error ?? oauthStart.error;
     if (!error) return null;
     if (error instanceof ApiError && error.status === 403) return "admin_forbidden" as const;
     return "admin_login_failed" as const;
@@ -72,15 +76,26 @@ export function AdminLoginView() {
           {config.data && !config.data.enabled ? (
             <span className="text-danger text-[13px]">{t("admin_login_disabled")}</span>
           ) : null}
-          {config.data && config.data.enabled && !botUsername ? (
+          {config.data && config.data.enabled && !botUsername && !oauthEnabled ? (
             <span className="text-danger text-[13px]">{t("admin_login_no_bot")}</span>
           ) : null}
-          <div ref={container} hidden={!botUsername} />
+          {oauthEnabled ? (
+            <button
+              type="button"
+              className={adminButton}
+              disabled={oauthStart.isPending}
+              onClick={() => oauthStart.mutate()}
+            >
+              {t("admin_login_oauth")}
+            </button>
+          ) : (
+            <div ref={container} hidden={!botUsername} />
+          )}
         </div>
-        {botUsername && !widgetReady ? (
+        {!oauthEnabled && botUsername && !widgetReady ? (
           <p className="text-soft mt-2 text-[12px]">{t("admin_login_widget_loading")}</p>
         ) : null}
-        {login.isPending ? (
+        {login.isPending || oauthStart.isPending ? (
           <p className="text-muted mt-3 text-[13px]">{t("admin_loading")}</p>
         ) : null}
         {errorKey ? <p className="text-danger mt-3 text-[13px]">{t(errorKey)}</p> : null}

@@ -31,6 +31,27 @@ export function useAdminLogin() {
   });
 }
 
+/** Step one of the OIDC login: ask the backend for the authorize URL and leave the page. */
+export function useAdminOAuthStart() {
+  return useMutation({
+    mutationFn: adminApi.startOAuth,
+    onSuccess: ({ authorizeUrl }) => window.location.assign(authorizeUrl),
+  });
+}
+
+/** Step two: trade the code from Telegram for a panel session. */
+export function useAdminOAuthCallback() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ code, state }: { code: string; state: string }) =>
+      adminApi.completeOAuth(code, state),
+    onSuccess: (session) => {
+      setAdminToken(session.token);
+      queryClient.setQueryData(["admin", "me"], session.admin);
+    },
+  });
+}
+
 export function useAdminLogout() {
   const queryClient = useQueryClient();
   return () => {

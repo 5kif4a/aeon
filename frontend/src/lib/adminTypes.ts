@@ -3,6 +3,12 @@
 export interface AdminAuthConfig {
   botUsername: string;
   enabled: boolean;
+  /** Telegram OAuth (OIDC) is configured on the server; the widget is the fallback. */
+  oauthEnabled: boolean;
+}
+
+export interface AdminOAuthStart {
+  authorizeUrl: string;
 }
 
 /** Payload returned by the Telegram Login Widget `data-onauth` callback. */

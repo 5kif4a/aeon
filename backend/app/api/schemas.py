@@ -222,6 +222,17 @@ class CancelSubscriptionOut(BaseModel):
 class AdminAuthConfigOut(BaseModel):
     botUsername: str
     enabled: bool
+    # Telegram OAuth (OIDC) is the current way in; the widget stays as a fallback.
+    oauthEnabled: bool = False
+
+
+class AdminOAuthStartOut(BaseModel):
+    authorizeUrl: str
+
+
+class AdminOAuthCallbackIn(BaseModel):
+    code: str = Field(min_length=1, max_length=2048)
+    state: str = Field(min_length=1, max_length=256)
 
 
 class AdminLoginIn(BaseModel):

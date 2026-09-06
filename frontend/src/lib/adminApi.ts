@@ -10,6 +10,7 @@ import type {
   AdminConversation,
   AdminConversationDetail,
   AdminMe,
+  AdminOAuthStart,
   AdminPage,
   AdminPayment,
   AdminSession,
@@ -87,6 +88,12 @@ export const adminApi = {
     request<AdminSession>("/api/admin/auth/telegram", {
       method: "POST",
       body: JSON.stringify(payload),
+    }),
+  startOAuth: () => request<AdminOAuthStart>("/api/admin/auth/oauth/start", { method: "POST" }),
+  completeOAuth: (code: string, state: string) =>
+    request<AdminSession>("/api/admin/auth/oauth/callback", {
+      method: "POST",
+      body: JSON.stringify({ code, state }),
     }),
   getMe: () => request<AdminMe>("/api/admin/me"),
 
