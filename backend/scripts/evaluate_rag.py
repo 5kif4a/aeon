@@ -1,10 +1,20 @@
-"""Evaluate a local RAG index against a checked-in golden dataset."""
+"""Evaluate retrieval against a checked-in golden dataset.
+
+By default the BM25 index is built from the local JSON corpus (no network, no database).
+With ``--hybrid`` the production path is used instead: ``rag.retrieve`` over ``rag_chunks``
+plus Gemini query embeddings, so DATABASE_URL and GEMINI_API_KEY must be set.
+"""
 
 import argparse
+import asyncio
 import json
+from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+from app.services import rag
 from app.services.rag import RagHit, RagIndex
+
+Search = Callable[[str, int], Awaitable[list[RagHit]]]
 
 
 def matches(hit: RagHit, expected: dict) -> bool:
@@ -19,13 +29,13 @@ def matches(hit: RagHit, expected: dict) -> bool:
     )
 
 
-def evaluate(index: RagIndex, dataset: dict, top_k: int = 5) -> dict:
+async def evaluate(search: Search, dataset: dict, top_k: int = 5) -> dict:
     rows = []
     reciprocal_rank = 0.0
     hit_at_1 = 0
     hit_at_3 = 0
     for case in dataset["cases"]:
-        hits = index.search(case["question"], top_k=top_k)
+        hits = await search(case["question"], top_k)
         rank = None
         for position, hit in enumerate(hits, start=1):
             if any(matches(hit, expected) for expected in case["expected"]):
@@ -47,16 +57,40 @@ def evaluate(index: RagIndex, dataset: dict, top_k: int = 5) -> dict:
     }
 
 
-def main() -> None:
+def file_search(index: RagIndex) -> Search:
+    async def search(question: str, top_k: int) -> list[RagHit]:
+        return index.search(question, top_k=top_k)
+
+    return search
+
+
+def hybrid_search(agent_id: str, language: str) -> Search:
+    async def search(question: str, top_k: int) -> list[RagHit]:
+        return await rag.retrieve(agent_id, question, top_k, language=language)
+
+    return search
+
+
+async def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("dataset", type=Path)
     parser.add_argument("--index", type=Path)
     parser.add_argument("--top-k", type=int, default=5)
+    parser.add_argument(
+        "--hybrid",
+        action="store_true",
+        help="use rag.retrieve (rag_chunks + Gemini embeddings) instead of the local BM25 file",
+    )
     args = parser.parse_args()
 
     dataset = json.loads(args.dataset.read_text(encoding="utf-8"))
-    index_path = args.index or Path("data/rag") / f"{dataset['agent']}.json"
-    result = evaluate(RagIndex.from_file(index_path), dataset, top_k=args.top_k)
+    if args.hybrid:
+        agent_id = str(dataset["agent"]).split(".")[0]
+        search = hybrid_search(agent_id, str(dataset.get("language", "ru")))
+    else:
+        index_path = args.index or Path("data/rag") / f"{dataset['agent']}.json"
+        search = file_search(RagIndex.from_file(index_path))
+    result = await evaluate(search, dataset, top_k=args.top_k)
 
     print(
         f"cases={result['count']} hit@1={result['hit_at_1']:.1%} "
@@ -75,4 +109,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

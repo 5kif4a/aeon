@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     pro_daily_council_questions: int = 3
     rag_data_dir: str = "data/rag"
     rag_top_k: int = 4
+    # Semantic retrieval: Gemini embedding model and its (matryoshka-truncated) size.
+    # Vectors in rag_chunks are stored at this dimension; changing it requires
+    # re-running scripts/embed_rag.py --force.
+    rag_embedding_model: str = "gemini-embedding-001"
+    rag_embedding_dim: int = 768
 
     reminder_hour: int = 9
     reminder_tz: str = "UTC"

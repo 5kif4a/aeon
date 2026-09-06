@@ -1,19 +1,97 @@
 # RAG: знания из трудов личностей
 
 Цель: ответы агентов (Аврелий, Макиавелли, Юнг) опираются на реальные фрагменты их книг,
-а не только на знания LLM. Релевантные цитаты подмешиваются в промпт при каждом ответе.
+а не только на знания LLM. Релевантные фрагменты подмешиваются в промпт при каждом ответе
+пользователей с планом Trial/Pro (гейт — `AccessGrant.generation_plan`, см. `AGENTS.md`).
 
-## Архитектура
+## Реализованная архитектура
 
 ```
-[тексты книг] → чанки → Gemini embeddings → Postgres (pgvector)
-                                                    ↑
-вопрос юзера → embedding вопроса → top-k похожих чанков → блок контекста в промпте
+[PDF книг] → scripts/build_*_rag.py → data/rag/<agent>[.en].json (чанки ~1000 символов)
+                                              │
+                          scripts/embed_rag.py (Gemini gemini-embedding-001, 768d)
+                                              ↓
+                                   Postgres: таблица rag_chunks
+                                              ↓ (lazy load, кэш 5 мин в процессе)
+вопрос → embedding вопроса ─→ cosine top-20 ─┐
+                                              ├→ reciprocal rank fusion → top-k → блок в промпте
+вопрос → BM25 по тем же чанкам ─→ top-20 ────┘
 ```
 
-Стек: pgvector в существующем Postgres + `gemini-embedding-001` через существующий
-httpx-клиент. Без отдельной векторной БД (Qdrant/Chroma — лишний сервис ради ~2–3 тыс.
-чанков) и без LangChain/LlamaIndex (весь RAG — ~150 строк поверх текущего кода).
+Код: `backend/app/services/rag.py` (поиск), `backend/app/clients/gemini.py`
+(`embed_texts`, `embed_query`), `backend/scripts/embed_rag.py` (индексация),
+модель `RagChunkRecord` в `backend/app/db/models.py`, миграция `20260908_rag_chunks`.
+
+### Хранение: Postgres без pgvector
+
+Таблица `rag_chunks`: `id, agent_id, language (ru|en), chunk_id, source, chapter, page, text,
+embedding, created_at`, уникальный ключ `(agent_id, language, chunk_id)`. `embedding` —
+`BYTEA`: L2-нормализованный вектор, упакованный как little-endian float32
+(`RAG_EMBEDDING_DIM * 4` байт). Читается одним `np.frombuffer`.
+
+Почему не pgvector:
+
+- Корпуса маленькие — единицы тысяч чанков на (агент, язык). Полный скан матрицы
+  `(n, 768)` в numpy занимает доли миллисекунды; индекс HNSW/IVF не нужен.
+- Не требуется расширение в managed Postgres на Railway и отдельный образ в docker-compose;
+  миграция — обычная таблица, `downgrade` тривиален.
+- Один экземпляр бэкенда (см. правила про уведомления в `AGENTS.md`), поэтому кэш в памяти
+  процесса с TTL 5 минут достаточен: после `embed_rag.py` новые векторы подхватываются без
+  редеплоя. `rag.invalidate_cache()` сбрасывает кэш явно.
+- Файлы `data/rag/*.json` не попадают в образ (gitignore, Dockerfile их не копирует), а
+  Railway без volume. Таблица в БД решает проблему «в проде RAG молча не работает».
+
+### Эмбеддинги
+
+`gemini-embedding-001` через тот же REST API, что и генерация
+(`models/gemini-embedding-001:embedContent` для вопроса, `:batchEmbedContents` до 100 текстов
+за запрос для чанков). `outputDimensionality: 768` (matryoshka-усечение; нативные 3072 не
+нужны — векторы в 4 раза меньше при сопоставимом качестве). `taskType`:
+`RETRIEVAL_DOCUMENT` для чанков (текст = источник + глава + чанк), `RETRIEVAL_QUERY` для
+вопроса. Усечённые векторы нормализуются перед записью и при загрузке, поэтому cosine =
+скалярное произведение. Модель и размерность — `RAG_EMBEDDING_MODEL` / `RAG_EMBEDDING_DIM`;
+смена любого из них требует `embed_rag.py --force`, строки другой размерности игнорируются
+с предупреждением в логе.
+
+### Гибридный поиск
+
+1. Эмбеддинг вопроса (таймаут 5 с) → cosine top-20 по матрице корпуса.
+2. BM25 (свой, с русским/английским стеммингом и расширением запросов концептами) → top-20.
+   Индекс строится из JSON-файла, если он есть в `RAG_DATA_DIR`, иначе из тех же чанков БД.
+3. Reciprocal rank fusion (`k = 60`) → `RAG_TOP_K` фрагментов. `RagHit.score` в этом случае —
+   RRF-балл, а не cosine/BM25.
+
+Деградация: не удалось получить эмбеддинг вопроса → только BM25; в `rag_chunks` нет строк →
+BM25 по JSON-файлу; нет ни того ни другого → пустой контекст и одно предупреждение в лог на
+корпус (раньше это было молча).
+
+Многоязычность: русскому пользователю отдаётся русский корпус, английскому — `.en`, чтобы
+цитата была на языке ответа; эмбеддинги мультиязычные, но кросс-языковой поиск намеренно не
+используется.
+
+### Индексация
+
+```bash
+cd backend
+uv run python -m scripts.embed_rag --dry-run
+DATABASE_URL="postgresql+asyncpg://…" uv run python -m scripts.embed_rag   # против прода
+uv run python -m scripts.embed_rag --agent jung --language en
+uv run python -m scripts.embed_rag --force
+```
+
+Скрипт идемпотентен: чанки с неизменившимся текстом и уже записанным вектором нужной длины
+пропускаются, удалённые из JSON чанки удаляются из таблицы, 429/5xx повторяются с
+экспоненциальной паузой, в конце печатается сводка по корпусам.
+
+### Оценка
+
+`scripts/evaluate_rag.py evals/<agent>_<lang>_golden.json` — BM25 по локальному файлу
+(без сети и БД); `--hybrid` — прод-путь через `rag.retrieve` (нужны `DATABASE_URL` и
+`GEMINI_API_KEY`). `scripts/query_rag.py` показывает найденные фрагменты,
+`scripts/audit_rag_answers.py` прогоняет полные ответы агентов.
+
+Тесты `tests/test_rag.py` работают без Postgres: загрузчик строк и `gemini.embed_query`
+подменяются через `monkeypatch`.
 
 ## Источники текстов
 
@@ -30,114 +108,17 @@ httpx-клиент. Без отдельной векторной БД (Qdrant/Ch
 **Юнг**: умер в 1961, оригиналы ещё под копирайтом в EU до ~2032, переводы — дольше.
 Практичный путь — конспект-корпус: структурированные заметки по концепциям
 (тень, архетипы, индивидуация, анима/анимус, коллективное бессознательное,
-синхронистичность...) своими словами, по одному md-файлу или разделу на концепцию,
-с указанием работы-источника в заголовке. Для RAG это даже лучше сплошного текста:
-чанки получаются самодостаточными.
+синхронистичность...) своими словами, с указанием работы-источника. Для RAG это даже
+лучше сплошного текста: чанки получаются самодостаточными.
 
-**Формат и хранение**: `backend/data/corpus/<agent_id>/*.md`. Gutenberg-тексты
-конвертировать в markdown: срезать шапку/подвал (`*** START/END OF THE PROJECT
-GUTENBERG EBOOK ***`), проставить заголовки `# THE FOURTH BOOK` → chunker берёт из них
-метаданные `source`. Plain text → md — это один разовый прогон скриптом или руками.
-
-Решить до индексации: язык корпуса. Эмбеддинги мультиязычные — русский вопрос найдёт
-английский чанк, но цитата в ответе будет на английском. Варианты: (а) только русский
-корпус (основная аудитория), (б) оба языка с фильтром по языку юзера — вдвое больше
-работы, зато цитаты всегда на языке ответа.
-
-## Шаги реализации
-
-### 1. Инфраструктура
-- [ ] `docker-compose.yml`: образ `postgres:16-alpine` → `pgvector/pgvector:pg16`
-      (на Railway managed Postgres pgvector обычно уже доступен).
-- [ ] Зависимость `pgvector` (пакет `pgvector` для SQLAlchemy) в `backend/pyproject.toml`.
-
-### 2. Схема БД
-- [ ] Alembic-миграция: `CREATE EXTENSION IF NOT EXISTS vector` + таблица:
-
-```python
-op.create_table(
-    "knowledge_chunks",
-    sa.Column("id", sa.Integer, primary_key=True),
-    sa.Column("agent_id", sa.String, nullable=False, index=True),  # aurelius | machiavelli | jung
-    sa.Column("source", sa.String),      # "Meditations, Book IV"
-    sa.Column("content", sa.Text),
-    sa.Column("embedding", Vector(768)),
-)
-```
-
-- [ ] Модель `KnowledgeChunk` в `backend/app/db/models.py`.
-- [ ] HNSW-индекс по embedding — опционально, при таком объёме не обязателен.
-
-### 3. Клиент эмбеддингов
-- [ ] Метод `embed(text, task_type)` в `backend/app/clients/gemini.py`:
-      endpoint `models/gemini-embedding-001:embedContent`, тот же API base.
-      `taskType: RETRIEVAL_DOCUMENT` при индексации, `RETRIEVAL_QUERY` при поиске.
-
-```json
-POST /v1beta/models/gemini-embedding-001:embedContent
-{
-  "content": {"parts": [{"text": "..."}]},
-  "taskType": "RETRIEVAL_DOCUMENT",
-  "outputDimensionality": 768
-}
-```
-
-- [ ] `outputDimensionality: 768` обязательно (нативная размерность модели — 3072,
-      768 — matryoshka-усечение, качества хватает, векторы в 4 раза меньше).
-      Усечённые векторы нормализовать (`v / ||v||`) перед записью — для
-      cosine_distance не критично, но оставляет свободу перейти на inner product.
-- [ ] Для индексации использовать `batchEmbedContents` (до 100 текстов за запрос) —
-      весь корпус (~150k токенов, ~2–3 тыс. чанков) эмбеддится за десятки запросов,
-      стоимость — центы.
-- [ ] Заодно: убрать API-ключ из query string (`_build_url`), передавать заголовком
-      `x-goog-api-key` — сейчас ключ светится в URL и может попасть в логи.
-
-### 4. Индексация (`backend/scripts/ingest_books.py`)
-- [ ] CLI параметризованный под новых личностей:
-      `ingest_books.py --agent seneca --file letters.md --source "Письма к Луцилию"`
-      (новая личность = запись в AGENTS + одна команда, без миграций).
-- [ ] Чанки ~800–1200 символов, перекрытие ~150, резать по абзацам/главам
-      (у «Размышлений» естественные короткие фрагменты — можно по ним).
-- [ ] Метаданные: `agent_id`, `source` (книга + глава — из md-заголовков).
-- [ ] Запуск разовый; повторный запуск — очистка чанков агента и переиндексация.
-
-### 5. Retrieval в `backend/app/services/agent_chat.py`
-- [ ] Перед построением промпта:
-
-```python
-async def retrieve_context(agent_id: str, query: str, k: int = 4) -> list[Row]:
-    query_emb = await gemini.embed(query, task_type="RETRIEVAL_QUERY")
-    rows = await session.execute(
-        select(KnowledgeChunk.content, KnowledgeChunk.source)
-        .where(KnowledgeChunk.agent_id == agent_id)
-        .order_by(KnowledgeChunk.embedding.cosine_distance(query_emb))
-        .limit(k)
-    )
-    return rows.all()
-```
-
-- [ ] **Порог похожести** (например, cosine distance < 0.45): на «как дела» релевантных
-      фрагментов нет — случайные цитаты в промпте только вредят. Ниже порога — блок
-      контекста не добавляем вовсе.
-
-### 6. Промпт
-- [ ] Отдельный блок в user-промпте + инструкция в системном:
-
-```
-Relevant excerpts from your own writings:
-[Meditations, Book IV] "..."
-[Meditations, Book VII] "..."
-
-Ground your answer in these excerpts when relevant; you may
-paraphrase or quote them, but do not fabricate quotations.
-```
-
-### 7. Тесты
-- [ ] Юнит на чанкер (границы, перекрытие).
-- [ ] Тест retrieve_context с мокнутым embed: фильтр по agent_id, порог, limit.
-- [ ] Тест, что при отсутствии релевантных чанков блок контекста не попадает в промпт.
+Фактически проиндексированные издания перечислены в `README.md` (раздел «Agent book RAG»):
+«Государь» и «Рассуждения о Ливии» (EN), «Размышления» (RU 1985, EN Casaubon),
+«Человек и его символы» (RU 2016, EN).
 
 ## Потом (опционально)
-- Кэш эмбеддинга вопроса (in-memory LRU или таблица в Postgres).
-- Гибридный поиск: полнотекстовый Postgres как второй сигнал.
+
+- Порог релевантности: на «как дела» случайные цитаты только вредят; сейчас контекст
+  добавляется всегда, когда есть хиты.
+- Кэш эмбеддинга повторяющихся вопросов.
 - Источник цитаты в UI мини-аппа («— Размышления, кн. VII»).
+- Передавать API-ключ Gemini заголовком `x-goog-api-key` вместо query string.

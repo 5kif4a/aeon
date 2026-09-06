@@ -1,13 +1,42 @@
-"""Small local BM25 retrieval layer for agent book corpora."""
+"""Hybrid retrieval over agent book corpora: Gemini embeddings + BM25, fused with RRF.
 
+Chunk texts and their embeddings live in the ``rag_chunks`` Postgres table (written by
+``scripts/embed_rag.py``) and are loaded per (agent, language) into an in-memory numpy
+matrix. The BM25 index is built from the same chunks, or from the local JSON corpus in
+``RAG_DATA_DIR`` when it exists. If the query embedding fails, or the table has no rows for
+a corpus, retrieval degrades to BM25 only; with no corpus at all it returns nothing and
+logs a warning once.
+"""
+
+import asyncio
 import json
+import logging
 import math
 import re
+import time
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
+from sqlalchemy import select
+
+from app.clients import gemini
 from app.core.config import get_settings
+from app.db.models import RagChunkRecord
+from app.db.session import SessionFactory
+
+logger = logging.getLogger(__name__)
+
+SUPPORTED_AGENTS = frozenset({"aurelius", "jung", "machiavelli"})
+# Seconds an in-memory corpus stays valid before rag_chunks is re-read.
+CORPUS_CACHE_TTL = 300.0
+# Timeout for embedding the user's question; on expiry retrieval falls back to BM25.
+QUERY_EMBED_TIMEOUT = 5.0
+# Candidates taken from each signal before reciprocal rank fusion.
+FUSION_CANDIDATES = 20
+RRF_K = 60
 
 WORD_RE = re.compile(r"[a-z\u0400-\u04ff0-9]+", re.IGNORECASE)
 STOP_WORDS = set(
@@ -413,7 +442,94 @@ class RagIndex:
         return [RagHit(chunk=self.chunks[index], score=score) for score, index in scores[:top_k]]
 
 
+# --- Vectors -----------------------------------------------------------------
+
+
+def pack_embedding(values: Sequence[float]) -> bytes:
+    """L2-normalize a vector and pack it as little-endian float32 for ``rag_chunks``."""
+    return normalize(np.asarray(values, dtype=np.float32)).astype("<f4").tobytes()
+
+
+def unpack_embedding(blob: bytes, dimension: int) -> np.ndarray | None:
+    if len(blob) != dimension * 4:
+        return None
+    return np.frombuffer(blob, dtype="<f4").astype(np.float32)
+
+
+def normalize(vector: np.ndarray) -> np.ndarray:
+    norm = float(np.linalg.norm(vector))
+    return vector / norm if norm > 0 else vector
+
+
+class VectorIndex:
+    """Cosine search over a normalized (n, dim) float32 matrix."""
+
+    def __init__(self, chunks: list[RagChunk], matrix: np.ndarray):
+        if len(chunks) != matrix.shape[0]:
+            raise ValueError("chunks and matrix rows differ")
+        self.chunks = chunks
+        norms = np.linalg.norm(matrix, axis=1, keepdims=True)
+        norms[norms == 0] = 1.0
+        self.matrix = (matrix / norms).astype(np.float32)
+
+    def search(self, query_vector: Sequence[float], top_k: int = 4) -> list[RagHit]:
+        if not self.chunks or top_k <= 0:
+            return []
+        query = normalize(np.asarray(query_vector, dtype=np.float32))
+        if query.shape[0] != self.matrix.shape[1]:
+            raise ValueError(
+                f"query dimension {query.shape[0]} does not match index {self.matrix.shape[1]}"
+            )
+        scores = self.matrix @ query
+        order = np.argsort(-scores, kind="stable")[:top_k]
+        return [RagHit(chunk=self.chunks[int(i)], score=float(scores[i])) for i in order]
+
+
+def rrf_fuse(rankings: Sequence[Sequence[RagHit]], top_k: int, k: int = RRF_K) -> list[RagHit]:
+    """Reciprocal rank fusion; the returned score is the fused RRF score."""
+    fused: dict[str, float] = {}
+    chunks: dict[str, RagChunk] = {}
+    for ranking in rankings:
+        for rank, hit in enumerate(ranking, start=1):
+            fused[hit.chunk.chunk_id] = fused.get(hit.chunk.chunk_id, 0.0) + 1.0 / (k + rank)
+            chunks.setdefault(hit.chunk.chunk_id, hit.chunk)
+    ordered = sorted(fused.items(), key=lambda item: (-item[1], chunks[item[0]].page))
+    return [RagHit(chunk=chunks[chunk_id], score=score) for chunk_id, score in ordered[:top_k]]
+
+
+# --- Corpus loading and caches -------------------------------------------------
+
+
+@dataclass
+class Corpus:
+    lexical: RagIndex | None
+    vector: VectorIndex | None
+
+    @property
+    def empty(self) -> bool:
+        return self.lexical is None and self.vector is None
+
+
 _index_cache: dict[Path, tuple[int, RagIndex]] = {}
+_corpus_cache: dict[tuple[str, str], tuple[float, Corpus]] = {}
+_corpus_lock = asyncio.Lock()
+_warned_corpora: set[tuple[str, str]] = set()
+
+
+def invalidate_cache() -> None:
+    """Drop every in-memory index; the next query reloads from disk and Postgres."""
+    _index_cache.clear()
+    _corpus_cache.clear()
+    _warned_corpora.clear()
+
+
+def normalize_language(language: str) -> str:
+    return "en" if language.strip().lower().startswith("en") else "ru"
+
+
+def corpus_path(agent_id: str, language: str) -> Path:
+    suffix = ".en" if normalize_language(language) == "en" else ""
+    return Path(get_settings().rag_data_dir) / f"{agent_id}{suffix}.json"
 
 
 def _load_index(path: Path) -> RagIndex | None:
@@ -429,30 +545,157 @@ def _load_index(path: Path) -> RagIndex | None:
     return index
 
 
+async def _load_embedded_chunks(agent_id: str, language: str) -> list[tuple[RagChunk, bytes]]:
+    """Read one corpus from ``rag_chunks``. Tests monkeypatch this to stay DB-free."""
+    async with SessionFactory() as session:
+        result = await session.execute(
+            select(RagChunkRecord)
+            .where(RagChunkRecord.agent_id == agent_id, RagChunkRecord.language == language)
+            .order_by(RagChunkRecord.page, RagChunkRecord.chunk_id)
+        )
+        rows = result.scalars().all()
+    return [
+        (
+            RagChunk(
+                chunk_id=row.chunk_id,
+                source=row.source,
+                page=row.page,
+                chapter=row.chapter,
+                text=row.text,
+            ),
+            row.embedding,
+        )
+        for row in rows
+    ]
+
+
+def _build_vector_index(
+    agent_id: str, language: str, rows: list[tuple[RagChunk, bytes]]
+) -> VectorIndex | None:
+    dimension = get_settings().rag_embedding_dim
+    chunks: list[RagChunk] = []
+    vectors: list[np.ndarray] = []
+    skipped = 0
+    for chunk, blob in rows:
+        vector = unpack_embedding(blob, dimension)
+        if vector is None:
+            skipped += 1
+            continue
+        chunks.append(chunk)
+        vectors.append(vector)
+    if skipped:
+        logger.warning(
+            "RAG corpus %s/%s: %d rows have an embedding size other than %d and were ignored; "
+            "re-run scripts/embed_rag.py --force",
+            agent_id,
+            language,
+            skipped,
+            dimension,
+        )
+    if not chunks:
+        return None
+    return VectorIndex(chunks, np.vstack(vectors))
+
+
+async def _load_corpus(agent_id: str, language: str) -> Corpus:
+    lexical = _load_index(corpus_path(agent_id, language))
+    vector: VectorIndex | None = None
+    try:
+        rows = await _load_embedded_chunks(agent_id, language)
+    except Exception:
+        logger.warning(
+            "RAG corpus %s/%s: could not read rag_chunks; using BM25 only",
+            agent_id,
+            language,
+            exc_info=True,
+        )
+        rows = []
+    if rows:
+        vector = _build_vector_index(agent_id, language, rows)
+    if lexical is None and vector is not None:
+        lexical = RagIndex(vector.chunks)
+    corpus = Corpus(lexical=lexical, vector=vector)
+    if corpus.empty and (agent_id, language) not in _warned_corpora:
+        _warned_corpora.add((agent_id, language))
+        logger.warning(
+            "RAG corpus %s/%s is unavailable: no rows in rag_chunks and no file at %s; "
+            "answers will not be grounded. Run scripts/embed_rag.py",
+            agent_id,
+            language,
+            corpus_path(agent_id, language),
+        )
+    return corpus
+
+
+async def get_corpus(agent_id: str, language: str) -> Corpus:
+    key = (agent_id, normalize_language(language))
+    now = time.monotonic()
+    cached = _corpus_cache.get(key)
+    if cached and cached[0] > now:
+        return cached[1]
+    async with _corpus_lock:
+        cached = _corpus_cache.get(key)
+        if cached and cached[0] > time.monotonic():
+            return cached[1]
+        corpus = await _load_corpus(*key)
+        _corpus_cache[key] = (time.monotonic() + CORPUS_CACHE_TTL, corpus)
+        return corpus
+
+
+# --- Public API ------------------------------------------------------------------
+
+
 def plan_has_rag_access(plan: str, allow_basic: bool = False) -> bool:
     return allow_basic or plan.strip().lower() not in {"", "basic", "free"}
 
 
-def retrieve(
+async def _embed_query(query: str) -> list[float] | None:
+    try:
+        return await asyncio.wait_for(
+            gemini.embed_query(query, timeout=QUERY_EMBED_TIMEOUT), QUERY_EMBED_TIMEOUT + 1
+        )
+    except Exception:
+        logger.warning("RAG query embedding failed; falling back to BM25", exc_info=True)
+        return None
+
+
+async def retrieve(
     agent_id: str,
     query: str,
     top_k: int | None = None,
     language: str = "ru",
 ) -> list[RagHit]:
     settings = get_settings()
-    if not settings.rag_enabled or agent_id not in {"aurelius", "jung", "machiavelli"}:
+    if not settings.rag_enabled or agent_id not in SUPPORTED_AGENTS or not query.strip():
         return []
-    locale_suffix = ".en" if language.strip().lower().startswith("en") else ""
-    path = Path(settings.rag_data_dir) / f"{agent_id}{locale_suffix}.json"
-    index = _load_index(path)
-    return index.search(query, top_k or settings.rag_top_k) if index else []
+    limit = top_k or settings.rag_top_k
+    corpus = await get_corpus(agent_id, language)
+    if corpus.empty:
+        return []
+
+    candidates = max(FUSION_CANDIDATES, limit)
+    lexical_hits = corpus.lexical.search(query, candidates) if corpus.lexical else []
+    semantic_hits: list[RagHit] = []
+    if corpus.vector is not None:
+        vector = await _embed_query(query)
+        if vector is not None:
+            try:
+                semantic_hits = corpus.vector.search(vector, candidates)
+            except ValueError:
+                logger.warning("RAG query embedding has an unexpected size", exc_info=True)
+
+    if not semantic_hits:
+        return lexical_hits[:limit]
+    if not lexical_hits:
+        return semantic_hits[:limit]
+    return rrf_fuse([semantic_hits, lexical_hits], limit)
 
 
-def build_context(agent_id: str, query: str, plan: str, language: str = "ru") -> str:
+async def build_context(agent_id: str, query: str, plan: str, language: str = "ru") -> str:
     settings = get_settings()
     if not plan_has_rag_access(plan, settings.rag_allow_basic):
         return ""
-    hits = retrieve(agent_id, query, language=language)
+    hits = await retrieve(agent_id, query, language=language)
     if not hits:
         return ""
     sections = []

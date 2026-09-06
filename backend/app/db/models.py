@@ -10,6 +10,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -193,6 +194,33 @@ class DailyUsage(Base):
     user: Mapped[User] = relationship(back_populates="daily_usages")
 
 
+class RagChunkRecord(Base):
+    """One embedded passage of an agent's book corpus (see services/rag.py).
+
+    ``embedding`` holds the L2-normalized vector packed as little-endian float32
+    (``rag_embedding_dim * 4`` bytes). pgvector is deliberately not used: the corpora
+    are a few thousand rows per (agent, language) and are scanned in memory with numpy.
+    Rows are written only by ``scripts/embed_rag.py``.
+    """
+
+    __tablename__ = "rag_chunks"
+    __table_args__ = (
+        UniqueConstraint("agent_id", "language", "chunk_id", name="uq_rag_chunks_agent_lang_chunk"),
+        Index("ix_rag_chunks_agent_language", "agent_id", "language"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    agent_id: Mapped[str] = mapped_column(String(32))
+    language: Mapped[str] = mapped_column(String(8))  # ru | en
+    chunk_id: Mapped[str] = mapped_column(String(128))
+    source: Mapped[str] = mapped_column(Text, default="")
+    chapter: Mapped[str] = mapped_column(Text, default="")
+    page: Mapped[int] = mapped_column(Integer, default=0)
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class BillingPayment(Base):
     __tablename__ = "billing_payments"
 
@@ -231,3 +259,14 @@ class ProductEvent(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True
     )
+
+
+    """Runtime override of one bot setting (prompt text or generation knob).
+
+    """
+
+
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+    # Telegram id of the admin who saved the value; nullable for imports/scripts.

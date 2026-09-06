@@ -1,10 +1,45 @@
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
+import numpy as np
+import pytest
+
+from app.clients import gemini
 from app.db.models import User
 from app.services import agent_chat, rag
-from app.services.rag import RagChunk, RagIndex
+from app.services.rag import RagChunk, RagHit, RagIndex, VectorIndex
+
+
+@pytest.fixture(autouse=True)
+def _isolated_rag(monkeypatch):
+    """Keep tests DB-free: no rag_chunks rows, no Gemini, fresh caches."""
+
+    async def no_rows(agent_id: str, language: str) -> list[tuple[RagChunk, bytes]]:
+        return []
+
+    async def no_embedding(text: str, **kwargs) -> list[float]:
+        raise AssertionError("embed_query must not be called")
+
+    monkeypatch.setattr(rag, "_load_embedded_chunks", no_rows)
+    monkeypatch.setattr(gemini, "embed_query", no_embedding)
+    rag.invalidate_cache()
+    yield
+    rag.invalidate_cache()
+
+
+def _settings(tmp_path: Path, **overrides) -> SimpleNamespace:
+    values = {
+        "rag_enabled": True,
+        "rag_data_dir": str(tmp_path),
+        "rag_top_k": 4,
+        "rag_allow_basic": True,
+        "rag_embedding_dim": 4,
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
 
 PRINCE = "\u041d\u0438\u043a\u043a\u043e\u043b\u043e \u041c\u0430\u043a\u0438\u0430\u0432\u0435\u043b\u043b\u0438, \u00ab\u0413\u043e\u0441\u0443\u0434\u0430\u0440\u044c\u00bb"
 AURELIUS = "\u041c\u0430\u0440\u043a \u0410\u0432\u0440\u0435\u043b\u0438\u0439, \u00ab\u0420\u0430\u0437\u043c\u044b\u0448\u043b\u0435\u043d\u0438\u044f\u00bb"
@@ -105,7 +140,7 @@ def test_discourses_concept_expansion_handles_conversational_leader_question():
     assert hits[0].chunk.chunk_id == "multitude"
 
 
-def test_retrieve_is_limited_to_supported_agents(monkeypatch, tmp_path: Path):
+async def test_retrieve_is_limited_to_supported_agents(monkeypatch, tmp_path: Path):
     payload = {
         "source": PRINCE,
         "chunks": [
@@ -148,34 +183,22 @@ def test_retrieve_is_limited_to_supported_agents(monkeypatch, tmp_path: Path):
     (tmp_path / "jung.json").write_text(
         json.dumps(jung_payload, ensure_ascii=False), encoding="utf-8"
     )
-    settings = SimpleNamespace(
-        rag_enabled=True,
-        rag_data_dir=str(tmp_path),
-        rag_top_k=4,
-        rag_allow_basic=True,
-    )
-    monkeypatch.setattr(rag, "get_settings", lambda: settings)
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
 
     question = "\u041a\u043e\u0433\u0434\u0430 \u0431\u044b\u0442\u044c \u043b\u044c\u0432\u043e\u043c, \u0430 \u043a\u043e\u0433\u0434\u0430 \u043b\u0438\u0441\u043e\u0439?"
-    assert rag.retrieve("machiavelli", question)
-    assert rag.retrieve(
+    assert await rag.retrieve("machiavelli", question)
+    assert await rag.retrieve(
         "aurelius",
         "\u041a\u0430\u043a \u0436\u0438\u0442\u044c \u0432 \u043d\u0430\u0441\u0442\u043e\u044f\u0449\u0435\u043c?",
     )
-    assert rag.retrieve(
+    assert await rag.retrieve(
         "jung", "\u0427\u0442\u043e \u0442\u0430\u043a\u043e\u0435 \u0422\u0435\u043d\u044c?"
     )
-    assert rag.retrieve("unknown", question) == []
+    assert await rag.retrieve("unknown", question) == []
 
 
-def test_retrieve_selects_english_index_for_english_locale(monkeypatch, tmp_path: Path):
-    settings = SimpleNamespace(
-        rag_enabled=True,
-        rag_data_dir=str(tmp_path),
-        rag_top_k=4,
-        rag_allow_basic=True,
-    )
-    monkeypatch.setattr(rag, "get_settings", lambda: settings)
+async def test_retrieve_selects_english_index_for_english_locale(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
 
     for suffix, chunk_id, text in (
         ("", "russian", "Живи настоящим мгновением."),
@@ -196,12 +219,12 @@ def test_retrieve_selects_english_index_for_english_locale(monkeypatch, tmp_path
             json.dumps(payload, ensure_ascii=False), encoding="utf-8"
         )
 
-    hits = rag.retrieve("aurelius", "How should I focus on the present?", language="en")
+    hits = await rag.retrieve("aurelius", "How should I focus on the present?", language="en")
 
     assert hits[0].chunk.chunk_id == "english"
 
 
-def test_retrieve_selects_english_jung_index(monkeypatch, tmp_path: Path):
+async def test_retrieve_selects_english_jung_index(monkeypatch, tmp_path: Path):
     payload = {
         "source": "C. G. Jung, Man and His Symbols",
         "chunks": [
@@ -214,15 +237,9 @@ def test_retrieve_selects_english_jung_index(monkeypatch, tmp_path: Path):
         ],
     }
     (tmp_path / "jung.en.json").write_text(json.dumps(payload), encoding="utf-8")
-    settings = SimpleNamespace(
-        rag_enabled=True,
-        rag_data_dir=str(tmp_path),
-        rag_top_k=4,
-        rag_allow_basic=True,
-    )
-    monkeypatch.setattr(rag, "get_settings", lambda: settings)
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
 
-    hits = rag.retrieve("jung", "What does the shadow represent?", language="en")
+    hits = await rag.retrieve("jung", "What does the shadow represent?", language="en")
 
     assert hits[0].chunk.chunk_id == "shadow-en"
 
@@ -254,3 +271,143 @@ def test_agent_prompt_marks_retrieved_text_as_reference():
     assert "Retrieved reference excerpts" in prompt
     assert book_context in prompt
     assert "Do not invent" in prompt
+
+
+# --- Hybrid retrieval ------------------------------------------------------------
+
+
+def _vector_rows(*items: tuple[str, str, list[float]]) -> list[tuple[RagChunk, bytes]]:
+    return [
+        (
+            RagChunk(chunk_id=chunk_id, source=PRINCE, page=index, chapter="", text=text),
+            rag.pack_embedding(vector),
+        )
+        for index, (chunk_id, text, vector) in enumerate(items, start=1)
+    ]
+
+
+def test_vector_index_ranks_by_cosine_similarity():
+    chunks = [
+        RagChunk(chunk_id="a", source=PRINCE, page=1, chapter="", text="a"),
+        RagChunk(chunk_id="b", source=PRINCE, page=2, chapter="", text="b"),
+        RagChunk(chunk_id="c", source=PRINCE, page=3, chapter="", text="c"),
+    ]
+    # Row norms differ on purpose: cosine must ignore magnitude.
+    matrix = np.array([[10.0, 0.0, 0.0], [0.0, 1.0, 0.0], [1.0, 1.0, 0.0]], dtype=np.float32)
+    index = VectorIndex(chunks, matrix)
+
+    hits = index.search([0.0, 2.0, 0.0], top_k=2)
+
+    assert [hit.chunk.chunk_id for hit in hits] == ["b", "c"]
+    assert hits[0].score == pytest.approx(1.0)
+    assert hits[1].score == pytest.approx(1 / np.sqrt(2))
+
+
+def test_pack_embedding_roundtrip_is_normalized():
+    blob = rag.pack_embedding([3.0, 4.0])
+
+    assert len(blob) == 8
+    assert rag.unpack_embedding(blob, 2) == pytest.approx([0.6, 0.8])
+    assert rag.unpack_embedding(blob, 3) is None
+
+
+def test_rrf_fusion_prefers_chunks_ranked_by_both_signals():
+    def hit(chunk_id: str, score: float) -> RagHit:
+        return RagHit(RagChunk(chunk_id, PRINCE, 1, "", chunk_id), score)
+
+    semantic = [hit("s1", 0.9), hit("both", 0.8), hit("s3", 0.7)]
+    lexical = [hit("l1", 12.0), hit("both", 11.0), hit("l3", 10.0)]
+
+    fused = rag.rrf_fuse([semantic, lexical], top_k=3)
+
+    assert fused[0].chunk.chunk_id == "both"
+    assert fused[0].score == pytest.approx(2 / 62)
+    assert {hit.chunk.chunk_id for hit in fused[1:]} == {"s1", "l1"}
+    assert len(rag.rrf_fuse([semantic, lexical], top_k=10)) == 5
+
+
+async def test_retrieve_fuses_embeddings_with_bm25(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
+    rows = _vector_rows(
+        ("semantic", "Fortune favours the bold and punishes the idle.", [1.0, 0.0, 0.0, 0.0]),
+        ("lexical", "Mercenary soldiers are useless and dangerous.", [0.0, 1.0, 0.0, 0.0]),
+        ("noise", "The weather in Florence was mild.", [0.0, 0.0, 1.0, 0.0]),
+    )
+
+    async def rows_from_db(agent_id: str, language: str):
+        assert (agent_id, language) == ("machiavelli", "en")
+        return rows
+
+    async def embed(text: str, **kwargs) -> list[float]:
+        return [1.0, 0.0, 0.0, 0.0]
+
+    monkeypatch.setattr(rag, "_load_embedded_chunks", rows_from_db)
+    monkeypatch.setattr(gemini, "embed_query", embed)
+
+    hits = await rag.retrieve("machiavelli", "Why are mercenary soldiers dangerous?", 2, "en")
+
+    assert {hit.chunk.chunk_id for hit in hits} == {"semantic", "lexical"}
+    assert "noise" not in {hit.chunk.chunk_id for hit in hits}
+
+
+async def test_retrieve_falls_back_to_bm25_when_embedding_fails(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
+    rows = _vector_rows(
+        ("semantic", "Fortune favours the bold.", [1.0, 0.0, 0.0, 0.0]),
+        ("lexical", "Mercenary soldiers are useless and dangerous.", [0.0, 1.0, 0.0, 0.0]),
+    )
+
+    async def rows_from_db(agent_id: str, language: str):
+        return rows
+
+    async def embed(text: str, **kwargs) -> list[float]:
+        raise gemini.GeminiError("boom", status=503)
+
+    monkeypatch.setattr(rag, "_load_embedded_chunks", rows_from_db)
+    monkeypatch.setattr(gemini, "embed_query", embed)
+
+    hits = await rag.retrieve("machiavelli", "Why are mercenary soldiers dangerous?", 1, "en")
+
+    assert [hit.chunk.chunk_id for hit in hits] == ["lexical"]
+
+
+async def test_retrieve_uses_json_file_when_table_is_empty(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
+    payload = {
+        "source": PRINCE,
+        "chunks": [{"id": "fox", "page": 71, "chapter": "XVIII", "text": "The lion and the fox."}],
+    }
+    (tmp_path / "machiavelli.en.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    hits = await rag.retrieve("machiavelli", "When should a prince be a fox?", language="en")
+
+    assert [hit.chunk.chunk_id for hit in hits] == ["fox"]
+
+
+async def test_retrieve_warns_once_when_corpus_is_missing(monkeypatch, tmp_path: Path, caplog):
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
+
+    with caplog.at_level(logging.WARNING, logger="app.services.rag"):
+        first = await rag.retrieve("jung", "What is the shadow?", language="en")
+        second = await rag.retrieve("jung", "What is the anima?", language="en")
+
+    assert first == [] and second == []
+    warnings = [record for record in caplog.records if "is unavailable" in record.getMessage()]
+    assert len(warnings) == 1
+    assert "jung/en" in warnings[0].getMessage()
+
+
+async def test_build_context_formats_hits(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path))
+    payload = {
+        "source": PRINCE,
+        "chunks": [{"id": "fox", "page": 71, "chapter": "XVIII", "text": "The lion and the fox."}],
+    }
+    (tmp_path / "machiavelli.en.json").write_text(json.dumps(payload), encoding="utf-8")
+
+    context = await rag.build_context("machiavelli", "lion and fox", "Pro", language="en")
+
+    assert context == f"[{PRINCE}; page 71, XVIII]\nThe lion and the fox."
+    monkeypatch.setattr(rag, "get_settings", lambda: _settings(tmp_path, rag_allow_basic=False))
+    assert await rag.build_context("machiavelli", "lion and fox", "Free", language="en") == ""
+    assert await rag.build_context("machiavelli", "lion and fox", "Pro", language="en") == context
