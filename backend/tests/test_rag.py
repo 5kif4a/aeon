@@ -38,6 +38,7 @@ def _settings(tmp_path: Path, **overrides) -> SimpleNamespace:
         "rag_embedding_dim": 4,
     }
     values.update(overrides)
+    values.setdefault("rag_semantic_weight", 1.0)
     return SimpleNamespace(**values)
 
 
