@@ -38,7 +38,7 @@ export function AdminConversationDetailView() {
             params={{ userId: String(conversation.userId) }}
             className={adminLink}
           >
-            {t("admin_col_user")} {conversation.userId}
+            {conversation.userName || t("admin_user_unnamed")} · {conversation.userId}
           </Link>{" "}
           · {t(conversation.status === "active" ? "admin_status_active" : "admin_status_closed")} ·{" "}
           {formatDateTime(conversation.createdAt)}

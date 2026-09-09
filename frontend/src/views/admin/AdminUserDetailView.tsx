@@ -1,6 +1,7 @@
 import { getRouteApi, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
+import { Modal } from "../../components/admin/Modal";
 import { useAdminUser, useGrantPro, useRefundPayment } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
 import { agentLabel, planChipClass } from "../../lib/adminFormat";
@@ -29,6 +30,7 @@ export function AdminUserDetailView() {
   const grant = useGrantPro(id);
   const refund = useRefundPayment(id);
   const [days, setDays] = useState(30);
+  const [proOpen, setProOpen] = useState(false);
   // Two-step confirm inside the row instead of a browser dialog: refunds are irreversible.
   const [refundArmed, setRefundArmed] = useState<string | null>(null);
 
@@ -82,46 +84,72 @@ export function AdminUserDetailView() {
             ) : null}
           </p>
         </div>
-        <form
-          className="flex items-center gap-2"
-          onSubmit={(event) => {
-            event.preventDefault();
-            grant.mutate(days);
-          }}
-        >
-          <label className="text-muted text-[12px]" htmlFor="grant-days">
-            {t("admin_grant_days")}
-          </label>
-          <input
-            id="grant-days"
-            type="number"
-            min={1}
-            max={365}
-            className={`${adminInput} w-[80px]`}
-            value={days}
-            onChange={(event) => setDays(Number(event.target.value))}
-          />
-          {GRANT_OPTIONS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              className={adminButton}
-              onClick={() => setDays(option)}
-            >
-              {option}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" className={adminPrimaryButton} onClick={() => setProOpen(true)}>
+            {t("admin_grant_pro")}
+          </button>
+          {/* Access is granted on its own screen; the user is preselected there. */}
+          <Link
+            to="/admin/access/grant"
+            search={{ userId: user.id }}
+            className={`${adminButton} leading-9`}
+          >
+            {t("admin_access_grant")}
+          </Link>
+        </div>
+      </header>
+      <Modal
+        open={proOpen}
+        title={t("admin_grant_pro")}
+        onClose={() => setProOpen(false)}
+        footer={
           <button
-            type="submit"
+            type="button"
             className={adminPrimaryButton}
             disabled={grant.isPending || days < 1}
+            onClick={() =>
+              grant.mutate(days, {
+                onSuccess: () => setProOpen(false),
+              })
+            }
           >
             {t("admin_grant_pro")}
           </button>
-        </form>
-      </header>
+        }
+      >
+        <div className="grid gap-2">
+          <label className="text-muted text-[12px]" htmlFor="grant-days">
+            {t("admin_grant_days")}
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id="grant-days"
+              type="number"
+              min={1}
+              max={365}
+              className={`${adminInput} w-[90px]`}
+              value={days}
+              onChange={(event) => setDays(Number(event.target.value))}
+            />
+            {GRANT_OPTIONS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                className={`${adminButton} ${days === option ? "border-gold" : ""}`}
+                onClick={() => setDays(option)}
+              >
+                {option}
+              </button>
+            ))}
+          </div>
+          <p className={adminMuted}>
+            {t("admin_grant_pro_confirm", { days })} {t("admin_user_pro_until")}:{" "}
+            {formatDateTime(user.proExpiresAt)}
+          </p>
+          {grant.isError ? <p className="text-danger text-[13px]">{t("admin_error")}</p> : null}
+        </div>
+      </Modal>
       {grant.isSuccess ? <p className="text-success text-[13px]">{t("admin_grant_done")}</p> : null}
-      {grant.isError ? <p className="text-danger text-[13px]">{t("admin_error")}</p> : null}
       {refund.isSuccess ? (
         <p className="text-success text-[13px]">{t("admin_refund_done")}</p>
       ) : null}

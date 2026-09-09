@@ -26,6 +26,11 @@ export interface AdminMe {
   id: number;
   name: string;
   language: string;
+  roleId: string;
+  roleTitle: string;
+  /** Permission keys the role grants, or ["*"] for an owner. */
+  permissions: string[];
+  isOwner: boolean;
 }
 
 export interface AdminSession {
@@ -120,6 +125,8 @@ export interface AdminConversation {
   messageCount: number;
   createdAt: string;
   updatedAt: string;
+  userName: string;
+  userUsername: string;
   userLanguage: string;
   userPlan: string;
   preview: string;
@@ -180,4 +187,132 @@ export interface AdminPromptPreviewInput {
 
 export interface AdminPromptPreview {
   text: string;
+}
+
+/** Access control: the permission catalog, the roles matrix and who holds a role. */
+export interface AdminPermission {
+  key: string;
+  group: string;
+  description: string;
+}
+
+export interface AdminRole {
+  id: string;
+  title: string;
+  description: string;
+  permissions: string[];
+  isSystem: boolean;
+  isOwner: boolean;
+  admins: number;
+}
+
+export interface AdminAccount {
+  userId: number;
+  name: string;
+  username: string;
+  roleId: string;
+  roleTitle: string;
+  permissions: string[];
+  note: string;
+  grantedBy: number | null;
+}
+
+export interface AdminAccess {
+  permissions: AdminPermission[];
+  roles: AdminRole[];
+  admins: AdminAccount[];
+}
+
+/** Segments: saved filters (dynamic) or pinned id lists (static). */
+export type SegmentKind = "dynamic" | "static";
+export type SegmentFilterKind = "enum" | "bool" | "int" | "ids";
+
+export interface SegmentFilterSpec {
+  key: string;
+  kind: SegmentFilterKind;
+  description: string;
+  options: string[];
+}
+
+export type SegmentFilters = Record<string, string[] | number[] | number | boolean>;
+
+export interface Segment {
+  id: string;
+  name: string;
+  description: string;
+  kind: SegmentKind;
+  filters: SegmentFilters;
+  /** How many users the definition matches right now. */
+  size: number;
+  memberCount: number;
+  userIds: number[];
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SegmentInput {
+  name: string;
+  description: string;
+  kind: SegmentKind;
+  filters: SegmentFilters;
+  userIds: number[];
+}
+
+export interface SegmentPreview {
+  size: number;
+  byLanguage: Record<string, number>;
+  sample: AdminUser[];
+}
+
+/** Broadcasts: one manual push to a segment, sent by the bot's queue job. */
+export type BroadcastCategory = "marketing" | "service";
+export type BroadcastStatus = "draft" | "scheduled" | "sending" | "sent" | "canceled" | "failed";
+
+export interface BroadcastMessage {
+  text: string;
+  buttonText: string;
+  buttonUrl: string;
+}
+
+export interface Broadcast {
+  id: string;
+  title: string;
+  category: BroadcastCategory;
+  status: BroadcastStatus;
+  segmentId: string | null;
+  segmentName: string;
+  filters: SegmentFilters;
+  content: Record<string, BroadcastMessage>;
+  markdown: boolean;
+  scheduledAt: string | null;
+  startedAt: string | null;
+  finishedAt: string | null;
+  totalRecipients: number;
+  sentCount: number;
+  failedCount: number;
+  blockedCount: number;
+  pendingCount: number;
+  createdBy: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface BroadcastInput {
+  title: string;
+  category: BroadcastCategory;
+  segmentId: string | null;
+  filters: SegmentFilters;
+  content: Record<string, BroadcastMessage>;
+  markdown: boolean;
+}
+
+export interface BroadcastDelivery {
+  userId: number;
+  name: string;
+  username: string;
+  language: string;
+  status: "pending" | "sent" | "failed" | "blocked";
+  error: string;
+  sentAt: string | null;
 }

@@ -36,6 +36,8 @@ export interface ProfileUpdate {
 export interface NotificationSettings {
   dailyEnabled: boolean;
   weeklyEnabled: boolean;
+  /** News and offers sent from the admin panel; service announcements ignore it. */
+  marketingEnabled: boolean;
   reminderHour: number;
   reminderTimezone: string;
   /** Nothing is delivered until the birth date is set; the form says so. */
@@ -43,7 +45,10 @@ export interface NotificationSettings {
 }
 
 export type NotificationSettingsUpdate = Partial<
-  Pick<NotificationSettings, "dailyEnabled" | "weeklyEnabled" | "reminderHour" | "reminderTimezone">
+  Pick<
+    NotificationSettings,
+    "dailyEnabled" | "weeklyEnabled" | "marketingEnabled" | "reminderHour" | "reminderTimezone"
+  >
 >;
 
 export interface Goal {

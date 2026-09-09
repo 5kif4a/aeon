@@ -4,8 +4,9 @@ import { Pagination } from "../../components/admin/Pagination";
 import { useAdminPayments } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
 import {
-  adminCard,
-  adminTableScroll,
+  adminPageFill,
+  adminTableCard,
+  adminTableFill,
   adminLink,
   adminTable,
   adminTd,
@@ -21,13 +22,12 @@ export function AdminPaymentsView() {
   const payments = useAdminPayments(page);
 
   return (
-    <div className="grid gap-4">
-      <h1 className="text-[22px] font-[750] tracking-[-0.02em]">{t("admin_nav_payments")}</h1>
-      <section className={`${adminCard} p-0`}>
+    <div className={adminPageFill}>
+      <section className={adminTableCard}>
         {payments.isPending ? <p className="text-muted p-5">{t("admin_loading")}</p> : null}
         {payments.isError ? <p className="text-danger p-5">{t("admin_error")}</p> : null}
         {payments.data ? (
-          <div className={adminTableScroll}>
+          <div className={adminTableFill}>
             <table className={adminTable}>
               <thead>
                 <tr>
@@ -81,7 +81,7 @@ export function AdminPaymentsView() {
           </div>
         ) : null}
         {payments.data ? (
-          <div className="px-4 pb-3">
+          <div className="shrink-0 px-4 pb-3">
             <Pagination
               page={page}
               total={payments.data.total}

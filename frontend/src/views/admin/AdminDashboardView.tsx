@@ -72,11 +72,7 @@ export function AdminDashboardView() {
 
   return (
     <div className="grid gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-[22px] font-[750] tracking-[-0.02em]">{t("admin_nav_dashboard")}</h1>
-          <p className="text-soft text-[12px]">{stats.data.window.label}</p>
-        </div>
+      <header className="flex flex-wrap items-end justify-end gap-3">
         <div className="border-line flex gap-1 rounded-[8px] border p-1" role="tablist">
           {STATS_RANGES.map((range) => (
             <Link

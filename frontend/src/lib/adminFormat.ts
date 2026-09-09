@@ -1,10 +1,18 @@
 /** Small display helpers shared by the admin screens. */
 
+import type { BroadcastStatus } from "./adminTypes";
 import { AGENTS } from "./agents";
-import type { Lang } from "./i18n";
+import type { Lang, TranslationKey } from "./i18n";
 
-/** Agent display name; unknown ids (e.g. "council") are shown as-is. */
+/**
+ * Council answers are stored with `agent_id = "council"` - it is a mode, not an agent, so it
+ * has no entry in `AGENTS` and needs its own label.
+ */
+const COUNCIL_LABEL: Record<Lang, string> = { en: "Council", ru: "Совет" };
+
+/** Agent display name; an unknown id is shown as-is. */
 export function agentLabel(agentId: string, lang: Lang): string {
+  if (agentId === "council") return COUNCIL_LABEL[lang];
   return AGENTS[agentId]?.name[lang] ?? agentId;
 }
 
@@ -26,6 +34,22 @@ export function pickOptionalId(value: unknown): number | undefined {
 export function planChipClass(plan: string): string {
   if (plan === "Pro") return "border-gold text-gold";
   if (plan === "Trial") return "border-success text-success";
+  return "text-muted";
+}
+
+export const BROADCAST_STATUS_LABEL: Record<BroadcastStatus, TranslationKey> = {
+  draft: "admin_broadcast_status_draft",
+  scheduled: "admin_broadcast_status_scheduled",
+  sending: "admin_broadcast_status_sending",
+  sent: "admin_broadcast_status_sent",
+  canceled: "admin_broadcast_status_canceled",
+  failed: "admin_broadcast_status_failed",
+};
+
+export function broadcastChipClass(status: BroadcastStatus): string {
+  if (status === "sent") return "border-gold text-gold";
+  if (status === "sending" || status === "scheduled") return "text-text";
+  if (status === "failed") return "text-danger border-danger";
   return "text-muted";
 }
 

@@ -59,6 +59,21 @@
   }
 }
 
+/*
+ * Admin panel selects: the native arrow is painted flush against the border, which reads as
+ * misaligned next to the field's 12px padding (and looks different per platform). Hide it and
+ * draw our own chevron with the same inset. Paired with `adminSelect` in lib/adminUi.ts;
+ * `--color-muted` is inlined because a background image cannot read a CSS variable colour.
+ */
+.admin-select {
+  -webkit-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23aaa59b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.75rem center;
+  background-size: 16px 16px;
+}
+
 .landing-display {
   font-family: Georgia, "Times New Roman", serif;
   font-weight: 400;

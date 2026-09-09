@@ -136,6 +136,13 @@ export function NotificationsForm() {
           disabled={pending}
           onChange={(next) => save({ weeklyEnabled: next })}
         />
+        <Toggle
+          label={t("notifications_marketing")}
+          hint={t("notifications_marketing_hint")}
+          checked={settings.marketingEnabled}
+          disabled={pending}
+          onChange={(next) => save({ marketingEnabled: next })}
+        />
       </div>
 
       <label className={fieldLabel}>

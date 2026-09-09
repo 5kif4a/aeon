@@ -12,12 +12,22 @@ import { resolveEntryHref } from "./lib/deeplinks";
 import { LanguageProvider } from "./lib/i18n-context";
 import { pickPracticeTab, pickProfileSheet } from "./lib/views";
 import { pickOptionalId, pickPage, pickStatsRange, pickString } from "./lib/adminFormat";
+import { AdminAccessGrantView, AdminRoleNewView } from "./views/admin/AdminAccessGrantView";
+import { AdminAccessView } from "./views/admin/AdminAccessView";
+import { AdminBroadcastDetailView } from "./views/admin/AdminBroadcastDetailView";
+import {
+  AdminBroadcastEditView,
+  AdminBroadcastNewView,
+} from "./views/admin/AdminBroadcastEditView";
+import { AdminBroadcastsView } from "./views/admin/AdminBroadcastsView";
 import { AdminCallbackView } from "./views/admin/AdminCallbackView";
 import { AdminConversationDetailView } from "./views/admin/AdminConversationDetailView";
 import { AdminConversationsView } from "./views/admin/AdminConversationsView";
 import { AdminDashboardView } from "./views/admin/AdminDashboardView";
 import { AdminLayout } from "./views/admin/AdminLayout";
 import { AdminPaymentsView } from "./views/admin/AdminPaymentsView";
+import { AdminSegmentEditView, AdminSegmentNewView } from "./views/admin/AdminSegmentEditView";
+import { AdminSegmentsView } from "./views/admin/AdminSegmentsView";
 import { AdminSettingsView } from "./views/admin/AdminSettingsView";
 import { AdminUserDetailView } from "./views/admin/AdminUserDetailView";
 import { AdminUsersView } from "./views/admin/AdminUsersView";
@@ -160,6 +170,71 @@ const adminPaymentsRoute = createRoute({
   component: AdminPaymentsView,
 });
 
+/** Audience tooling: reusable segments and the broadcasts that go out to them. Creating and
+ * editing happen on their own screens, so a list screen is only its table. */
+const adminSegmentsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/segments",
+  component: AdminSegmentsView,
+});
+
+const adminSegmentNewRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/segments/new",
+  component: AdminSegmentNewView,
+});
+
+const adminSegmentEditRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/segments/$segmentId",
+  component: AdminSegmentEditView,
+});
+
+const adminBroadcastsRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/broadcasts",
+  component: AdminBroadcastsView,
+});
+
+const adminBroadcastNewRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/broadcasts/new",
+  component: AdminBroadcastNewView,
+});
+
+const adminBroadcastRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/broadcasts/$broadcastId",
+  component: AdminBroadcastDetailView,
+});
+
+const adminBroadcastEditRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/broadcasts/$broadcastId/edit",
+  component: AdminBroadcastEditView,
+});
+
+/** Roles, permissions and who holds them. */
+const adminAccessRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/access",
+  component: AdminAccessView,
+});
+
+const adminAccessGrantRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/access/grant",
+  // `userId` preselects the subject when the screen is opened from a user card.
+  validateSearch: (search: Record<string, unknown>) => ({ userId: pickOptionalId(search.userId) }),
+  component: AdminAccessGrantView,
+});
+
+const adminRoleNewRoute = createRoute({
+  getParentRoute: () => adminRoute,
+  path: "/access/roles/new",
+  component: AdminRoleNewView,
+});
+
 /** Runtime bot settings: prompts and generation knobs, edited without a deploy. */
 const adminSettingsRoute = createRoute({
   getParentRoute: () => adminRoute,
@@ -187,6 +262,16 @@ const routeTree = rootRoute.addChildren([
     adminConversationsRoute,
     adminConversationRoute,
     adminPaymentsRoute,
+    adminSegmentsRoute,
+    adminSegmentNewRoute,
+    adminSegmentEditRoute,
+    adminBroadcastsRoute,
+    adminBroadcastNewRoute,
+    adminBroadcastRoute,
+    adminBroadcastEditRoute,
+    adminAccessRoute,
+    adminAccessGrantRoute,
+    adminRoleNewRoute,
     adminSettingsRoute,
   ]),
   notFoundRoute,

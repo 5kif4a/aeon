@@ -6,13 +6,14 @@ import { useAdminUsers } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
 import { planChipClass } from "../../lib/adminFormat";
 import {
-  adminCard,
+  adminPageFill,
+  adminTableCard,
+  adminTableFill,
   adminChip,
   adminInput,
   adminLink,
   adminSelect,
   adminTable,
-  adminTableScroll,
   adminTd,
   adminTh,
 } from "../../lib/adminUi";
@@ -33,9 +34,8 @@ export function AdminUsersView() {
     navigate({ search: (previous) => ({ ...previous, ...patch }) });
 
   return (
-    <div className="grid gap-4">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="text-[22px] font-[750] tracking-[-0.02em]">{t("admin_nav_users")}</h1>
+    <div className={adminPageFill}>
+      <header className="flex flex-wrap items-end gap-3">
         <form
           className="flex flex-wrap gap-2"
           onSubmit={(event) => {
@@ -64,11 +64,11 @@ export function AdminUsersView() {
         </form>
       </header>
 
-      <section className={`${adminCard} p-0`}>
+      <section className={adminTableCard}>
         {users.isPending ? <p className="text-muted p-5">{t("admin_loading")}</p> : null}
         {users.isError ? <p className="text-danger p-5">{t("admin_error")}</p> : null}
         {users.data ? (
-          <div className={adminTableScroll}>
+          <div className={adminTableFill}>
             <table className={adminTable}>
               <thead>
                 <tr>
@@ -132,7 +132,7 @@ export function AdminUsersView() {
           </div>
         ) : null}
         {users.data ? (
-          <div className="px-4 pb-3">
+          <div className="shrink-0 px-4 pb-3">
             <Pagination
               page={search.page}
               total={users.data.total}
