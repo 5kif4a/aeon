@@ -118,8 +118,7 @@ same transaction as the state change (`events.record`: `user_created`, `trial_st
 `payment_succeeded`, `subscription_canceled`, `question_limit_hit`, `generation_failed`, ...).
 The bot/API layer announces to the product-owner group through `services/ops.py`
 (`OPS_CHAT_ID`, optional forum threads); sends are fire-and-forget and never raise, alerts are
-throttled per kind. `/stats [7|30]` answers in the ops group, or privately to an admin whose
-role grants `stats.view`; the
+throttled per kind. `/stats [7|30]` answers in the ops group only (not in private chats); the
 `ops_digests` job posts daily/weekly/monthly digests at `OPS_DIGEST_HOUR` and dedupes through
 `ops_digest_sent` events. Ops texts are internal English; every message starts with `ops._user_line` (name as a
 `tg://user` link, @username, id, language, country, plan) and ends with a link to the admin card
