@@ -8,10 +8,9 @@ import pytest
 from sqlalchemy import delete
 
 from app.core import admin_auth
-from app.core.config import get_settings
 from app.db.models import BillingPayment, Conversation, ConversationMessage, User
 from app.db.session import SessionFactory
-from tests.conftest import TEST_USER_ID, build_init_data
+from tests.conftest import TEST_USER_ID, build_init_data, make_admin
 from tests.test_admin_auth import sign_widget_payload
 
 ADMIN_ID = 900_000_401
@@ -19,8 +18,8 @@ SUBJECT_ID = 900_000_402
 
 
 @pytest.fixture(autouse=True)
-async def admin_fixture(monkeypatch):
-    monkeypatch.setattr(get_settings(), "ops_admin_ids", str(ADMIN_ID))
+async def admin_fixture():
+    await make_admin(ADMIN_ID)
     now = datetime.now(UTC)
     async with SessionFactory() as session:
         subject = User(
@@ -103,6 +102,13 @@ async def test_login_widget_issues_session_token_for_admins_only(client):
         {"id": SUBJECT_ID, "first_name": "Nope", "auth_date": int(time.time())}
     )
     assert (await client.post("/api/admin/auth/telegram", json=stranger)).status_code == 403
+    # A failed login must not leave a `users` row behind: that would count as a signup.
+    ghost = sign_widget_payload(
+        {"id": 900_000_499, "first_name": "Ghost", "auth_date": int(time.time())}
+    )
+    assert (await client.post("/api/admin/auth/telegram", json=ghost)).status_code == 403
+    async with SessionFactory() as session:
+        assert await session.get(User, 900_000_499) is None
     forged = payload | {"hash": "00" * 32}
     assert (await client.post("/api/admin/auth/telegram", json=forged)).status_code == 401
 
@@ -141,12 +147,15 @@ async def test_stats_users_conversations_and_payments(client, admin_fixture):
     assert conversations.status_code == 200
     row = conversations.json()["items"][0]
     assert row["agentId"] == "jung" and row["preview"].startswith("Why do I")
+    # The list identifies the user by name, not only by id.
+    assert row["userName"] == "Subject" and row["userPlan"] == "Pro"
 
     thread = await client.get(
         f"/api/admin/conversations/{admin_fixture['conversation_id']}", headers=headers
     )
     assert thread.status_code == 200
     assert [m["role"] for m in thread.json()["messages"]] == ["user", "agent"]
+    assert thread.json()["conversation"]["userName"] == "Subject"
 
     payments = await client.get("/api/admin/payments", headers=headers)
     assert payments.status_code == 200

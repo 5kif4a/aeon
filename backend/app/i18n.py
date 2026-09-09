@@ -320,8 +320,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "daily_setting": "Daily",
         "weekly_setting": "Weekly",
+        "marketing_setting": "News and offers",
         "notifications_on": "On",
         "notifications_off": "Off",
+        "marketing_unsubscribe_button": "Stop these messages",
+        "marketing_unsubscribed": (
+            "Done. You will no longer receive news and offers. "
+            "Your daily reflections stay as they are - change them in /settings."
+        ),
         "settings_open_app": "Open in the app",
         "reminder_time_button": "Time {hour:02d}:00",
         "timezone_button": "Zone: {timezone}",
@@ -474,8 +480,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         ),
         "daily_setting": "Ежедневные",
         "weekly_setting": "Еженедельные",
+        "marketing_setting": "Новости и предложения",
         "notifications_on": "Вкл.",
         "notifications_off": "Выкл.",
+        "marketing_unsubscribe_button": "Не присылать такое",
+        "marketing_unsubscribed": (
+            "Готово, новости и предложения Вам больше не придут. "
+            "Ежедневные размышления остаются как были — их можно изменить в /settings."
+        ),
         "settings_open_app": "Открыть в приложении",
         "reminder_time_button": "Время {hour:02d}:00",
         "timezone_button": "Пояс: {timezone}",

@@ -55,8 +55,6 @@ class Settings(BaseSettings):
     ops_thread_sales: int = 0
     ops_thread_alerts: int = 0
     ops_thread_digests: int = 0
-    # Telegram user ids (CSV) allowed to run /stats in a private chat with the bot.
-    ops_admin_ids: str = ""
     # Local hour (in ops_tz, defaults to reminder_tz) at which digests are sent.
     ops_digest_hour: int = 9
     ops_tz: str = ""
@@ -71,6 +69,10 @@ class Settings(BaseSettings):
     # panel callback on the Mini App origin.
     admin_oauth_redirect_uri: str = ""
 
+    # Manual broadcasts: messages per second the queue job is allowed to send. Telegram
+    # tolerates ~30/s for bulk sends; stay below it so user-facing replies are not throttled.
+    broadcast_rate_per_second: int = 15
+
     web_port: int = 5173
     static_dir: str = ""  # path to built frontend (frontend/dist); empty disables static serving
 
@@ -83,15 +85,6 @@ class Settings(BaseSettings):
             if origin and origin not in origins:
                 origins.append(origin)
         return origins
-
-    @property
-    def ops_admin_id_list(self) -> list[int]:
-        ids: list[int] = []
-        for value in self.ops_admin_ids.split(","):
-            value = value.strip()
-            if value.lstrip("-").isdigit():
-                ids.append(int(value))
-        return ids
 
     @property
     def admin_oauth_redirect_uri_resolved(self) -> str:

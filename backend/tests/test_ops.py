@@ -20,7 +20,7 @@ class FakeBot:
 
 def _ops_settings(monkeypatch, **overrides):
     settings = get_settings()
-    values = {"ops_chat_id": -100123, "ops_thread_sales": 7, "ops_admin_ids": "42, 43"} | overrides
+    values = {"ops_chat_id": -100123, "ops_thread_sales": 7} | overrides
     for key, value in values.items():
         monkeypatch.setattr(settings, key, value)
     return settings
@@ -94,14 +94,13 @@ async def test_alerts_are_throttled_per_kind(monkeypatch):
     ops.reset_alert_throttle()
 
 
-def test_stats_access_is_limited_to_ops_chat_and_admins(monkeypatch):
+def test_stats_is_open_inside_the_ops_chat_only(monkeypatch):
+    """Outside the group `/stats` needs a role with `stats.view` (checked in the handler)."""
     _ops_settings(monkeypatch)
 
-    assert ops.is_ops_request(-100123, 1)
-    assert ops.is_ops_request(42, 42)
-    assert ops.is_ops_request(43, 43)
-    assert not ops.is_ops_request(500, 500)
-    assert not ops.is_ops_request(500, None)
+    assert ops.is_ops_chat(-100123)
+    assert not ops.is_ops_chat(42)
+    assert not ops.is_ops_chat(500)
 
 
 def test_payment_message_marks_renewals_and_identifies_the_user(monkeypatch):

@@ -6,7 +6,6 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.agents import agent_name
-from app.core.admin_auth import is_admin
 from app.db.models import Conversation, User
 from app.i18n import SUPPORTED_LANGUAGES
 from app.services.billing import BillingSnapshot, effective_plan
@@ -37,7 +36,7 @@ class ProfileOut(BaseModel):
     isAdmin: bool = False
 
     @classmethod
-    def from_user(cls, user: User) -> "ProfileOut":
+    def from_user(cls, user: User, *, is_admin: bool = False) -> "ProfileOut":
         return cls(
             id=user.id,
             language=user.language,
@@ -54,7 +53,7 @@ class ProfileOut(BaseModel):
             tokens=user.tokens,
             activeAgent=user.active_agent,
             dailyCheckinStreak=user.daily_checkin_streak or 0,
-            isAdmin=is_admin(user.id),
+            isAdmin=is_admin,
         )
 
 
@@ -88,6 +87,8 @@ class ProfileUpdate(BaseModel):
 class NotificationSettingsOut(BaseModel):
     dailyEnabled: bool
     weeklyEnabled: bool
+    # Marketing broadcasts from the admin panel; service announcements ignore it.
+    marketingEnabled: bool
     reminderHour: int
     reminderTimezone: str
     # Nothing is ever sent to a user without a birth date; the Mini App says so instead
@@ -99,6 +100,7 @@ class NotificationSettingsOut(BaseModel):
         return cls(
             dailyEnabled=bool(user.daily_notifications_enabled),
             weeklyEnabled=bool(user.weekly_notifications_enabled),
+            marketingEnabled=user.marketing_enabled is not False,
             reminderHour=user.reminder_hour if user.reminder_hour is not None else 9,
             reminderTimezone=user.reminder_timezone or "UTC",
             birthDateSet=user.birth_date is not None,
@@ -108,6 +110,7 @@ class NotificationSettingsOut(BaseModel):
 class NotificationSettingsUpdate(BaseModel):
     dailyEnabled: bool | None = None
     weeklyEnabled: bool | None = None
+    marketingEnabled: bool | None = None
     reminderHour: int | None = Field(default=None, ge=0, le=23)
     # Any IANA zone the device reports is accepted, not only the curated picker list.
     reminderTimezone: str | None = Field(default=None, max_length=64)
@@ -127,6 +130,7 @@ class NotificationSettingsUpdate(BaseModel):
         mapping = {
             "dailyEnabled": "daily_notifications_enabled",
             "weeklyEnabled": "weekly_notifications_enabled",
+            "marketingEnabled": "marketing_enabled",
             "reminderHour": "reminder_hour",
             "reminderTimezone": "reminder_timezone",
         }
@@ -301,6 +305,11 @@ class AdminMeOut(BaseModel):
     id: int
     name: str
     language: str
+    roleId: str = ""
+    roleTitle: str = ""
+    # Every permission key the role grants, or ["*"] for an owner.
+    permissions: list[str] = Field(default_factory=list)
+    isOwner: bool = False
 
 
 class AdminSessionOut(BaseModel):
@@ -399,6 +408,8 @@ class AdminConversationOut(BaseModel):
     messageCount: int
     createdAt: datetime
     updatedAt: datetime
+    userName: str = ""
+    userUsername: str = ""
     userLanguage: str = ""
     userPlan: str = ""
     preview: str = ""
@@ -467,3 +478,165 @@ class AdminPromptPreviewIn(BaseModel):
 
 class AdminPromptPreviewOut(BaseModel):
     text: str
+
+
+# --- admin access control ----------------------------------------------------------------
+
+
+class AdminPermissionOut(BaseModel):
+    key: str
+    group: str
+    description: str
+
+
+class AdminRoleOut(BaseModel):
+    id: str
+    title: str
+    description: str
+    permissions: list[str]
+    isSystem: bool
+    # True for the owner role: every permission, not editable, not deletable.
+    isOwner: bool
+    admins: int
+
+
+class AdminRoleIn(BaseModel):
+    id: str = Field(min_length=1, max_length=32)
+    title: str = Field(min_length=1, max_length=64)
+    description: str = Field(default="", max_length=200)
+    permissions: list[str] = Field(default_factory=list)
+
+
+class AdminRoleUpdateIn(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=64)
+    description: str | None = Field(default=None, max_length=200)
+    permissions: list[str] | None = None
+
+
+class AdminAccountOut(BaseModel):
+    userId: int
+    name: str
+    username: str
+    roleId: str
+    roleTitle: str
+    permissions: list[str]
+    note: str
+    grantedBy: int | None
+
+
+class AdminAccountIn(BaseModel):
+    userId: int
+    roleId: str = Field(min_length=1, max_length=32)
+    note: str = Field(default="", max_length=200)
+
+
+class AdminAccessOut(BaseModel):
+    permissions: list[AdminPermissionOut]
+    roles: list[AdminRoleOut]
+    admins: list[AdminAccountOut]
+
+
+# --- segments ----------------------------------------------------------------------------
+
+
+class SegmentFilterSpecOut(BaseModel):
+    key: str
+    kind: str  # enum | bool | int | ids
+    description: str
+    options: list[str] = Field(default_factory=list)
+
+
+class SegmentOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    description: str
+    kind: str  # dynamic | static
+    filters: dict
+    size: int
+    memberCount: int
+    # Static segments only: the pinned ids (empty on list responses).
+    userIds: list[int] = Field(default_factory=list)
+    createdBy: int | None
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class SegmentIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    description: str = Field(default="", max_length=300)
+    kind: Literal["dynamic", "static"] = "dynamic"
+    filters: dict = Field(default_factory=dict)
+    # Static segments only: the pinned user ids.
+    userIds: list[int] = Field(default_factory=list)
+
+
+class SegmentPreviewIn(BaseModel):
+    kind: Literal["dynamic", "static"] = "dynamic"
+    filters: dict = Field(default_factory=dict)
+    userIds: list[int] = Field(default_factory=list)
+
+
+class SegmentPreviewOut(BaseModel):
+    size: int
+    byLanguage: dict[str, int]
+    sample: list[AdminUserOut]
+
+
+# --- broadcasts --------------------------------------------------------------------------
+
+
+class BroadcastMessageIn(BaseModel):
+    text: str = Field(default="", max_length=3500)
+    buttonText: str = Field(default="", max_length=64)
+    buttonUrl: str = Field(default="", max_length=512)
+
+
+class BroadcastOut(BaseModel):
+    id: uuid.UUID
+    title: str
+    category: str  # marketing | service
+    status: str
+    segmentId: uuid.UUID | None
+    segmentName: str
+    filters: dict
+    content: dict[str, BroadcastMessageIn]
+    markdown: bool
+    scheduledAt: datetime | None
+    startedAt: datetime | None
+    finishedAt: datetime | None
+    totalRecipients: int
+    sentCount: int
+    failedCount: int
+    blockedCount: int
+    pendingCount: int
+    createdBy: int | None
+    createdAt: datetime
+    updatedAt: datetime
+
+
+class BroadcastIn(BaseModel):
+    title: str = Field(min_length=1, max_length=120)
+    category: Literal["marketing", "service"] = "marketing"
+    segmentId: uuid.UUID | None = None
+    filters: dict = Field(default_factory=dict)
+    content: dict[LanguageCode, BroadcastMessageIn] = Field(default_factory=dict)
+    markdown: bool = True
+
+
+class BroadcastScheduleIn(BaseModel):
+    # Null means "start now"; a timestamp queues it for that moment (UTC).
+    scheduledAt: datetime | None = None
+
+
+class BroadcastTestIn(BaseModel):
+    language: LanguageCode = "ru"
+
+
+class BroadcastDeliveryOut(BaseModel):
+    userId: int
+    name: str
+    username: str
+    language: str
+    status: str
+    error: str
+    sentAt: datetime | None

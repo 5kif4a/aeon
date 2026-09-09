@@ -1,6 +1,6 @@
 """Bot navigation, advisor dialogue, Council, and notification settings."""
 
-from telegram import Update
+from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
 
 from app.agents import AGENTS
@@ -17,7 +17,7 @@ from app.bot.handlers.payments import (
 )
 from app.db.session import SessionFactory
 from app.i18n import normalize_language, t
-from app.services import users
+from app.services import events, users
 
 
 async def _user_for_update(update: Update):
@@ -128,6 +128,21 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "billing:subscribe":
         await subscribe_command(update, context)
         return
+    if data == "marketing:off":
+        # One-tap opt-out from under a marketing broadcast; daily reflections are untouched.
+        async with SessionFactory() as session:
+            db_user = await users.get_or_create_user(session, user.id)
+            changed = db_user.marketing_enabled is not False
+            if changed:
+                events.record(session, events.MARKETING_OPTED_OUT, db_user.id)
+                await users.update_user(session, db_user, {"marketing_enabled": False})
+            language = db_user.language
+        # Take the button away so a second tap cannot post a second confirmation; the
+        # call-to-action button on the same message, if any, stays.
+        await _drop_button(query, "marketing:off")
+        if changed:
+            await context.bot.send_message(user.id, t(language, "marketing_unsubscribed"))
+        return
     if data == "daily:done":
         async with SessionFactory() as session:
             db_user = await users.get_or_create_user(session, user.id)
@@ -180,6 +195,8 @@ async def _handle_settings_callback(
         fields["daily_notifications_enabled"] = user.daily_notifications_enabled is False
     elif data == "settings:weekly":
         fields["weekly_notifications_enabled"] = user.weekly_notifications_enabled is False
+    elif data == "settings:marketing":
+        fields["marketing_enabled"] = user.marketing_enabled is False
     elif data.startswith("settings:hour:"):
         fields["reminder_hour"] = min(max(int(data.rsplit(":", 1)[1]), 0), 23)
     elif data.startswith("settings:tz:"):
@@ -203,6 +220,23 @@ async def _handle_settings_callback(
         _settings_text(user),
         ui.settings_keyboard(user),
     )
+
+
+async def _drop_button(query, callback_data: str) -> None:
+    """Edit the message's keyboard so the button with `callback_data` disappears."""
+    message = query.message
+    markup = message.reply_markup if message else None
+    if markup is None:
+        return
+    rows = [
+        [button for button in row if button.callback_data != callback_data]
+        for row in markup.inline_keyboard
+    ]
+    rows = [row for row in rows if row]
+    try:
+        await query.edit_message_reply_markup(InlineKeyboardMarkup(rows) if rows else None)
+    except Exception:  # the message may be too old to edit; the opt-out itself is already saved
+        return
 
 
 def _settings_text(user) -> str:
@@ -290,7 +324,7 @@ def build_command_handlers() -> list:
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(
             navigation_callback,
-            pattern=r"^(menu:home|council:start|billing:subscribe|daily:done|settings:)",
+            pattern=r"^(menu:home|council:start|billing:subscribe|daily:done|settings:|marketing:off)",
         ),
         MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
         MessageHandler(UNSUPPORTED_MESSAGE_FILTER, unsupported_message),

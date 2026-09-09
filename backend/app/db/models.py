@@ -66,6 +66,8 @@ class User(Base):
     active_agent: Mapped[str | None] = mapped_column(String(32), nullable=True)
     daily_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     weekly_notifications_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Opt-out for marketing broadcasts; service broadcasts ignore it (see services/broadcasts.py).
+    marketing_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     reminder_timezone: Mapped[str] = mapped_column(String(64), default="UTC")
     reminder_hour: Mapped[int] = mapped_column(Integer, default=9)
     last_daily_notification_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -279,3 +281,178 @@ class BotSetting(Base):
     )
     # Telegram id of the admin who saved the value; nullable for imports/scripts.
     updated_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+
+
+class AdminRole(Base):
+    """A named set of admin-panel permissions (the rows of the access matrix).
+
+    Permission keys are defined in code (`services.admin_access.PERMISSIONS`); a role stores
+    the subset it grants, or `["*"]` for the built-in owner role. System roles ship with the
+    product and cannot be deleted.
+    """
+
+    __tablename__ = "admin_roles"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True)  # slug
+    title: Mapped[str] = mapped_column(String(64))
+    description: Mapped[str] = mapped_column(String(200), default="")
+    permissions: Mapped[list[str]] = mapped_column(JSONB, default=list)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    accounts: Mapped[list["AdminAccount"]] = relationship(back_populates="role")
+
+
+class AdminAccount(Base):
+    """Admin access granted to one Telegram user, with the role that decides its scope.
+
+    This table is the only source of access. What keeps the panel reachable is the "last
+    manager" invariant in `services/admin_access.py`; an emptied table is repaired with
+    `scripts/grant_admin.py`.
+    """
+
+    __tablename__ = "admin_accounts"
+
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("admin_roles.id", ondelete="RESTRICT"), index=True
+    )
+    note: Mapped[str] = mapped_column(String(200), default="")
+    granted_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    role: Mapped[AdminRole] = relationship(back_populates="accounts")
+    user: Mapped[User] = relationship()
+
+
+class UserSegment(Base):
+    """A reusable audience: either a saved filter (`dynamic`) or a fixed id list (`static`).
+
+    Dynamic segments are re-evaluated every time they are counted or sent to, so a broadcast
+    always reaches the current membership; `filters` is validated against
+    `services.segments.FILTER_SPECS`.
+    """
+
+    __tablename__ = "user_segments"
+    __table_args__ = (
+        CheckConstraint("kind IN ('dynamic', 'static')", name="ck_user_segments_kind"),
+        UniqueConstraint("name", name="uq_user_segments_name"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(80))
+    description: Mapped[str] = mapped_column(String(300), default="")
+    kind: Mapped[str] = mapped_column(String(16), default="dynamic")
+    filters: Mapped[dict] = mapped_column(JSONB, default=dict)
+    created_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    members: Mapped[list["SegmentMember"]] = relationship(
+        back_populates="segment", cascade="all, delete-orphan"
+    )
+
+
+class SegmentMember(Base):
+    """One user pinned into a static segment."""
+
+    __tablename__ = "segment_members"
+
+    segment_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("user_segments.id", ondelete="CASCADE"), primary_key=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    segment: Mapped[UserSegment] = relationship(back_populates="members")
+
+
+class Broadcast(Base):
+    """One manual push to a segment: localized content plus its delivery state.
+
+    `category` decides whether `users.marketing_enabled` is respected: `marketing` skips
+    opted-out users, `service` (outages, policy changes) reaches everyone in the audience.
+    Sending is done by the `broadcast_queue` job, one `broadcast_deliveries` row per
+    recipient, so a restart resumes instead of sending twice.
+    """
+
+    __tablename__ = "broadcasts"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('draft', 'scheduled', 'sending', 'sent', 'canceled', 'failed')",
+            name="ck_broadcasts_status",
+        ),
+        CheckConstraint("category IN ('marketing', 'service')", name="ck_broadcasts_category"),
+        Index("ix_broadcasts_status_scheduled_at", "status", "scheduled_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(120))
+    category: Mapped[str] = mapped_column(String(16), default="marketing")
+    status: Mapped[str] = mapped_column(String(16), default="draft", index=True)
+    # Saved audience; when null the broadcast carries its own ad-hoc `filters`.
+    segment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("user_segments.id", ondelete="SET NULL"), nullable=True
+    )
+    filters: Mapped[dict] = mapped_column(JSONB, default=dict)
+    # {"en": {"text": ..., "buttonText": ..., "buttonUrl": ...}, "ru": {...}}; the user's
+    # language decides which entry is used, with the default language as the fallback.
+    content: Mapped[dict] = mapped_column(JSONB, default=dict)
+    markdown: Mapped[bool] = mapped_column(Boolean, default=True)
+    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    total_recipients: Mapped[int] = mapped_column(Integer, default=0)
+    sent_count: Mapped[int] = mapped_column(Integer, default=0)
+    failed_count: Mapped[int] = mapped_column(Integer, default=0)
+    blocked_count: Mapped[int] = mapped_column(Integer, default=0)
+    created_by: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+    segment: Mapped[UserSegment | None] = relationship()
+    deliveries: Mapped[list["BroadcastDelivery"]] = relationship(
+        back_populates="broadcast", cascade="all, delete-orphan"
+    )
+
+
+class BroadcastDelivery(Base):
+    """Per-recipient row of a broadcast: the queue, the audit trail and the idempotency key."""
+
+    __tablename__ = "broadcast_deliveries"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('pending', 'sent', 'failed', 'blocked')",
+            name="ck_broadcast_deliveries_status",
+        ),
+        UniqueConstraint("broadcast_id", "user_id", name="uq_broadcast_deliveries_recipient"),
+        Index("ix_broadcast_deliveries_broadcast_status", "broadcast_id", "status"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    broadcast_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("broadcasts.id", ondelete="CASCADE"), index=True
+    )
+    user_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    error: Mapped[str] = mapped_column(Text, default="")
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    broadcast: Mapped[Broadcast] = relationship(back_populates="deliveries")

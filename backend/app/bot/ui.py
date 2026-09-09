@@ -141,8 +141,10 @@ def settings_keyboard(user) -> InlineKeyboardMarkup:
     weekly_enabled = user.weekly_notifications_enabled is not False
     reminder_hour = user.reminder_hour if user.reminder_hour is not None else 9
     reminder_timezone = user.reminder_timezone or "UTC"
+    marketing_enabled = user.marketing_enabled is not False
     daily_key = "notifications_on" if daily_enabled else "notifications_off"
     weekly_key = "notifications_on" if weekly_enabled else "notifications_off"
+    marketing_key = "notifications_on" if marketing_enabled else "notifications_off"
     # Same settings, larger screen: the Mini App writes the very same columns.
     app_button = _mini_app_button(language, "settings_open_app", "profile", sheet="notifications")
     return InlineKeyboardMarkup(
@@ -158,6 +160,12 @@ def settings_keyboard(user) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     f"{t(language, 'weekly_setting')}: {t(language, weekly_key)}",
                     callback_data="settings:weekly",
+                )
+            ],
+            [
+                InlineKeyboardButton(
+                    f"{t(language, 'marketing_setting')}: {t(language, marketing_key)}",
+                    callback_data="settings:marketing",
                 )
             ],
             [

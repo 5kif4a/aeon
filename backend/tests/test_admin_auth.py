@@ -63,10 +63,3 @@ def test_session_token_rejects_forgery(monkeypatch):
     monkeypatch.setattr(get_settings(), "admin_session_secret", "rotated")
     with pytest.raises(admin_auth.AdminAuthError):
         admin_auth.verify_session_token(token, now=1_000_100)
-
-
-def test_is_admin_uses_allowlist(monkeypatch):
-    monkeypatch.setattr(get_settings(), "ops_admin_ids", "42, 7")
-
-    assert admin_auth.is_admin(42) and admin_auth.is_admin(7)
-    assert not admin_auth.is_admin(8) and not admin_auth.is_admin(None)

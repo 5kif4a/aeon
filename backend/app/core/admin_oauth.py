@@ -9,7 +9,7 @@ be allowlisted there as well.
 The panel runs on the Mini App origin, not on this backend, so the browser only
 carries `code` + `state` back here and the confidential exchange happens
 server-side. What comes out is the Telegram user id, which
-`admin_auth.is_admin` then checks against `OPS_ADMIN_IDS` exactly like the
+`admin_access.resolve_identity` then decides the role exactly like in the
 widget flow did.
 """
 
@@ -142,7 +142,7 @@ def decode_id_token(id_token: str, now: float | None = None) -> OAuthIdentity:
         raise AdminAuthError("id_token is expired")
 
     # `sub` is an opaque pairwise identifier; the numeric Telegram user id - the one
-    # the bot and `OPS_ADMIN_IDS` speak - is the separate `id` claim.
+    # the bot and `admin_accounts` speak - is the separate `id` claim.
     try:
         user_id = int(payload["id"])
     except (KeyError, TypeError, ValueError) as error:

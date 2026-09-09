@@ -1,10 +1,13 @@
-"""Admin authentication for the product-owner panel.
+"""Admin authentication for the product-owner panel: proving who the caller is.
 
-Two ways in, one allowlist (`OPS_ADMIN_IDS`):
+Two ways in:
 - inside Telegram the Mini App keeps sending `Authorization: tma <initData>`;
-- in a plain browser the Telegram Login Widget returns a payload signed with
-  SHA256(bot_token); we verify it and issue a short-lived HMAC session token that the
-  frontend sends as `Authorization: admin <token>`.
+- in a plain browser the Telegram Login Widget (or the OIDC flow in `admin_oauth`)
+  returns a signed payload; we verify it and issue a short-lived HMAC session token that
+  the frontend sends as `Authorization: admin <token>`.
+
+Whether that identity may use the panel, and what for, is decided by
+`app.services.admin_access` against the role matrix in the database.
 """
 
 import base64
@@ -23,10 +26,6 @@ _WIDGET_FIELDS = ("id", "first_name", "last_name", "username", "photo_url", "aut
 
 class AdminAuthError(ValueError):
     pass
-
-
-def is_admin(user_id: int | None) -> bool:
-    return user_id is not None and user_id in get_settings().ops_admin_id_list
 
 
 def validate_login_widget(payload: dict, now: float | None = None) -> int:
@@ -80,7 +79,7 @@ def _b64decode(value: str) -> bytes:
 
 
 def issue_session_token(user_id: int, now: float | None = None) -> tuple[str, int]:
-    """Return (token, expires_at_unix) for an allowlisted admin."""
+    """Return (token, expires_at_unix) for an authenticated panel user."""
     current = int(now if now is not None else time.time())
     expires_at = current + SESSION_TTL_SECONDS
     body = _b64encode(json.dumps({"uid": user_id, "exp": expires_at}).encode())

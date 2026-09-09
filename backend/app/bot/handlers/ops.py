@@ -8,7 +8,7 @@ from telegram.ext import CommandHandler, ContextTypes
 
 from app.core.config import get_settings
 from app.db.session import SessionFactory
-from app.services import events, ops, stats
+from app.services import admin_access, events, ops, stats
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +17,19 @@ DIGEST_TITLES = {"daily": "Daily digest", "weekly": "Weekly digest", "monthly": 
 
 
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """`/stats` (today), `/stats 7`, `/stats 30`: only in the ops group or for listed admins."""
+    """`/stats` (today), `/stats 7`, `/stats 30`.
+
+    Answers in the ops group, and in a *private* chat to an admin whose role grants
+    `stats.view`. Any other group the bot happens to sit in gets nothing: metrics must not be
+    posted where an admin typed the command by mistake.
+    """
     chat = update.effective_chat
     user = update.effective_user
-    if chat is None or not ops.is_ops_request(chat.id, user.id if user else None):
+    if chat is None:
         return
+    if not ops.is_ops_chat(chat.id):
+        if chat.type != "private" or not await _may_see_stats(user.id if user else None):
+            return
     settings = get_settings()
     now = datetime.now(UTC)
     argument = (context.args or [""])[0]
@@ -37,6 +45,14 @@ async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         parse_mode="HTML",
         message_thread_id=getattr(update.effective_message, "message_thread_id", None),
     )
+
+
+async def _may_see_stats(user_id: int | None) -> bool:
+    if user_id is None:
+        return False
+    async with SessionFactory() as session:
+        identity = await admin_access.resolve_identity(session, user_id)
+    return identity is not None and identity.can("stats.view")
 
 
 async def send_ops_digests(context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -5,6 +5,7 @@ import logging
 from telegram import BotCommand, BotCommandScopeChat, Update
 from telegram.ext import Application, ApplicationBuilder
 
+from app.bot.broadcasting import run_queue as run_broadcast_queue
 from app.bot.handlers.commands import build_command_handlers
 from app.bot.handlers.onboarding import build_onboarding_handler
 from app.bot.handlers.ops import build_ops_handlers, send_ops_digests
@@ -101,6 +102,14 @@ def build_application() -> Application:
         interval=15 * 60,
         first=60,
         name="ops_digests",
+    )
+
+    # Manual broadcasts from the admin panel: due campaigns are picked up here.
+    application.job_queue.run_repeating(
+        run_broadcast_queue,
+        interval=60,
+        first=75,
+        name="broadcast_queue",
     )
 
     application.job_queue.run_repeating(

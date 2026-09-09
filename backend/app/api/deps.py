@@ -1,4 +1,6 @@
-from typing import Annotated
+from collections.abc import Callable, Coroutine
+from dataclasses import dataclass
+from typing import Annotated, Any
 
 from fastapi import Depends, Header, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -7,7 +9,7 @@ from app.core import admin_auth
 from app.core.telegram_auth import InitDataError, extract_telegram_user, validate_init_data
 from app.db.models import User
 from app.db.session import get_session
-from app.services import users
+from app.services import admin_access, users
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 
@@ -39,13 +41,30 @@ async def get_current_user(
 CurrentUser = Annotated[User, Depends(get_current_user)]
 
 
-async def get_admin_user(
+@dataclass
+class AdminActor:
+    """The authenticated admin plus the permissions their role grants."""
+
+    user: User
+    identity: admin_access.AdminIdentity
+
+    @property
+    def id(self) -> int:
+        return self.user.id
+
+    def can(self, permission: str) -> bool:
+        return self.identity.can(permission)
+
+
+async def get_admin_actor(
     session: SessionDep,
     authorization: Annotated[str, Header()] = "",
-) -> User:
+) -> AdminActor:
     """Admin panel auth: `tma <initData>` inside Telegram or `admin <token>` in a browser.
 
-    Either way the Telegram user id must be in `OPS_ADMIN_IDS`.
+    Either way the Telegram user id must hold panel access: a row in `admin_accounts` (there
+    is no env allowlist). What they may *do* is decided per route by `require(...)`; this
+    dependency only proves they are an admin at all.
     """
     scheme, _, credential = authorization.partition(" ")
     if scheme.lower() == "admin":
@@ -53,15 +72,35 @@ async def get_admin_user(
             user_id = admin_auth.verify_session_token(credential)
         except admin_auth.AdminAuthError as error:
             raise HTTPException(status_code=401, detail=str(error)) from error
-        if not admin_auth.is_admin(user_id):
+        # Deliberately not `get_or_create_user`: a token holder logged in once, so their row
+        # exists. Creating one here would fake a signup in the product metrics.
+        found = await users.get_user(session, user_id)
+        if found is None:
             raise HTTPException(status_code=403, detail="Admin access required")
-        user = await users.get_or_create_user(session, user_id)
-        return user
+        user = found
+    else:
+        user = await get_current_user(session, authorization)
 
-    user = await get_current_user(session, authorization)
-    if not admin_auth.is_admin(user.id):
+    identity = await admin_access.resolve_identity(session, user.id)
+    if identity is None:
         raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+    return AdminActor(user=user, identity=identity)
 
 
-AdminUser = Annotated[User, Depends(get_admin_user)]
+AdminActorDep = Annotated[AdminActor, Depends(get_admin_actor)]
+
+
+def require(*permissions: str) -> Callable[..., Coroutine[Any, Any, AdminActor]]:
+    """Route dependency: the admin must hold every listed permission.
+
+    403 with the missing key in the detail, so the panel can explain the refusal instead of
+    showing an empty screen.
+    """
+
+    async def dependency(actor: AdminActorDep) -> AdminActor:
+        for permission in permissions:
+            if not actor.can(permission):
+                raise HTTPException(status_code=403, detail=f"Permission required: {permission}")
+        return actor
+
+    return dependency

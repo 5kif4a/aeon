@@ -215,6 +215,8 @@ async def get_user_detail(
 @dataclass
 class ConversationRow:
     conversation: Conversation
+    user_name: str
+    user_username: str
     user_language: str
     user_plan: str
     preview: str
@@ -242,9 +244,14 @@ async def list_conversations(
         .correlate(Conversation)
         .scalar_subquery()
     )
-    base = select(Conversation, User.language, _plan_expression(current), first_message).join(
-        User, User.id == Conversation.user_id
-    )
+    base = select(
+        Conversation,
+        User.name,
+        User.username,
+        User.language,
+        _plan_expression(current),
+        first_message,
+    ).join(User, User.id == Conversation.user_id)
     if user_id is not None:
         base = base.where(Conversation.user_id == user_id)
     if agent_id:
@@ -259,21 +266,24 @@ async def list_conversations(
     items = [
         ConversationRow(
             conversation=conversation,
+            user_name=name or "",
+            user_username=username or "",
             user_language=language,
             user_plan=plan,
             preview=(preview or "")[:160],
         )
-        for conversation, language, plan, preview in rows
+        for conversation, name, username, language, plan, preview in rows
     ]
     return Page(items=items, total=int(total))
 
 
 async def get_conversation(
     session: AsyncSession, conversation_id: uuid.UUID
-) -> tuple[Conversation, list[ConversationMessage]] | None:
+) -> tuple[Conversation, User | None, list[ConversationMessage]] | None:
     conversation = await session.get(Conversation, conversation_id)
     if conversation is None:
         return None
+    user = await session.get(User, conversation.user_id)
     messages = list(
         await session.scalars(
             select(ConversationMessage)
@@ -281,7 +291,7 @@ async def get_conversation(
             .order_by(ConversationMessage.position)
         )
     )
-    return conversation, messages
+    return conversation, user, messages
 
 
 async def list_payments(session: AsyncSession, *, limit: int = 50, offset: int = 0) -> Page:

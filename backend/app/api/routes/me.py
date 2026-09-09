@@ -7,14 +7,17 @@ from app.api.schemas import (
     ProfileOut,
     ProfileUpdate,
 )
-from app.services import users
+from app.services import admin_access, users
 
 router = APIRouter(tags=["profile"])
 
 
 @router.get("/me", response_model=ProfileOut)
-async def get_me(user: CurrentUser) -> ProfileOut:
-    return ProfileOut.from_user(user)
+async def get_me(user: CurrentUser, session: SessionDep) -> ProfileOut:
+    # `isAdmin` only decides whether the Mini App shows the panel link; the panel itself
+    # re-checks every request against the role matrix.
+    is_admin = await admin_access.resolve_identity(session, user.id) is not None
+    return ProfileOut.from_user(user, is_admin=is_admin)
 
 
 @router.patch("/me", response_model=ProfileOut)
@@ -22,7 +25,8 @@ async def update_me(payload: ProfileUpdate, user: CurrentUser, session: SessionD
     fields = payload.to_user_fields()
     if fields:
         user = await users.update_user(session, user, fields)
-    return ProfileOut.from_user(user)
+    is_admin = await admin_access.resolve_identity(session, user.id) is not None
+    return ProfileOut.from_user(user, is_admin=is_admin)
 
 
 @router.get("/me/notifications", response_model=NotificationSettingsOut)

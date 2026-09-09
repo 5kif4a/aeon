@@ -22,7 +22,8 @@ backend/                Python 3.12, FastAPI + python-telegram-bot v21, SQLAlche
   app/agents.py         agent registry: ids, localized names/roles/intros, English system prompts
   app/i18n.py           every user-facing backend string, ru/en
   migrations/           Alembic; revision ids are dated slugs (e.g. 20260902_conversations)
-  scripts/              RAG corpus builders, eval/audit tools, import_legacy.py
+  scripts/              RAG corpus builders, eval/audit tools, import_legacy.py,
+                        grant_admin.py (seed/repair panel access from the CLI)
   tests/                pytest (asyncio auto mode); API tests need a live Postgres
 frontend/               React 19 + TypeScript + Vite + Tailwind v4 + TanStack Query + TanStack Router + RHF/Zod
   src/router.tsx        TanStack Router: /landing, and the `app` layout (/, /calendar?tab, /profile?sheet);
@@ -105,8 +106,9 @@ closes every other active session. `agent_chat.get_history` / `append_history` r
 these tables directly (there is no cache layer). Council answers are stored as closed sessions
 with `agent_id="council"`.
 
-**Notifications.** `JobQueue` runs `send_daily_notifications` and `send_life_weekly_reviews`
-every 15 minutes in-process; per-user `reminder_timezone` / `reminder_hour` decide "due",
+**Notifications.** `JobQueue` runs `send_daily_notifications`, `send_life_weekly_reviews`,
+`send_billing_reminders` and the broadcast queue in-process; the first three run
+every 15 minutes; per-user `reminder_timezone` / `reminder_hour` decide "due",
 `last_daily_notification_date` / `last_life_weekly_date` prevent duplicates. Only users with a
 `birth_date` receive anything. A weekly review suppresses that day's daily message.
 Running more than one backend replica will duplicate notifications; keep a single instance.
@@ -116,7 +118,8 @@ same transaction as the state change (`events.record`: `user_created`, `trial_st
 `payment_succeeded`, `subscription_canceled`, `question_limit_hit`, `generation_failed`, ...).
 The bot/API layer announces to the product-owner group through `services/ops.py`
 (`OPS_CHAT_ID`, optional forum threads); sends are fire-and-forget and never raise, alerts are
-throttled per kind. `/stats [7|30]` answers only in the ops group or to `OPS_ADMIN_IDS`; the
+throttled per kind. `/stats [7|30]` answers in the ops group, or privately to an admin whose
+role grants `stats.view`; the
 `ops_digests` job posts daily/weekly/monthly digests at `OPS_DIGEST_HOUR` and dedupes through
 `ops_digest_sent` events. Ops texts are internal English; every message starts with `ops._user_line` (name as a
 `tg://user` link, @username, id, language, country, plan) and ends with a link to the admin card
@@ -125,12 +128,37 @@ throttled per kind. `/stats [7|30]` answers only in the ops group or to `OPS_ADM
 `filters.ChatType.PRIVATE`; keep it that way for new handlers.
 
 **Admin panel.** `/admin` on the frontend (`src/views/admin/*`, own layout, not the Mini App
-shell) talks to `/api/admin/*` (`app/api/routes/admin.py`, read models in `services/admin.py`).
-`AdminUser` (`app/api/deps.py`) accepts `Authorization: tma <initData>` inside Telegram or
-`Authorization: admin <token>` from a browser; the token is issued by `POST /api/admin/auth/telegram`
-after verifying a Telegram Login Widget payload (`app/core/admin_auth.py`). Access is only the
-`OPS_ADMIN_IDS` allowlist; there are no roles in the database. Opening a dialogue and granting
+shell) talks to `/api/admin/*` (`app/api/routes/admin.py` plus `admin_access.py` and
+`admin_audience.py`, read models in `services/admin.py`). `get_admin_actor` (`app/api/deps.py`)
+accepts `Authorization: tma <initData>` inside Telegram or `Authorization: admin <token>` from a
+browser; the token is issued by `POST /api/admin/auth/telegram` after verifying a Telegram Login
+Widget payload (`app/core/admin_auth.py`) or by the OIDC callback. Opening a dialogue and granting
 Pro are recorded as `admin_view_conversation` / `pro_granted` events.
+
+**Admin access is a role matrix in the database.** Permission keys are declared in code
+(`services/admin_access.PERMISSIONS`), roles live in `admin_roles` (a role stores the keys it
+grants, `["*"]` for `owner`), and `admin_accounts` binds one Telegram id to one role. Routes
+enforce it per endpoint with `Depends(require("segments.edit"))`; never add an admin route
+without a permission. There is **no env allowlist**: `OPS_ADMIN_IDS` was carried into the table
+once by `20260911_seed_admin_owners` and is not read anywhere else. What keeps the panel
+reachable is the invariant in `admin_access`: the last account that can manage access cannot be
+revoked, moved to a narrower role, or have `admins.manage` stripped from its role. To create the
+first admin in a fresh environment, or to recover from an emptied table, run
+`uv run python -m scripts.grant_admin <telegram id>`; being a repair tool, the script writes
+the row directly and deliberately skips the invariant. The service function `grant_admin`
+refuses unknown ids (creating a user row there would fake a signup in the metrics) and refuses
+to change the caller's own access; the login endpoints check access *before* creating a user
+row for the same reason.
+
+**Segments and broadcasts.** A segment (`user_segments`) is either `dynamic` - a JSON filter
+object validated against `segments.FILTER_SPECS` and re-evaluated on every count and send - or
+`static`, a list of ids pinned in `segment_members`. A broadcast (`broadcasts`) carries a
+localized `content` map, an audience (a segment, or its own filters) and a `category`:
+`marketing` skips users with `marketing_enabled = false` and appends an unsubscribe button,
+`service` reaches the whole audience. An empty audience definition is refused, never read as
+"everyone". Queueing writes one `broadcast_deliveries` row per recipient; the `broadcast_queue`
+job (`app/bot/broadcasting.py`) sends at `BROADCAST_RATE_PER_SECOND`, marks each row, and resumes
+after a restart instead of sending twice. It never holds a DB session across a Telegram send.
 
 **Sessions in the bot.** Bot handlers open short-lived `SessionFactory()` sessions and let the
 object detach; `expire_on_commit=False` makes that safe. API routes use the `SessionDep`
@@ -171,6 +199,9 @@ dependency. Never keep a session open across a Gemini call or a Telegram send.
 - Do not commit anything under `backend/data/` (RAG corpora are built locally per environment).
 - Do not set `PORT`, `STATIC_DIR`, or `WEB_PORT` in Railway; `PORT` is injected.
 - Do not add a second active conversation path or bypass `conversations.start_session`.
+- Do not add an `/api/admin/*` route without a `require(...)` permission, and do not decide
+  access from anything but `services/admin_access.py` (no env lists).
+- Do not send a broadcast from a request handler; queue it and let the job deliver.
 - Do not put Russian or English UI text inline in code.
 - Do not edit `frontend/vercel.json` rewrite target or `.env.example` defaults casually; they are
   the production wiring.

@@ -24,6 +24,22 @@ def build_init_data(user_id: int = TEST_USER_ID, name: str = "Tester") -> str:
     return urlencode(data)
 
 
+async def make_admin(user_id: int, role_id: str = "owner", name: str = "Admin") -> None:
+    """Give `user_id` panel access; access lives in the database, there is no env allowlist."""
+    from app.db.models import AdminAccount, User
+    from app.db.session import SessionFactory
+    from app.services import admin_access
+
+    async with SessionFactory() as session:
+        await admin_access.ensure_system_roles(session)
+        if await session.get(User, user_id) is None:
+            session.add(User(id=user_id, language="ru", name=name))
+            await session.flush()
+        if await session.get(AdminAccount, user_id) is None:
+            session.add(AdminAccount(user_id=user_id, role_id=role_id))
+        await session.commit()
+
+
 @pytest.fixture
 def auth_headers() -> dict:
     return {"Authorization": f"tma {build_init_data()}"}

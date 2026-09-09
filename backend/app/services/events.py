@@ -29,6 +29,14 @@ ADMIN_LOGIN = "admin_login"
 ADMIN_VIEW_CONVERSATION = "admin_view_conversation"
 ADMIN_SETTING_CHANGED = "admin_setting_changed"
 ADMIN_PROMPT_PREVIEW = "admin_prompt_preview"
+ADMIN_ROLE_CHANGED = "admin_role_changed"
+ADMIN_ACCESS_GRANTED = "admin_access_granted"
+ADMIN_ACCESS_CHANGED = "admin_access_changed"
+ADMIN_ACCESS_REVOKED = "admin_access_revoked"
+SEGMENT_CHANGED = "segment_changed"
+BROADCAST_QUEUED = "broadcast_queued"
+BROADCAST_FINISHED = "broadcast_finished"
+MARKETING_OPTED_OUT = "marketing_opted_out"
 
 
 def record(

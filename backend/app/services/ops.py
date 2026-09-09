@@ -31,12 +31,10 @@ def enabled() -> bool:
     return bool(get_settings().ops_chat_id)
 
 
-def is_ops_request(chat_id: int, user_id: int | None) -> bool:
-    """`/stats` is served in the ops group and privately to listed admins only."""
+def is_ops_chat(chat_id: int) -> bool:
+    """True for the product-owner group, where `/stats` is open to everyone present."""
     settings = get_settings()
-    if settings.ops_chat_id and chat_id == settings.ops_chat_id:
-        return True
-    return user_id is not None and user_id in settings.ops_admin_id_list
+    return bool(settings.ops_chat_id) and chat_id == settings.ops_chat_id
 
 
 def _thread_id(thread: str) -> int | None:
@@ -312,4 +310,35 @@ def generation_failed(
     alert(
         f"gemini:{kind}",
         format_generation_failed(user, error, kind=kind, agent_id=agent_id, mode=mode),
+    )
+
+
+def _broadcast_line(broadcast) -> str:
+    audience = broadcast.segment_id and "segment" or "filter"
+    return (
+        f"“{html.escape(broadcast.title)}” · {broadcast.category} · {audience}"
+        f"\n<code>{broadcast.id}</code>"
+    )
+
+
+def broadcast_started(broadcast, recipients: int) -> None:
+    notify(
+        f"📣 <b>Broadcast started</b>\n{_broadcast_line(broadcast)}\nrecipients: {recipients}",
+        THREAD_SALES,
+    )
+
+
+def broadcast_finished(broadcast) -> None:
+    notify(
+        f"✅ <b>Broadcast sent</b>\n{_broadcast_line(broadcast)}"
+        f"\nsent: {broadcast.sent_count} · blocked: {broadcast.blocked_count}"
+        f" · failed: {broadcast.failed_count}",
+        THREAD_SALES,
+    )
+
+
+def broadcast_failed(broadcast, reason: str) -> None:
+    alert(
+        "broadcast_failed",
+        f"{_broadcast_line(broadcast)}\n{html.escape(reason)}",
     )

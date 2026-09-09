@@ -4,12 +4,14 @@ import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime
+from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, select
 from telegram.error import TelegramError
 
 from app.agents import AGENTS
-from app.api.deps import AdminUser, SessionDep
+from app.api.deps import AdminActor, AdminActorDep, SessionDep, require
 from app.api.schemas import (
     AdminAuthConfigOut,
     AdminConversationDetailOut,
@@ -38,13 +40,34 @@ from app.api.schemas import (
 from app.bot import runtime
 from app.core import admin_auth, admin_oauth
 from app.core.config import get_settings
-from app.db.models import BillingPayment, Conversation, ProductEvent, User
+from app.db.models import AdminAccount, BillingPayment, Conversation, ProductEvent, User
 from app.i18n import t
-from app.services import admin, agent_chat, billing, bot_settings, events, ops, stats, users
+from app.services import (
+    admin,
+    admin_access,
+    agent_chat,
+    billing,
+    bot_settings,
+    events,
+    ops,
+    stats,
+    users,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+# One alias per permission the routes below enforce; `require` returns 403 naming the
+# missing key, so the panel can say why a screen is closed.
+StatsViewer = Annotated[AdminActor, Depends(require("stats.view"))]
+UsersViewer = Annotated[AdminActor, Depends(require("users.view"))]
+ProGranter = Annotated[AdminActor, Depends(require("users.grant_pro"))]
+ConversationsViewer = Annotated[AdminActor, Depends(require("conversations.view"))]
+PaymentsViewer = Annotated[AdminActor, Depends(require("payments.view"))]
+Refunder = Annotated[AdminActor, Depends(require("payments.refund"))]
+SettingsViewer = Annotated[AdminActor, Depends(require("settings.view"))]
+SettingsEditor = Annotated[AdminActor, Depends(require("settings.edit"))]
 
 STATS_DAYS = {7, 30, 90}
 # The prompt preview is a cost-capped, admin-only Gemini call outside the billing flow.
@@ -56,11 +79,14 @@ PREVIEW_TIMEOUT_SECONDS = 40
 
 
 @router.get("/auth/config", response_model=AdminAuthConfigOut)
-async def auth_config() -> AdminAuthConfigOut:
+async def auth_config(session: SessionDep) -> AdminAuthConfigOut:
     settings = get_settings()
+    # No admins in the database means nobody can get in; the login screen says so instead of
+    # offering a button that always answers 403. `scripts/grant_admin.py` seeds the first one.
+    stored_admins = await session.scalar(select(func.count()).select_from(AdminAccount)) or 0
     return AdminAuthConfigOut(
         botUsername=settings.bot_username,
-        enabled=bool(settings.ops_admin_id_list),
+        enabled=stored_admins > 0,
         oauthEnabled=admin_oauth.is_configured(),
     )
 
@@ -81,7 +107,10 @@ async def oauth_callback(payload: AdminOAuthCallbackIn, session: SessionDep) -> 
         identity = await admin_oauth.complete_login(payload.code, payload.state)
     except admin_auth.AdminAuthError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
-    if not admin_auth.is_admin(identity.user_id):
+    # Access first: a stranger who tries the login must not leave a `users` row behind
+    # (that would count as a signup and ping the ops group). An admin always has one.
+    access = await admin_access.resolve_identity(session, identity.user_id)
+    if access is None:
         raise HTTPException(status_code=403, detail="Admin access required")
     user = await users.get_or_create_user(session, identity.user_id, name=identity.name)
     token, expires_at = admin_auth.issue_session_token(identity.user_id)
@@ -89,7 +118,7 @@ async def oauth_callback(payload: AdminOAuthCallbackIn, session: SessionDep) -> 
     return AdminSessionOut(
         token=token,
         expiresAt=datetime.fromtimestamp(expires_at, tz=UTC),
-        admin=_admin_me(user),
+        admin=_admin_me(user, access),
     )
 
 
@@ -99,7 +128,8 @@ async def login_with_telegram(payload: AdminLoginIn, session: SessionDep) -> Adm
         user_id = admin_auth.validate_login_widget(payload.model_dump(exclude_none=True))
     except admin_auth.AdminAuthError as error:
         raise HTTPException(status_code=401, detail=str(error)) from error
-    if not admin_auth.is_admin(user_id):
+    access = await admin_access.resolve_identity(session, user_id)
+    if access is None:
         raise HTTPException(status_code=403, detail="Admin access required")
     user = await users.get_or_create_user(session, user_id, name=payload.first_name)
     token, expires_at = admin_auth.issue_session_token(user_id)
@@ -107,17 +137,25 @@ async def login_with_telegram(payload: AdminLoginIn, session: SessionDep) -> Adm
     return AdminSessionOut(
         token=token,
         expiresAt=datetime.fromtimestamp(expires_at, tz=UTC),
-        admin=_admin_me(user),
+        admin=_admin_me(user, access),
     )
 
 
 @router.get("/me", response_model=AdminMeOut)
-async def admin_me(user: AdminUser) -> AdminMeOut:
-    return _admin_me(user)
+async def admin_me(actor: AdminActorDep) -> AdminMeOut:
+    return _admin_me(actor.user, actor.identity)
 
 
-def _admin_me(user: User) -> AdminMeOut:
-    return AdminMeOut(id=user.id, name=user.name, language=user.language)
+def _admin_me(user: User, identity: admin_access.AdminIdentity) -> AdminMeOut:
+    return AdminMeOut(
+        id=user.id,
+        name=user.name,
+        language=user.language,
+        roleId=identity.role_id,
+        roleTitle=identity.role_title,
+        permissions=sorted(identity.permissions),
+        isOwner=identity.is_owner,
+    )
 
 
 # --- metrics -----------------------------------------------------------------------------
@@ -125,7 +163,7 @@ def _admin_me(user: User) -> AdminMeOut:
 
 @router.get("/stats", response_model=AdminStatsOut)
 async def admin_stats(
-    _: AdminUser, session: SessionDep, days: int = Query(default=30)
+    _: StatsViewer, session: SessionDep, days: int = Query(default=30)
 ) -> AdminStatsOut:
     if days not in STATS_DAYS:
         raise HTTPException(status_code=422, detail="days must be one of 7, 30, 90")
@@ -219,7 +257,13 @@ def _payment_out(payment: BillingPayment, language: str = "", country: str = "")
 
 
 def _conversation_out(
-    conversation: Conversation, *, language: str = "", plan: str = "", preview: str = ""
+    conversation: Conversation,
+    *,
+    name: str = "",
+    username: str = "",
+    language: str = "",
+    plan: str = "",
+    preview: str = "",
 ) -> AdminConversationOut:
     return AdminConversationOut(
         id=conversation.id,
@@ -230,6 +274,8 @@ def _conversation_out(
         messageCount=conversation.message_count,
         createdAt=conversation.created_at,
         updatedAt=conversation.updated_at,
+        userName=name,
+        userUsername=username,
         userLanguage=language,
         userPlan=plan,
         preview=preview,
@@ -244,7 +290,7 @@ def _event_out(event: ProductEvent) -> AdminEventOut:
 
 @router.get("/users", response_model=AdminPageOut[AdminUserOut])
 async def admin_users(
-    _: AdminUser,
+    _: UsersViewer,
     session: SessionDep,
     q: str = "",
     plan: str = "",
@@ -269,7 +315,9 @@ async def admin_users(
 
 
 @router.get("/users/{user_id}", response_model=AdminUserDetailOut)
-async def admin_user_detail(user_id: int, _: AdminUser, session: SessionDep) -> AdminUserDetailOut:
+async def admin_user_detail(
+    user_id: int, _: UsersViewer, session: SessionDep
+) -> AdminUserDetailOut:
     detail = await admin.get_user_detail(session, user_id)
     if detail is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -290,7 +338,7 @@ async def admin_user_detail(user_id: int, _: AdminUser, session: SessionDep) -> 
 
 @router.post("/users/{user_id}/grant-pro", response_model=AdminUserOut)
 async def admin_grant_pro(
-    user_id: int, payload: GrantProIn, actor: AdminUser, session: SessionDep
+    user_id: int, payload: GrantProIn, actor: ProGranter, session: SessionDep
 ) -> AdminUserOut:
     user = await admin.grant_pro(session, user_id, days=payload.days, granted_by=actor.id)
     if user is None:
@@ -300,7 +348,7 @@ async def admin_grant_pro(
 
 @router.post("/users/{user_id}/payments/{payment_id}/refund", response_model=AdminPaymentOut)
 async def admin_refund_payment(
-    user_id: int, payment_id: uuid.UUID, actor: AdminUser, session: SessionDep
+    user_id: int, payment_id: uuid.UUID, actor: Refunder, session: SessionDep
 ) -> AdminPaymentOut:
     """Refund a Stars charge through Telegram and take Pro away for the refunded period.
 
@@ -360,7 +408,7 @@ async def admin_refund_payment(
 
 @router.get("/conversations", response_model=AdminPageOut[AdminConversationOut])
 async def admin_conversations(
-    _: AdminUser,
+    _: ConversationsViewer,
     session: SessionDep,
     userId: int | None = None,
     agentId: str = "",
@@ -375,6 +423,8 @@ async def admin_conversations(
         items=[
             _conversation_out(
                 row.conversation,
+                name=row.user_name,
+                username=row.user_username,
                 language=row.user_language,
                 plan=row.user_plan,
                 preview=row.preview,
@@ -387,12 +437,12 @@ async def admin_conversations(
 
 @router.get("/conversations/{conversation_id}", response_model=AdminConversationDetailOut)
 async def admin_conversation_detail(
-    conversation_id: uuid.UUID, actor: AdminUser, session: SessionDep
+    conversation_id: uuid.UUID, actor: ConversationsViewer, session: SessionDep
 ) -> AdminConversationDetailOut:
     found = await admin.get_conversation(session, conversation_id)
     if found is None:
         raise HTTPException(status_code=404, detail="Conversation not found")
-    conversation, messages = found
+    conversation, subject, messages = found
     # Reading someone's dialogue is sensitive: keep an audit trail of who opened what.
     await admin.record_admin_event(
         session,
@@ -402,7 +452,13 @@ async def admin_conversation_detail(
         subject_user_id=conversation.user_id,
     )
     return AdminConversationDetailOut(
-        conversation=_conversation_out(conversation),
+        conversation=_conversation_out(
+            conversation,
+            name=subject.name if subject else "",
+            username=(subject.username or "") if subject else "",
+            language=subject.language if subject else "",
+            plan=billing.effective_plan(subject) if subject else "",
+        ),
         messages=[
             AdminMessageOut(
                 id=message.id,
@@ -421,7 +477,7 @@ async def admin_conversation_detail(
 
 @router.get("/payments", response_model=AdminPageOut[AdminPaymentOut])
 async def admin_payments(
-    _: AdminUser,
+    _: PaymentsViewer,
     session: SessionDep,
     limit: int = Query(default=50, ge=1, le=admin.MAX_PAGE),
     offset: int = Query(default=0, ge=0),
@@ -461,13 +517,13 @@ async def _setting_state(session: SessionDep, key: str) -> AdminSettingOut:
 
 
 @router.get("/settings", response_model=list[AdminSettingOut])
-async def admin_settings(_: AdminUser, session: SessionDep) -> list[AdminSettingOut]:
+async def admin_settings(_: SettingsViewer, session: SessionDep) -> list[AdminSettingOut]:
     return [_setting_out(state) for state in await bot_settings.list_settings(session)]
 
 
 @router.put("/settings/{key}", response_model=AdminSettingOut)
 async def admin_set_setting(
-    key: str, payload: AdminSettingIn, actor: AdminUser, session: SessionDep
+    key: str, payload: AdminSettingIn, actor: SettingsEditor, session: SessionDep
 ) -> AdminSettingOut:
     try:
         await bot_settings.set_value(session, key, payload.value, actor.id)
@@ -479,7 +535,9 @@ async def admin_set_setting(
 
 
 @router.delete("/settings/{key}", response_model=AdminSettingOut)
-async def admin_reset_setting(key: str, actor: AdminUser, session: SessionDep) -> AdminSettingOut:
+async def admin_reset_setting(
+    key: str, actor: SettingsEditor, session: SessionDep
+) -> AdminSettingOut:
     try:
         await bot_settings.delete_value(session, key, actor.id)
     except bot_settings.UnknownSettingError as error:
@@ -489,7 +547,7 @@ async def admin_reset_setting(key: str, actor: AdminUser, session: SessionDep) -
 
 @router.post("/settings/preview", response_model=AdminPromptPreviewOut)
 async def admin_prompt_preview(
-    payload: AdminPromptPreviewIn, actor: AdminUser, session: SessionDep
+    payload: AdminPromptPreviewIn, actor: SettingsEditor, session: SessionDep
 ) -> AdminPromptPreviewOut:
     """Run a message through Gemini with unsaved draft settings.
 
