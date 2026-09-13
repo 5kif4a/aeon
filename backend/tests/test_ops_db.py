@@ -5,9 +5,9 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import delete, select
 
-from app.db.models import BillingPayment, DailyUsage, ProductEvent, User
+from app.db.models import AdminAccount, BillingPayment, DailyUsage, ProductEvent, User
 from app.db.session import SessionFactory
-from app.services import billing, events, stats, users
+from app.services import admin_access, billing, events, stats, users
 
 USER_ID = 900_000_301
 OTHER_USER_ID = 900_000_302
@@ -139,6 +139,17 @@ async def test_collect_stats_aggregates_window_and_current_state():
     assert collected.limit_hits == 2
     assert collected.pro_active >= 1 and collected.trial_active >= 1
     assert collected.pro_expiring_soon >= 1 and collected.pro_not_renewing >= 1
+
+    # An owner's own Pro is not a subscription: making USER_ID an owner drops it from "Now".
+    async with SessionFactory() as session:
+        await admin_access.ensure_system_roles(session)
+        session.add(AdminAccount(user_id=USER_ID, role_id=admin_access.OWNER_ROLE_ID))
+        await session.commit()
+        without_owner = await stats.collect_stats(session, window, now)
+    assert without_owner.pro_active == collected.pro_active - 1
+    assert without_owner.pro_expiring_soon == collected.pro_expiring_soon - 1
+    assert without_owner.pro_not_renewing == collected.pro_not_renewing - 1
+    assert without_owner.trial_active == collected.trial_active
 
 
 async def test_digest_marker_dedupes_by_period_and_date():

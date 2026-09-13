@@ -5,11 +5,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import and_, case, func, select
+from sqlalchemy import and_, case, exists, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import BillingPayment, Conversation, DailyUsage, User
+from app.db.models import AdminAccount, BillingPayment, Conversation, DailyUsage, User
 from app.services import billing, events
+from app.services.admin_access import OWNER_ROLE_ID
 
 PRO_EXPIRING_DAYS = 3
 
@@ -194,6 +195,10 @@ async def collect_stats(
     stats.limit_hits = counts.get(events.QUESTION_LIMIT_HIT, 0)
     stats.generation_failures = counts.get(events.GENERATION_FAILED, 0)
 
+    # Owners keep Pro for themselves while testing; they are not subscribers.
+    is_owner = exists().where(
+        AdminAccount.user_id == User.id, AdminAccount.role_id == OWNER_ROLE_ID
+    )
     pro_active = User.pro_expires_at > current
     trial_active = and_(User.trial_expires_at > current, ~func.coalesce(pro_active, False))
     plan_row = (
@@ -221,7 +226,7 @@ async def collect_stats(
                     func.sum(case((and_(pro_active, User.pro_auto_renew.is_(False)), 1), else_=0)),
                     0,
                 ),
-            )
+            ).where(~is_owner)
         )
     ).one()
     stats.pro_active = int(plan_row[0])
