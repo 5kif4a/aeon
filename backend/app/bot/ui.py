@@ -64,38 +64,18 @@ def _markup(rows: Iterable[Iterable[InlineKeyboardButton | None]]) -> InlineKeyb
     return InlineKeyboardMarkup(cleaned)
 
 
-def home_keyboard(language: str, *, profile_complete: bool) -> InlineKeyboardMarkup:
-    rows: list[list[InlineKeyboardButton | None]] = [
+def agent_picker_keyboard(language: str) -> InlineKeyboardMarkup:
+    # The bot offers only the three advisors; the council lives in the Mini App.
+    return InlineKeyboardMarkup(
         [
-            InlineKeyboardButton(t(language, "pick_agent_button"), callback_data="agent:picker"),
-            InlineKeyboardButton(t(language, "council_button"), callback_data="council:start"),
-        ],
-        [_mini_app_button(language, "open_aeon", "home")],
-    ]
-    if not profile_complete:
-        rows.append(
             [
                 InlineKeyboardButton(
-                    t(language, "complete_profile_button"), callback_data="profile:setup"
+                    agent_button(agent_id, language), callback_data=f"agent:{agent_id}"
                 )
             ]
-        )
-    rows.append(
-        [InlineKeyboardButton(t(language, "settings_button"), callback_data="settings:open")]
+            for agent_id in AGENTS
+        ]
     )
-    return _markup(rows)
-
-
-def agent_picker_keyboard(language: str) -> InlineKeyboardMarkup:
-    rows = [
-        [InlineKeyboardButton(agent_button(agent_id, language), callback_data=f"agent:{agent_id}")]
-        for agent_id in AGENTS
-    ]
-    rows.append(
-        [InlineKeyboardButton(t(language, "council_button"), callback_data="council:start")]
-    )
-    rows.append([InlineKeyboardButton(t(language, "back_home"), callback_data="menu:home")])
-    return InlineKeyboardMarkup(rows)
 
 
 def post_answer_keyboard(language: str) -> InlineKeyboardMarkup:
@@ -105,9 +85,7 @@ def post_answer_keyboard(language: str) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     t(language, "switch_agent_button"), callback_data="agent:picker"
                 ),
-                InlineKeyboardButton(t(language, "council_button"), callback_data="council:start"),
             ],
-            [InlineKeyboardButton(t(language, "back_home"), callback_data="menu:home")],
         ]
     )
 

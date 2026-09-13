@@ -60,11 +60,10 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     language = await chat.clear_active_agent(context.bot, chat_id, announce=False)
-    user = await _user_for_update(update)
     await context.bot.send_message(
         chat_id,
         t(language, "agent_mode_closed"),
-        reply_markup=ui.home_keyboard(language, profile_complete=user.birth_date is not None),
+        reply_markup=ui.agent_picker_keyboard(language),
     )
 
 

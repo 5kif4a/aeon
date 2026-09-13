@@ -31,7 +31,7 @@ async def send_home(
 ) -> None:
     key = "home_welcome" if welcome else "home_returning"
     text = t(user.language, key, name=user.name or t(user.language, "traveler_name"))
-    keyboard = ui.home_keyboard(user.language, profile_complete=user.birth_date is not None)
+    keyboard = ui.agent_picker_keyboard(user.language)
     if edit_message_id and await messaging.try_edit(bot, chat_id, edit_message_id, text, keyboard):
         return
     await bot.send_message(chat_id, text, reply_markup=keyboard)

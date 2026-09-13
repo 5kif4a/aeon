@@ -102,7 +102,7 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
     await context.bot.send_message(
         user_id,
         t(user.language, "payment_success"),
-        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+        reply_markup=ui.agent_picker_keyboard(user.language),
     )
 
 
@@ -128,7 +128,7 @@ async def cancel_subscription_command(update: Update, context: ContextTypes.DEFA
             "payment_canceled",
             date=user.pro_expires_at.date().isoformat() if user.pro_expires_at else "—",
         ),
-        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+        reply_markup=ui.agent_picker_keyboard(user.language),
     )
 
 
@@ -169,7 +169,7 @@ async def paysupport_message(update: Update, context: ContextTypes.DEFAULT_TYPE)
     await context.bot.send_message(
         user.id,
         t(user.language, "payment_support_received"),
-        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+        reply_markup=ui.agent_picker_keyboard(user.language),
     )
     return ConversationHandler.END
 
@@ -179,7 +179,7 @@ async def paysupport_cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await context.bot.send_message(
         user.id,
         t(user.language, "payment_support_canceled"),
-        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+        reply_markup=ui.agent_picker_keyboard(user.language),
     )
     return ConversationHandler.END
 
@@ -242,7 +242,7 @@ async def refunded_payment_callback(update: Update, context: ContextTypes.DEFAUL
     await context.bot.send_message(
         user.id,
         t(user.language, "payment_refunded", amount=refund.total_amount),
-        reply_markup=ui.home_keyboard(user.language, profile_complete=user.birth_date is not None),
+        reply_markup=ui.agent_picker_keyboard(user.language),
     )
 
 
@@ -322,11 +322,11 @@ async def subscription_update_callback(update: Update, context: ContextTypes.DEF
     if event.state == "canceled":
         ops.subscription_canceled(user, source="telegram")
         text = t(user.language, "payment_canceled", date=date)
-        keyboard = ui.home_keyboard(user.language, profile_complete=user.birth_date is not None)
+        keyboard = ui.agent_picker_keyboard(user.language)
     elif event.state == "active":
         ops.subscription_restored(user)
         text = t(user.language, "payment_restored", date=date)
-        keyboard = ui.home_keyboard(user.language, profile_complete=user.birth_date is not None)
+        keyboard = ui.agent_picker_keyboard(user.language)
     else:
         ops.subscription_payment_failed(user)
         text = t(user.language, "payment_renewal_failed", date=date)

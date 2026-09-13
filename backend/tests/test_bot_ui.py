@@ -1,3 +1,4 @@
+from app.agents import AGENTS
 from app.bot import ui, webapp
 from app.db.models import User
 from app.i18n import t
@@ -12,34 +13,21 @@ def _callbacks(keyboard) -> list[str]:
     ]
 
 
-def test_home_keyboard_exposes_primary_bot_actions(monkeypatch):
-    monkeypatch.setattr(
-        webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
-    )
+def test_agent_picker_offers_only_the_three_advisors():
+    keyboard = ui.agent_picker_keyboard("ru")
 
-    keyboard = ui.home_keyboard("en", profile_complete=False)
-    callbacks = _callbacks(keyboard)
-
-    assert "agent:picker" in callbacks
-    assert "council:start" in callbacks
-    assert "profile:setup" in callbacks
-    assert "settings:open" in callbacks
+    assert _callbacks(keyboard) == [f"agent:{agent_id}" for agent_id in AGENTS]
+    assert len(keyboard.inline_keyboard) == 3
 
 
-def test_completed_profile_does_not_show_setup_again(monkeypatch):
-    monkeypatch.setattr(
-        webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
-    )
-
-    keyboard = ui.home_keyboard("en", profile_complete=True)
-
-    assert "profile:setup" not in _callbacks(keyboard)
+def test_post_answer_keyboard_only_switches_advisor():
+    assert _callbacks(ui.post_answer_keyboard("en")) == ["agent:picker"]
 
 
 def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch):
     monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: "")
 
-    keyboard = ui.home_keyboard("en", profile_complete=True)
+    keyboard = ui.limit_keyboard("en", "Pro")
 
     assert keyboard.inline_keyboard
     assert all(row for row in keyboard.inline_keyboard)
