@@ -64,8 +64,14 @@ pnpm generate:api                         # openapi-typescript from a running ba
 ```
 
 Infra: `docker compose up -d postgres` for the local database. CI (`.github/workflows/ci.yml`)
-runs hadolint, ruff, alembic upgrade against a Postgres service, pytest, oxlint, `pnpm build`, then
-deploys backend to Railway and frontend to Vercel on push to `main`.
+runs hadolint, ruff, alembic upgrade against a Postgres service, pytest, oxlint and `pnpm build`
+on pushes and pull requests to `dev` and `main`; it deploys nothing.
+
+Branches and environments: `dev` is the integration branch, `main` is production; a release is a
+pull request `dev -> main`. Railway (project "Aeon") has two environments wired through its
+GitHub integration: `dev` deploys branch `dev`, `production` deploys branch `main`; each has its
+own Postgres and its own Telegram bot. Vercel builds `main` as production and `dev` as a preview
+with `VITE_API_URL` pointing at the dev backend.
 
 Before finishing any backend change run `ruff check` and the tests you can run; before finishing
 any frontend change run `pnpm build` and `pnpm exec oxlint src`. Both must be clean: CI blocks on them.
@@ -210,5 +216,6 @@ dependency. Never keep a session open across a Gemini call or a Telegram send.
 Copy `.env.example` to `backend/.env` for local work. Minimum for a useful dev loop:
 `BOT_TOKEN`, `GEMINI_API_KEY`, `DATABASE_URL=postgresql+asyncpg://aeon:aeon@localhost:5432/aeon`,
 `BOT_MODE=polling`. `MINI_APP_URL` (an https ngrok URL to
-the Vite dev server) is needed only to open the Mini App from Telegram. Production runs
-`BOT_MODE=webhook` with `WEBHOOK_BASE_URL` set to the Railway domain.
+the Vite dev server) is needed only to open the Mini App from Telegram. Both Railway
+environments run `BOT_MODE=webhook` with `WEBHOOK_BASE_URL` set to that environment's Railway
+domain; the dev environment must use a separate bot token, a webhook belongs to one URL.
