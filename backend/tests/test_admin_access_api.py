@@ -17,6 +17,14 @@ def headers_for(user_id: int, name: str = "Admin") -> dict:
     return {"Authorization": f"tma {build_init_data(user_id=user_id, name=name)}"}
 
 
+def _owner_identity(user_id: int):
+    from app.services import admin_access
+
+    return admin_access.AdminIdentity(
+        user_id=user_id, role_id="owner", role_title="Owner", permissions=frozenset({"*"})
+    )
+
+
 @pytest.fixture(autouse=True)
 async def access_fixture():
     await make_admin(OWNER_ID, "owner", "Owner")
@@ -128,6 +136,7 @@ async def test_last_manager_cannot_be_revoked_or_demoted():
     """
     from app.services import admin_access
 
+    support_owner = _owner_identity(SUPPORT_ID)
     await make_admin(OWNER_ID, "owner", "Owner")
     async with SessionFactory() as session:
         with pytest.raises(admin_access.AccessError, match="manage access"):
@@ -136,7 +145,7 @@ async def test_last_manager_cannot_be_revoked_or_demoted():
         # Moving the only manager into a role without `admins.manage` is refused too.
         with pytest.raises(admin_access.AccessError, match="manage access"):
             await admin_access.grant_admin(
-                session, OWNER_ID, role_id="support", actor_id=SUPPORT_ID
+                session, OWNER_ID, role_id="support", actor=support_owner
             )
 
     # With a second manager in place the same revoke goes through.
@@ -154,9 +163,9 @@ async def test_last_manager_cannot_be_revoked_or_demoted():
             title="Manager",
             description="",
             permissions=["admins.manage"],
-            actor_id=SUPPORT_ID,
+            actor=support_owner,
         )
-        await admin_access.grant_admin(session, OWNER_ID, role_id=CUSTOM_ROLE, actor_id=SUPPORT_ID)
+        await admin_access.grant_admin(session, OWNER_ID, role_id=CUSTOM_ROLE, actor=support_owner)
         await admin_access.revoke_admin(session, SUPPORT_ID, actor_id=OWNER_ID)
         with pytest.raises(admin_access.AccessError, match="manage access"):
             await admin_access.update_role(
@@ -165,7 +174,7 @@ async def test_last_manager_cannot_be_revoked_or_demoted():
                 title=None,
                 description=None,
                 permissions=["stats.view"],
-                actor_id=SUPPORT_ID,
+                actor=support_owner,
             )
 
 
@@ -223,3 +232,69 @@ async def test_custom_role_lifecycle(client):
     assert (
         await client.delete(f"/api/admin/access/roles/{CUSTOM_ROLE}", headers=owner)
     ).status_code == 204
+
+
+async def test_manager_cannot_grant_beyond_own_permissions(client):
+    """`admins.manage` is not owner: nobody hands out rights they do not hold themselves."""
+    owner = headers_for(OWNER_ID)
+    manager = headers_for(SUPPORT_ID, "Manager")
+
+    created = await client.post(
+        "/api/admin/access/roles",
+        json={
+            "id": CUSTOM_ROLE,
+            "title": "Access manager",
+            "permissions": ["admins.view", "admins.manage", "users.view"],
+        },
+        headers=owner,
+    )
+    assert created.status_code == 200, created.text
+    granted = await client.post(
+        "/api/admin/access/admins",
+        json={"userId": SUPPORT_ID, "roleId": CUSTOM_ROLE},
+        headers=owner,
+    )
+    assert granted.status_code == 200, granted.text
+
+    # The owner role, a role wider than their own, and widening another role: all refused.
+    escalations = (
+        client.post(
+            "/api/admin/access/admins",
+            json={"userId": STRANGER_ID, "roleId": "owner"},
+            headers=manager,
+        ),
+        client.post(
+            "/api/admin/access/admins",
+            json={"userId": STRANGER_ID, "roleId": "support"},
+            headers=manager,
+        ),
+        client.post(
+            "/api/admin/access/roles",
+            json={"id": "wide-test", "title": "Wide", "permissions": ["payments.refund"]},
+            headers=manager,
+        ),
+        client.put(
+            "/api/admin/access/roles/marketing",
+            json={"permissions": ["stats.view", "payments.refund"]},
+            headers=manager,
+        ),
+    )
+    for attempt in escalations:
+        response = await attempt
+        assert response.status_code == 422, response.text
+        assert "do not hold" in response.json()["detail"]
+
+    # Within their own scope the manager still works: grant their own role to someone else.
+    within = await client.post(
+        "/api/admin/access/admins",
+        json={"userId": STRANGER_ID, "roleId": CUSTOM_ROLE},
+        headers=manager,
+    )
+    assert within.status_code == 200, within.text
+    # The owner can do what the manager could not.
+    promoted = await client.post(
+        "/api/admin/access/admins",
+        json={"userId": STRANGER_ID, "roleId": "owner"},
+        headers=owner,
+    )
+    assert promoted.status_code == 200, promoted.text

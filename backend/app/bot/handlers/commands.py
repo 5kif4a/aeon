@@ -89,6 +89,8 @@ async def council_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    if not messaging.is_private_chat(update):
+        return
     agent_id = query.data.split(":", 1)[1]
     chat_id = update.effective_chat.id
     if agent_id == "picker" or agent_id not in AGENTS:
@@ -104,7 +106,7 @@ async def agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         chat_id,
         query.message.message_id,
         chat.build_agent_intro(agent_id, language),
-        ui.post_answer_keyboard(language),
+        ui.agent_intro_keyboard(language),
     )
     if pending_question:
         await chat.process_agent_message(context.bot, chat_id, pending_question)
@@ -113,6 +115,8 @@ async def agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    if not messaging.is_private_chat(update):
+        return
     data = query.data
     user = await _user_for_update(update)
 

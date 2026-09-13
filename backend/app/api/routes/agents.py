@@ -8,6 +8,9 @@ from app.agents import AGENTS, agent_name, agent_role
 from app.api.deps import CurrentUser, SessionDep
 from app.api.schemas import AgentOut, StartCouncilRequest, StartDialogRequest, StartDialogResponse
 from app.bot import chat, runtime
+from app.core.ratelimit import DIALOG_LIMITER
+from app.db.models import User
+from app.i18n import t
 from app.services import conversations, users
 
 logger = logging.getLogger(__name__)
@@ -26,10 +29,17 @@ async def list_agents(user: CurrentUser) -> list[AgentOut]:
     ]
 
 
+def _throttle(user: User) -> None:
+    """Every call here ends in a Gemini generation for the caller: cap the pace per user."""
+    if not DIALOG_LIMITER.hit(str(user.id)):
+        raise HTTPException(status_code=429, detail=t(user.language, "error_too_many_requests"))
+
+
 @router.post("/agents/council/dialog", response_model=StartDialogResponse)
 async def start_council_dialog(
     payload: StartCouncilRequest, user: CurrentUser
 ) -> StartDialogResponse:
+    _throttle(user)
     application = runtime.get_application()
     if application is None:
         raise HTTPException(status_code=503, detail="Telegram bot is not running")
@@ -50,6 +60,7 @@ async def start_agent_dialog(
 ) -> StartDialogResponse:
     if agent_id not in AGENTS:
         raise HTTPException(status_code=400, detail="Unknown agent")
+    _throttle(user)
 
     application = runtime.get_application()
     if application is None:

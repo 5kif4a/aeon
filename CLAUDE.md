@@ -15,7 +15,9 @@ and keep this file for Claude Code specifics only.
   each time.
 - Local Postgres is often not running. If `pytest` fails with a connection error on
   `localhost:5432`, run the DB-free subset (`tests/test_rag.py tests/test_bot_ui.py
-  tests/test_bot_jobs.py tests/test_machiavelli_discourses_builder.py`) and say explicitly
+  tests/test_bot_jobs.py tests/test_machiavelli_discourses_builder.py tests/test_admin_auth.py
+  tests/test_admin_oauth.py tests/test_webhook.py tests/test_ratelimit.py
+  tests/test_bot_private_guard.py`) and say explicitly
   which tests were skipped; do not report the suite as green.
 - When touching billing, agent chat, or conversations, re-read the "Architecture rules that
   matter" section of `AGENTS.md` first; those flows have money and data-loss implications.

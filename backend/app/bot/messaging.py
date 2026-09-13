@@ -8,7 +8,8 @@ formatting bug must never cost the user their answer.
 
 import logging
 
-from telegram import Bot, InlineKeyboardMarkup, Message
+from telegram import Bot, InlineKeyboardMarkup, Message, Update
+from telegram.constants import ChatType
 from telegram.error import BadRequest
 
 from app.bot import formatting
@@ -18,6 +19,17 @@ logger = logging.getLogger(__name__)
 TELEGRAM_MESSAGE_LIMIT = 3900
 
 _PARSE_ERRORS = ("can't parse entities", "unsupported start tag", "unclosed start tag")
+
+
+def is_private_chat(update: Update) -> bool:
+    """True when the update comes from a private chat.
+
+    Command and text handlers use `filters.ChatType.PRIVATE`; `CallbackQueryHandler` takes no
+    filters, so callbacks check this themselves. Handlers read `effective_chat.id` as the
+    user id, which in a group would create a user row for the group instead.
+    """
+    chat = update.effective_chat
+    return chat is not None and chat.type == ChatType.PRIVATE
 
 
 def split_message(text: str) -> list[str]:

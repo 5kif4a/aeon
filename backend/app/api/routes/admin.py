@@ -40,6 +40,7 @@ from app.api.schemas import (
 from app.bot import runtime
 from app.core import admin_auth, admin_oauth
 from app.core.config import get_settings
+from app.core.ratelimit import ADMIN_LOGIN_LIMITER, rate_limited_by_ip
 from app.db.models import AdminAccount, BillingPayment, Conversation, ProductEvent, User
 from app.i18n import t
 from app.services import (
@@ -68,6 +69,8 @@ PaymentsViewer = Annotated[AdminActor, Depends(require("payments.view"))]
 Refunder = Annotated[AdminActor, Depends(require("payments.refund"))]
 SettingsViewer = Annotated[AdminActor, Depends(require("settings.view"))]
 SettingsEditor = Annotated[AdminActor, Depends(require("settings.edit"))]
+# The login endpoints are the only unauthenticated ones under /admin; they are throttled per IP.
+LoginThrottle = Depends(rate_limited_by_ip(ADMIN_LOGIN_LIMITER))
 
 STATS_DAYS = {7, 30, 90}
 # Table screens sort server-side: the column travels as `sort` (an unknown key falls back to
@@ -94,7 +97,7 @@ async def auth_config(session: SessionDep) -> AdminAuthConfigOut:
     )
 
 
-@router.post("/auth/oauth/start", response_model=AdminOAuthStartOut)
+@router.post("/auth/oauth/start", response_model=AdminOAuthStartOut, dependencies=[LoginThrottle])
 async def oauth_start() -> AdminOAuthStartOut:
     """Begin the Telegram OIDC login; the PKCE verifier stays on the server."""
     try:
@@ -104,7 +107,7 @@ async def oauth_start() -> AdminOAuthStartOut:
     return AdminOAuthStartOut(authorizeUrl=authorize_url)
 
 
-@router.post("/auth/oauth/callback", response_model=AdminSessionOut)
+@router.post("/auth/oauth/callback", response_model=AdminSessionOut, dependencies=[LoginThrottle])
 async def oauth_callback(payload: AdminOAuthCallbackIn, session: SessionDep) -> AdminSessionOut:
     try:
         identity = await admin_oauth.complete_login(payload.code, payload.state)
@@ -125,7 +128,7 @@ async def oauth_callback(payload: AdminOAuthCallbackIn, session: SessionDep) -> 
     )
 
 
-@router.post("/auth/telegram", response_model=AdminSessionOut)
+@router.post("/auth/telegram", response_model=AdminSessionOut, dependencies=[LoginThrottle])
 async def login_with_telegram(payload: AdminLoginIn, session: SessionDep) -> AdminSessionOut:
     try:
         user_id = admin_auth.validate_login_widget(payload.model_dump(exclude_none=True))

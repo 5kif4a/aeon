@@ -71,6 +71,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def onboarding_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    if not messaging.is_private_chat(update):
+        return
     language = normalize_language(query.data.rsplit(":", 1)[1])
     chat_id = update.effective_chat.id
     async with SessionFactory() as session:
@@ -89,6 +91,8 @@ async def onboarding_language_callback(update: Update, context: ContextTypes.DEF
 async def onboarding_agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
     await query.answer()
+    if not messaging.is_private_chat(update):
+        return
     agent_id = query.data.rsplit(":", 1)[1]
     chat_id = update.effective_chat.id
     async with SessionFactory() as session:
@@ -103,12 +107,14 @@ async def onboarding_agent_callback(update: Update, context: ContextTypes.DEFAUL
         )
         return
     await chat.set_active_agent(context.bot, chat_id, agent_id, announce=False)
+    # The intro invites a conversation, so the chat is the next step; the only button offered
+    # is the Mini App.
     await messaging.try_edit(
         context.bot,
         chat_id,
         query.message.message_id,
         chat.build_agent_intro(agent_id, user.language),
-        ui.onboarding_agent_keyboard(user.language),
+        ui.agent_intro_keyboard(user.language),
     )
 
 

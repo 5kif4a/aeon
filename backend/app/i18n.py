@@ -326,6 +326,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_network": "The answer took too long to arrive. Please try again in a minute.",
         "error_empty": "No answer arrived. Try rephrasing your question.",
         "error_generic": "The agent could not answer right now. Try again in a minute.",
+        "error_too_many_requests": "Too many requests. Please wait a minute and try again.",
     },
     "ru": {
         # Onboarding
@@ -476,6 +477,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "error_network": "Ответ не успел прийти. Пожалуйста, попробуйте ещё раз через минуту.",
         "error_empty": "Ответ не пришёл. Попробуйте переформулировать вопрос.",
         "error_generic": "Советник сейчас не смог ответить. Пожалуйста, попробуйте ещё раз через минуту.",
+        "error_too_many_requests": "Слишком много запросов. Подождите минуту и попробуйте ещё раз.",
     },
 }
 

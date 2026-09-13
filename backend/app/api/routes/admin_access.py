@@ -81,7 +81,7 @@ async def create_role(
             title=payload.title,
             description=payload.description,
             permissions=payload.permissions,
-            actor_id=actor.id,
+            actor=actor.identity,
         )
     except admin_access.AccessError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -104,7 +104,7 @@ async def update_role(
             title=payload.title,
             description=payload.description,
             permissions=payload.permissions,
-            actor_id=actor.id,
+            actor=actor.identity,
         )
     except admin_access.AccessError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
@@ -130,7 +130,7 @@ async def grant_admin(
             payload.userId,
             role_id=payload.roleId,
             note=payload.note,
-            actor_id=actor.id,
+            actor=actor.identity,
         )
     except admin_access.AccessError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error

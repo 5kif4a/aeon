@@ -1,5 +1,6 @@
 """FastAPI application: Mini App API + Telegram bot (webhook or polling) + static frontend."""
 
+import hmac
 import logging
 import secrets
 from contextlib import asynccontextmanager
@@ -61,6 +62,12 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("BOT_TOKEN is not set; running API without the bot")
 
+    if settings.bot_mode == "webhook" and not settings.admin_session_secret:
+        logger.warning(
+            "ADMIN_SESSION_SECRET is not set; admin sessions are signed with a key derived "
+            "from BOT_TOKEN"
+        )
+
     yield
 
     if application is not None:
@@ -85,12 +92,24 @@ if _cors_origins:
 app.include_router(api_router)
 
 
+def _webhook_authorized(header: str | None) -> bool:
+    """True only when a secret is configured and the header matches it.
+
+    In polling mode no secret exists, so the endpoint must refuse everything: an empty
+    header would otherwise equal the empty secret and let anyone queue forged updates
+    (a fake `successful_payment` would grant Pro).
+    """
+    if not _webhook_secret or header is None:
+        return False
+    return hmac.compare_digest(header, _webhook_secret)
+
+
 @app.post(WEBHOOK_PATH, include_in_schema=False)
 async def telegram_webhook(request: Request) -> Response:
     application = runtime.get_application()
     if application is None:
         raise HTTPException(status_code=503, detail="Bot is not running")
-    if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != _webhook_secret:
+    if not _webhook_authorized(request.headers.get("X-Telegram-Bot-Api-Secret-Token")):
         raise HTTPException(status_code=403, detail="Invalid secret token")
     update = Update.de_json(await request.json(), application.bot)
     await application.update_queue.put(update)

@@ -79,8 +79,12 @@ any frontend change run `pnpm build` and `pnpm exec oxlint src`. Both must be cl
 ## Architecture rules that matter
 
 **Auth.** Every `/api/*` route takes `CurrentUser` (`app/api/deps.py`), which validates Telegram
-`initData` (HMAC, `INIT_DATA_MAX_AGE`) and calls `users.get_or_create_user`. There is no other auth.
-The bot identifies users by `chat_id == telegram user id` (private chats only); `User.id` is that id.
+`initData` (HMAC, `INIT_DATA_MAX_AGE`, 6 hours by default) and calls `users.get_or_create_user`.
+There is no other auth. The bot identifies users by `chat_id == telegram user id` (private chats
+only); `User.id` is that id. The few endpoints that are unauthenticated or spend money per call are
+throttled in-process by `app/core/ratelimit.py` (admin logins per IP, dialog/checkout per user);
+the limiter is memory-only, which is fine for a single replica. `/tg/webhook` accepts an update only
+when a webhook secret exists and the header matches it, so in polling mode the route always answers 403.
 
 **Billing is server-owned.** Plans are `Free | Trial | Pro`. The truth is
 `billing.effective_plan(user)` computed from `pro_expires_at` / `trial_expires_at`; the `users.plan`
@@ -147,7 +151,9 @@ enforce it per endpoint with `Depends(require("segments.edit"))`; never add an a
 without a permission. There is **no env allowlist**: `OPS_ADMIN_IDS` was carried into the table
 once by `20260911_seed_admin_owners` and is not read anywhere else. What keeps the panel
 reachable is the invariant in `admin_access`: the last account that can manage access cannot be
-revoked, moved to a narrower role, or have `admins.manage` stripped from its role. To create the
+revoked, moved to a narrower role, or have `admins.manage` stripped from its role. `admins.manage`
+is not owner: an admin can only grant roles, create roles or re-cut roles whose permissions are a
+subset of their own (`_assert_within_actor_scope`), and only an owner can hand out `owner`. To create the
 first admin in a fresh environment, or to recover from an emptied table, run
 `uv run python -m scripts.grant_admin <telegram id>`; being a repair tool, the script writes
 the row directly and deliberately skips the invariant. The service function `grant_admin`

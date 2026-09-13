@@ -118,3 +118,17 @@ def test_decode_id_token_accepts_an_audience_list(configured):
     identity = admin_oauth.decode_id_token(make_id_token(aud=["other", CLIENT_ID]), now=1_000_000)
 
     assert identity.user_id == 42
+
+
+def test_pending_logins_are_capped(configured):
+    """Unauthenticated `begin_login` spam evicts the oldest requests instead of growing."""
+    states = []
+    for index in range(admin_oauth.MAX_PENDING_LOGINS + 5):
+        _, state = admin_oauth.begin_login(now=1_000_000 + index)
+        states.append(state)
+    assert len(admin_oauth._pending) == admin_oauth.MAX_PENDING_LOGINS
+    # The five oldest are gone, the newest still works.
+    for state in states[:5]:
+        with pytest.raises(AdminAuthError):
+            admin_oauth._take_pending(state, 1_000_100)
+    admin_oauth._take_pending(states[-1], 1_000_100)

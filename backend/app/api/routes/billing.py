@@ -10,6 +10,7 @@ from app.api.deps import CurrentUser, SessionDep
 from app.api.schemas import BillingStatusOut, CancelSubscriptionOut, CheckoutOut
 from app.bot import runtime
 from app.core.config import get_settings
+from app.core.ratelimit import DIALOG_LIMITER
 from app.i18n import t
 from app.services import billing, ops
 
@@ -38,6 +39,9 @@ async def activate_trial(user: CurrentUser, session: SessionDep) -> BillingStatu
 
 @router.post("/checkout", response_model=CheckoutOut)
 async def create_checkout(user: CurrentUser) -> CheckoutOut:
+    # Each call creates a Telegram invoice; share the per-user window with the dialogue calls.
+    if not DIALOG_LIMITER.hit(str(user.id)):
+        raise HTTPException(status_code=429, detail=t(user.language, "error_too_many_requests"))
     application = runtime.get_application()
     if application is None:
         raise HTTPException(status_code=503, detail="Telegram bot is not running")

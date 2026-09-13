@@ -8,6 +8,7 @@ account that can manage access cannot be revoked or demoted. To recover from an 
 (a fresh environment, or rows deleted by hand) use `scripts/grant_admin.py`.
 """
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from sqlalchemy import delete, func, select
@@ -173,6 +174,20 @@ def _clean_permissions(permissions: list[str]) -> list[str]:
     return [permission.key for permission in PERMISSIONS if permission.key in set(permissions)]
 
 
+def _assert_within_actor_scope(actor: AdminIdentity, permissions: Iterable[str]) -> None:
+    """Refuse to hand out permissions the actor does not hold themselves.
+
+    Without this, `admins.manage` alone would equal owner: a manager could grant the owner
+    role to a second account, or re-cut any other role to include everything. Owners
+    (wildcard) may grant anything; the owner role itself can only be granted by an owner.
+    """
+    if actor.is_owner:
+        return
+    granted = set(permissions)
+    if WILDCARD in granted or not granted <= actor.permissions:
+        raise AccessError("You cannot grant permissions you do not hold yourself")
+
+
 def _clean_role_id(role_id: str) -> str:
     slug = role_id.strip().lower()
     if not slug or not all(char.isalnum() or char in "_-" for char in slug):
@@ -187,20 +202,22 @@ async def create_role(
     title: str,
     description: str,
     permissions: list[str],
-    actor_id: int,
+    actor: AdminIdentity,
 ) -> AdminRole:
     slug = _clean_role_id(role_id)
     if await session.get(AdminRole, slug) is not None:
         raise AccessError("A role with this id already exists")
+    cleaned = _clean_permissions(permissions)
+    _assert_within_actor_scope(actor, cleaned)
     role = AdminRole(
         id=slug,
         title=title.strip() or slug,
         description=description.strip(),
-        permissions=_clean_permissions(permissions),
+        permissions=cleaned,
         is_system=False,
     )
     session.add(role)
-    events.record(session, events.ADMIN_ROLE_CHANGED, actor_id, role_id=slug, action="created")
+    events.record(session, events.ADMIN_ROLE_CHANGED, actor.user_id, role_id=slug, action="created")
     await session.commit()
     await session.refresh(role)
     return role
@@ -213,7 +230,7 @@ async def update_role(
     title: str | None,
     description: str | None,
     permissions: list[str] | None,
-    actor_id: int,
+    actor: AdminIdentity,
 ) -> AdminRole:
     role = await session.get(AdminRole, role_id)
     if role is None:
@@ -226,13 +243,14 @@ async def update_role(
         role.description = description.strip()
     if permissions is not None:
         cleaned = _clean_permissions(permissions)
+        _assert_within_actor_scope(actor, cleaned)
         if not (WILDCARD in cleaned or "admins.manage" in cleaned):
             await _assert_manager_remains_after_role_change(session, role.id)
         role.permissions = cleaned
     events.record(
         session,
         events.ADMIN_ROLE_CHANGED,
-        actor_id,
+        actor.user_id,
         role_id=role.id,
         action="updated",
         permissions=list(role.permissions or ()),
@@ -343,15 +361,17 @@ async def grant_admin(
     *,
     role_id: str,
     note: str = "",
-    actor_id: int,
+    actor: AdminIdentity,
 ) -> AdminRow:
     """Give (or move) admin access to a Telegram user. Idempotent per user id."""
+    actor_id = actor.user_id
     await ensure_system_roles(session)
     role = await session.get(AdminRole, role_id)
     if role is None:
         raise AccessError("Unknown role")
     if user_id == actor_id:
         raise AccessError("You cannot change your own access")
+    _assert_within_actor_scope(actor, role.permissions or ())
     # Moving the last manager into a narrower role would close the panel for everyone.
     existing = await session.get(AdminAccount, user_id)
     if existing is not None:

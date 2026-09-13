@@ -33,6 +33,9 @@ SCOPE = "openid profile"
 # How long a started login may stay unfinished. Telegram codes are short-lived anyway.
 STATE_TTL_SECONDS = 600
 TOKEN_TIMEOUT_SECONDS = 15.0
+# `begin_login` is unauthenticated: without a cap, spamming it would grow `_pending` without
+# bound for the TTL. Real logins are few; when full, the oldest requests give way.
+MAX_PENDING_LOGINS = 500
 
 
 @dataclass(frozen=True)
@@ -70,6 +73,11 @@ def _b64url(raw: bytes) -> str:
 def _prune(now: float) -> None:
     for state, pending in list(_pending.items()):
         if pending.expires_at <= now:
+            del _pending[state]
+    overflow = len(_pending) - (MAX_PENDING_LOGINS - 1)
+    if overflow > 0:
+        oldest = sorted(_pending, key=lambda key: _pending[key].expires_at)[:overflow]
+        for state in oldest:
             del _pending[state]
 
 

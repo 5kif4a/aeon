@@ -46,7 +46,9 @@ class Settings(BaseSettings):
 
     reminder_hour: int = 9
     reminder_tz: str = "UTC"
-    init_data_max_age: int = 172_800
+    # Telegram re-issues initData on every Mini App launch; a stolen header should not stay
+    # usable for days.
+    init_data_max_age: int = 21_600
 
     # Product-owner notifications: a Telegram group (negative chat id) that receives
     # sales/user events, alerts and periodic digests. Empty/0 disables everything.
