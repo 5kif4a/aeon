@@ -178,19 +178,18 @@ COUNTRIES = [
 MESSAGES: dict[str, dict[str, str]] = {
     "en": {
         # Onboarding
-        "onboarding_choose_language": "✦ Welcome to Aeon.\n\nChoose your language:",
-        "home_welcome_named": (
-            "✦ Welcome to Aeon, {name}.\n\n"
-            "Bring one real decision. Marcus Aurelius will examine what is in your control, "
-            "Machiavelli will test the strategy, and Carl Jung will look beneath the surface.\n\n"
-            "Choose one mind to begin with."
-        ),
-        "home_welcome": (
+        "onboarding_choose_language": (
             "✦ Welcome to Aeon.\n\n"
-            "Bring one real decision. Marcus Aurelius will examine what is in your control, "
-            "Machiavelli will test the strategy, and Carl Jung will look beneath the surface.\n\n"
-            "Choose one mind to begin with."
+            "Three minds think alongside you here: Marcus Aurelius, on what is actually "
+            "yours to control; Machiavelli, on strategy, influence and people; "
+            "Carl Jung, on what moves beneath the surface.\n\n"
+            "Tell them what is going on — a decision you keep turning over, a doubt, "
+            "or simply how the day went. It is a conversation, not a form to fill in. "
+            "Aeon also keeps your goals, your diary and the years of your life in one place.\n\n"
+            "Choose your language / Выберите язык:"
         ),
+        "home_welcome_named": "Good, {name}. Who should speak with you first?",
+        "home_welcome": "Good. Who should speak with you first?",
         "home_returning_named": "Welcome back, {name}.\n\nWhat do you want to examine today?",
         "home_returning": "Welcome back.\n\nWhat do you want to examine today?",
         "home_active_agent": "Your current advisor is {agent}.",
@@ -276,7 +275,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "council_limit_pro": "Today's Councils have convened. Again tomorrow.",
         # Agent dialogue
         "agent_mode_closed": "Dialogue closed. Choose what you want to do next.",
-        "agent_intro_suffix": "Send one real question. You can switch perspectives after the answer.",
+        "agent_intro_suffix": (
+            "Start however you like — a question, a situation, or the whole story. "
+            "You can change advisor at any point."
+        ),
         "agent_thinking": "{name} is thinking...",
         "agent_continue": "Continuing...",
         "stream_fallback": "Streaming did not respond. Trying the regular mode...",
@@ -287,7 +289,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "choose_agent_for_question": "Who should examine this question? Your message is saved.",
         "dialog_menu_title": "What do you want to do?",
         "open_mini_app": "Open Aeon",
-        "onboarding_open_mini_app": "✦ Ask Your First Question",
         "open_aeon": "Open Aeon",
         "council_button": "Council of Three",
         "settings_button": "Settings",
@@ -330,19 +331,18 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "ru": {
         # Onboarding
-        "onboarding_choose_language": "✦ Welcome to Aeon.\n\nChoose your language:",
-        "home_welcome_named": (
-            "✦ Добро пожаловать в Aeon, {name}.\n\n"
-            "Принесите одно настоящее решение. Марк Аврелий отделит подвластное Вам, "
-            "Макиавелли проверит стратегию, а Карл Юнг поможет заглянуть под поверхность.\n\n"
-            "Выберите советника, с которого начнёте."
-        ),
-        "home_welcome": (
+        "onboarding_choose_language": (
             "✦ Добро пожаловать в Aeon.\n\n"
-            "Принесите одно настоящее решение. Марк Аврелий отделит подвластное Вам, "
-            "Макиавелли проверит стратегию, а Карл Юнг поможет заглянуть под поверхность.\n\n"
-            "Выберите советника, с которого начнёте."
+            "Здесь вместе с Вами думают трое: Марк Аврелий — о том, что действительно "
+            "в Вашей власти; Макиавелли — о стратегии, влиянии и людях; "
+            "Карл Юнг — о том, что движется под поверхностью.\n\n"
+            "Расскажите им, что происходит: решение, которое Вы обдумываете, сомнение "
+            "или просто как прошёл день. Это разговор, а не анкета. "
+            "А ещё Aeon хранит Ваши цели, дневник и годы Вашей жизни в одном месте.\n\n"
+            "Выберите язык / Choose your language:"
         ),
+        "home_welcome_named": "Хорошо, {name}. Кто заговорит с Вами первым?",
+        "home_welcome": "Хорошо. Кто заговорит с Вами первым?",
         "home_returning_named": "С возвращением, {name}.\n\nЧто Вы хотите обдумать сегодня?",
         "home_returning": "С возвращением.\n\nЧто Вы хотите обдумать сегодня?",
         "home_active_agent": "Сейчас Ваш советник — {agent}.",
@@ -427,7 +427,10 @@ MESSAGES: dict[str, dict[str, str]] = {
         "council_limit_pro": "Советы на сегодня состоялись. Завтра снова.",
         # Agent dialogue
         "agent_mode_closed": "Диалог завершён. Выберите, что хотите сделать дальше.",
-        "agent_intro_suffix": "Отправьте один настоящий вопрос. После ответа можно сменить точку зрения.",
+        "agent_intro_suffix": (
+            "Начните как Вам удобно — с вопроса, с ситуации или со всей истории целиком. "
+            "Советника можно сменить в любой момент."
+        ),
         "agent_thinking": "{name} размышляет...",
         "agent_continue": "Продолжаю...",
         "stream_fallback": "Потоковая генерация не ответила. Пробую обычный режим...",
@@ -438,7 +441,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "choose_agent_for_question": "Кто должен рассмотреть этот вопрос? Ваше сообщение сохранено.",
         "dialog_menu_title": "Что Вы хотите сделать?",
         "open_mini_app": "Открыть Aeon",
-        "onboarding_open_mini_app": "✦ Задать первый вопрос",
         "open_aeon": "Открыть Aeon",
         "council_button": "Совет трёх",
         "settings_button": "Настройки",

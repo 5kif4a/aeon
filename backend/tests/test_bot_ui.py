@@ -29,6 +29,25 @@ def test_agent_picker_prefix_addresses_the_onboarding_step():
     assert _callbacks(keyboard) == [f"onboarding:agent:{agent_id}" for agent_id in AGENTS]
 
 
+def test_agent_intro_keyboard_only_opens_the_mini_app(monkeypatch):
+    monkeypatch.setattr(
+        webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
+    )
+
+    keyboard = ui.agent_intro_keyboard("ru")
+
+    assert _callbacks(keyboard) == []
+    web_buttons = [b for row in keyboard.inline_keyboard for b in row if b.web_app]
+    assert len(web_buttons) == 1
+    assert web_buttons[0].text == t("ru", "open_aeon")
+
+
+def test_agent_intro_keyboard_is_absent_without_a_mini_app(monkeypatch):
+    monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: "")
+
+    assert ui.agent_intro_keyboard("ru") is None
+
+
 def test_post_answer_keyboard_only_switches_advisor():
     assert _callbacks(ui.post_answer_keyboard("en")) == ["agent:picker"]
 
@@ -41,13 +60,12 @@ def test_language_keyboard_puts_the_detected_language_first():
     assert keyboard.inline_keyboard[1][0].text == "English"
 
 
-@pytest.mark.parametrize("build", [ui.home_keyboard, ui.onboarding_agent_keyboard])
-def test_home_style_keyboards_open_the_mini_app_and_switch_advisor(monkeypatch, build):
+def test_home_keyboard_opens_the_mini_app_and_switches_advisor(monkeypatch):
     monkeypatch.setattr(
         webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
     )
 
-    keyboard = build("en")
+    keyboard = ui.home_keyboard("en")
     web_buttons = [b for row in keyboard.inline_keyboard for b in row if b.web_app]
 
     assert len(web_buttons) == 1
@@ -55,11 +73,10 @@ def test_home_style_keyboards_open_the_mini_app_and_switch_advisor(monkeypatch, 
     assert _callbacks(keyboard) == ["agent:picker"]
 
 
-@pytest.mark.parametrize("build", [ui.home_keyboard, ui.onboarding_agent_keyboard])
-def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch, build):
+def test_home_keyboard_does_not_emit_empty_rows_without_mini_app(monkeypatch):
     monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: "")
 
-    keyboard = build("en")
+    keyboard = ui.home_keyboard("en")
 
     assert keyboard.inline_keyboard
     assert all(row for row in keyboard.inline_keyboard)

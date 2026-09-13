@@ -110,18 +110,14 @@ def home_keyboard(language: str) -> InlineKeyboardMarkup:
     )
 
 
-def onboarding_agent_keyboard(language: str) -> InlineKeyboardMarkup:
-    # First advisor chosen: the first question is best asked from the Mini App starters.
-    return _markup(
-        [
-            [_mini_app_button(language, "onboarding_open_mini_app", "home")],
-            [
-                InlineKeyboardButton(
-                    t(language, "switch_agent_button"), callback_data="agent:picker"
-                )
-            ],
-        ]
-    )
+def agent_intro_keyboard(language: str) -> InlineKeyboardMarkup | None:
+    """The advisor has just greeted the user: the only offer is the Mini App.
+
+    Returns None rather than an empty markup so an unset MINI_APP_URL leaves the message
+    bare instead of sending a keyboard with no buttons.
+    """
+    button = _mini_app_button(language, "open_aeon", "home")
+    return InlineKeyboardMarkup([[button]]) if button else None
 
 
 def post_answer_keyboard(language: str) -> InlineKeyboardMarkup:
