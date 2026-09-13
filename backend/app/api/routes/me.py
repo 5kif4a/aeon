@@ -7,7 +7,7 @@ from app.api.schemas import (
     ProfileOut,
     ProfileUpdate,
 )
-from app.services import admin_access, users
+from app.services import admin_access, events, ops, users
 
 router = APIRouter(tags=["profile"])
 
@@ -23,8 +23,20 @@ async def get_me(user: CurrentUser, session: SessionDep) -> ProfileOut:
 @router.patch("/me", response_model=ProfileOut)
 async def update_me(payload: ProfileUpdate, user: CurrentUser, session: SessionDep) -> ProfileOut:
     fields = payload.to_user_fields()
+    # The first birth date completes onboarding: count it, and skip that day's reminders so the
+    # user is not pinged minutes after filling in the form.
+    first_birth_date = user.birth_date is None and fields.get("birth_date") is not None
+    if first_birth_date:
+        today = users.local_datetime(user).date()
+        fields.setdefault("last_daily_notification_date", today)
+        fields.setdefault("last_life_weekly_date", today)
+        events.record(
+            session, events.ONBOARDING_COMPLETED, user.id, birth_date=fields["birth_date"]
+        )
     if fields:
         user = await users.update_user(session, user, fields)
+    if first_birth_date:
+        ops.onboarding_completed(user)
     is_admin = await admin_access.resolve_identity(session, user.id) is not None
     return ProfileOut.from_user(user, is_admin=is_admin)
 

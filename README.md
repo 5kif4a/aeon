@@ -45,7 +45,7 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 
 - **Three AI agents** — Marcus Aurelius (stoic mentor), Machiavelli (business tactician), Carl Jung (shadow analyst). Selected in the Mini App or via `/agents`; dialogue happens in the bot chat with streamed answers edited into a single message.
 - **Agent book RAG** — paid and trial users receive answers grounded in local excerpts from Marcus Aurelius's *Meditations*, Machiavelli's *The Prince* and *Discourses on Livy*, or Jung's *Man and His Symbols*, with section and page source notes. Basic users keep the prompt-only agents.
-- **Onboarding in the bot** — `/start` flow (language → name → staged birth date picker → country) editing one Telegram message, saved straight to PostgreSQL.
+- **Onboarding in the bot** — `/start` flow (language → first advisor → Mini App hand-off) editing one Telegram message; the birth date for the life calendar is filled in the Mini App.
 - **Memento Mori calendar** — 90 years as 4,680 life weeks, computed from the birth date in the profile.
 - **Diary** — reflection notes with quick prompts, stored server-side.
 - **Goals** — one active goal connected to localized daily agent notifications (`JobQueue`, configurable hour and timezone).

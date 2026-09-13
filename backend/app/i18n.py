@@ -175,11 +175,6 @@ COUNTRIES = [
     ("other", {"ru": "Другая страна", "en": "Other"}),
 ]
 
-MONTHS = {
-    "ru": ["Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"],
-    "en": ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
-}
-
 MESSAGES: dict[str, dict[str, str]] = {
     "en": {
         # Onboarding
@@ -209,11 +204,6 @@ MESSAGES: dict[str, dict[str, str]] = {
             "What should we call you? 👤\n\n"
             "● ○ ○ ○"
         ),
-        "ask_birthdate": (
-            "Your life calendar\n\nWhen were you born? This unlocks your Memento Mori calendar "
-            "and schedules your weekly reflection."
-        ),
-        "bad_birthdate": "I cannot read that date. Send it as YYYY-MM-DD, for example 1995-05-18.",
         "ask_country": (
             "Where are you from, {name}? 🌍\n\n"
             "This helps Aeon personalize your experience.\n\n"
@@ -225,19 +215,8 @@ MESSAGES: dict[str, dict[str, str]] = {
             "will help you see it from three different perspectives.\n\n"
             "● ● ● ●"
         ),
-        "profile_saved": (
-            "Life calendar unlocked. You are {age}.\n\n"
-            "Choose your local time in Settings so reflections arrive when they are useful."
-        ),
         "unknown": "I am here. Press /start to register.",
         "unsupported_message": "I work with text only. Please type your question.",
-        "birth_back": "← Periods",
-        "birth_back_years": "← Years",
-        "birth_back_months": "← Months",
-        "birth_period": "Your journey through time ⏳\n\nChoose your birth period.\n\n● ● ○ ○",
-        "birth_year": "Your journey through time ⏳\n\nChoose your birth year.\n\n● ● ○ ○",
-        "birth_month": "Your journey through time ⏳\n\nChoose your birth month.\n\n● ● ○ ○",
-        "birth_day": "Your journey through time ⏳\n\nChoose your birth day.\n\n● ● ○ ○",
         # Goals
         "goal_set": "Goal accepted. I will keep it visible until you close it.",
         "goal_closed": "Goal closed. Reminders stopped.",
@@ -315,7 +294,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "onboarding_open_mini_app": "✦ Ask Your First Question",
         "open_aeon": "Open Aeon",
         "council_button": "Council of Three",
-        "complete_profile_button": "Unlock life calendar",
         "settings_button": "Settings",
         "back_home": "← Main menu",
         "back_settings": "← Settings",
@@ -379,11 +357,6 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Как к Вам обращаться? 👤\n\n"
             "● ○ ○ ○"
         ),
-        "ask_birthdate": (
-            "Календарь жизни\n\nКогда Вы родились? Это откроет календарь Memento Mori "
-            "и еженедельные размышления."
-        ),
-        "bad_birthdate": "Не удалось распознать дату. Напишите её в формате ГГГГ-ММ-ДД, например 1995-05-18.",
         "ask_country": (
             "Откуда Вы, {name}? 🌍\n\n"
             "Это поможет Aeon точнее настроить приложение для Вас.\n\n"
@@ -395,19 +368,8 @@ MESSAGES: dict[str, dict[str, str]] = {
             "и Карл Юнг помогут взглянуть на него с трёх разных сторон.\n\n"
             "● ● ● ●"
         ),
-        "profile_saved": (
-            "Календарь жизни открыт. Ваш возраст: {age}.\n\n"
-            "Выберите местное время в настройках, чтобы сообщения приходили вовремя."
-        ),
         "unknown": "Я рядом. Откройте главное меню командой /start.",
         "unsupported_message": "Я работаю только с текстом. Напишите Ваш вопрос словами.",
-        "birth_back": "← Периоды",
-        "birth_back_years": "← Годы",
-        "birth_back_months": "← Месяцы",
-        "birth_period": "Ваш путь во времени ⏳\n\nВыберите период рождения.\n\n● ● ○ ○",
-        "birth_year": "Ваш путь во времени ⏳\n\nВыберите год рождения.\n\n● ● ○ ○",
-        "birth_month": "Ваш путь во времени ⏳\n\nВыберите месяц рождения.\n\n● ● ○ ○",
-        "birth_day": "Ваш путь во времени ⏳\n\nВыберите день рождения.\n\n● ● ○ ○",
         # Goals
         "goal_set": "Цель принята. Я буду держать её в поле внимания, пока Вы её не закроете.",
         "goal_closed": "Цель закрыта. Напоминания остановлены.",
@@ -484,7 +446,6 @@ MESSAGES: dict[str, dict[str, str]] = {
         "onboarding_open_mini_app": "✦ Задать первый вопрос",
         "open_aeon": "Открыть Aeon",
         "council_button": "Совет трёх",
-        "complete_profile_button": "Открыть календарь жизни",
         "settings_button": "Настройки",
         "back_home": "← Главное меню",
         "back_settings": "← Настройки",
@@ -564,15 +525,7 @@ def daily_notification_content(lang: str | None, sequence: int) -> tuple[str, st
     return LIFE_WEEKLY_AGENT_NAMES[language][agent], texts[text_index]
 
 
-def birth_picker_text(lang: str, stage: str) -> str:
-    return t(lang, f"birth_{stage}")
-
-
 def country_label(code: str, lang: str) -> str:
     language = normalize_language(lang)
     labels = dict(COUNTRIES).get(code) or dict(COUNTRIES)["other"]
     return labels.get(language, labels["en"])
-
-
-def month_labels(lang: str) -> list[str]:
-    return MONTHS[normalize_language(lang)]
