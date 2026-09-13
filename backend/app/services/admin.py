@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import Date, case, cast, func, or_, select
+from sqlalchemy import Date, DateTime, case, cast, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -18,6 +18,28 @@ from app.db.models import (
 from app.services import billing, events
 
 MAX_PAGE = 200
+
+
+def _ordering(expression, order: str):
+    """One ORDER BY term. NULLs always sort last so empty cells never lead a page."""
+    clause = expression.asc() if order == "asc" else expression.desc()
+    return clause.nulls_last()
+
+
+def _order_by(columns: dict, sort: str, order: str, default: str, tiebreaker):
+    """Resolve a client sort key against the columns a list actually offers.
+
+    An unknown key falls back to the list's default instead of failing: sort keys travel in
+    the URL, and a stale link should still open the screen. The tiebreaker keeps paging
+    stable when the sorted column repeats itself.
+    """
+    expression = columns.get(sort, columns[default])
+    return [_ordering(expression, order), tiebreaker.desc()]
+
+
+def _plan_rank(now: datetime):
+    """Plans sort by value (Pro > Trial > Free), not by the alphabet."""
+    return case((User.pro_expires_at > now, 2), (User.trial_expires_at > now, 1), else_=0)
 
 
 def _plan_expression(now: datetime):
@@ -49,6 +71,8 @@ async def list_users(
     *,
     query: str = "",
     plan: str = "",
+    sort: str = "created",
+    order: str = "desc",
     limit: int = 50,
     offset: int = 0,
     now: datetime | None = None,
@@ -123,9 +147,27 @@ async def list_users(
     if filters:
         base = base.where(*filters)
 
+    # `last_active` repeats in SQL what the loop below computes in Python: the later of the
+    # last conversation and the last usage day. `greatest` ignores NULLs in Postgres, so a
+    # user with only one of the two still sorts by it.
+    sort_columns = {
+        "created": User.created_at,
+        "name": User.name,
+        "plan": _plan_rank(current),
+        "country": User.country,
+        "questions": func.coalesce(usage.c.questions, 0),
+        "conversations": func.coalesce(convs.c.conversations, 0),
+        "stars": func.coalesce(payments.c.stars, 0),
+        "lastActive": func.greatest(
+            convs.c.last_conversation, cast(usage.c.last_usage, DateTime(timezone=True))
+        ),
+    }
+
     total = await session.scalar(select(func.count()).select_from(base.subquery())) or 0
     rows = await session.execute(
-        base.order_by(User.created_at.desc()).limit(min(limit, MAX_PAGE)).offset(offset)
+        base.order_by(*_order_by(sort_columns, sort, order, "created", User.id))
+        .limit(min(limit, MAX_PAGE))
+        .offset(offset)
     )
     items = []
     for user, plan_value, questions, last_conversation, last_usage, conversations, stars in rows:
@@ -228,6 +270,8 @@ async def list_conversations(
     user_id: int | None = None,
     agent_id: str = "",
     status: str = "",
+    sort: str = "updated",
+    order: str = "desc",
     limit: int = 50,
     offset: int = 0,
     now: datetime | None = None,
@@ -259,9 +303,20 @@ async def list_conversations(
     if status in ("active", "closed"):
         base = base.where(Conversation.status == status)
 
+    sort_columns = {
+        "updated": Conversation.updated_at,
+        "created": Conversation.created_at,
+        "agent": Conversation.agent_id,
+        "status": Conversation.status,
+        "messages": Conversation.message_count,
+        "user": User.name,
+    }
+
     total = await session.scalar(select(func.count()).select_from(base.subquery())) or 0
     rows = await session.execute(
-        base.order_by(Conversation.updated_at.desc()).limit(min(limit, MAX_PAGE)).offset(offset)
+        base.order_by(*_order_by(sort_columns, sort, order, "updated", Conversation.id))
+        .limit(min(limit, MAX_PAGE))
+        .offset(offset)
     )
     items = [
         ConversationRow(
@@ -294,12 +349,28 @@ async def get_conversation(
     return conversation, user, messages
 
 
-async def list_payments(session: AsyncSession, *, limit: int = 50, offset: int = 0) -> Page:
+PAYMENT_SORTS = {
+    "date": BillingPayment.created_at,
+    "user": BillingPayment.user_id,
+    "amount": BillingPayment.amount,
+    "status": BillingPayment.status,
+    "until": BillingPayment.subscription_expires_at,
+}
+
+
+async def list_payments(
+    session: AsyncSession,
+    *,
+    sort: str = "date",
+    order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+) -> Page:
     total = await session.scalar(select(func.count()).select_from(BillingPayment)) or 0
     rows = await session.execute(
         select(BillingPayment, User.language, User.country)
         .join(User, User.id == BillingPayment.user_id)
-        .order_by(BillingPayment.created_at.desc())
+        .order_by(*_order_by(PAYMENT_SORTS, sort, order, "date", BillingPayment.id))
         .limit(min(limit, MAX_PAGE))
         .offset(offset)
     )

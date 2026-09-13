@@ -224,3 +224,59 @@ async def test_refund_payment_calls_telegram_and_revokes_pro(client, monkeypatch
             f"/api/admin/users/{SUBJECT_ID}/payments/{uuid.uuid4()}/refund", headers=headers
         )
     ).status_code == 404
+
+
+async def test_list_sorting_is_server_side(client):
+    """Table screens sort through the API: the column is `sort`, the direction `order`."""
+    headers = admin_tma_headers()
+    other_id = 900_000_403
+    async with SessionFactory() as session:
+        session.add(User(id=other_id, language="en", name="Other", country="Kazakhstan"))
+        await session.flush()
+        session.add(
+            BillingPayment(
+                user_id=other_id,
+                invoice_payload="p2",
+                currency="XTR",
+                amount=100,
+                telegram_payment_charge_id="charge-admin-2",
+            )
+        )
+        await session.commit()
+    try:
+        params = {"q": "Kazakh"}
+
+        async def ids(**extra) -> list[int]:
+            """The two ids this test owns, in the order the API returned them."""
+            response = await client.get("/api/admin/users", params=params | extra, headers=headers)
+            assert response.status_code == 200, response.text
+            found = [row["id"] for row in response.json()["items"]]
+            return [row for row in found if row in (SUBJECT_ID, other_id)]
+
+        assert await ids(sort="stars", order="desc") == [SUBJECT_ID, other_id]
+        assert await ids(sort="stars", order="asc") == [other_id, SUBJECT_ID]
+        # Pro before Free, whatever the alphabet says about the words.
+        assert await ids(sort="plan", order="desc") == [SUBJECT_ID, other_id]
+        # A sort key this list does not know falls back to its default instead of failing:
+        # sort keys travel in the URL and a stale link must still open the screen.
+        assert await ids(sort="nonsense") == await ids()
+        # The direction, on the other hand, is a closed set.
+        bad = await client.get("/api/admin/users", params={"order": "sideways"}, headers=headers)
+        assert bad.status_code == 422
+
+        payments = await client.get(
+            "/api/admin/payments", params={"sort": "amount", "order": "asc"}, headers=headers
+        )
+        amounts = [row["amount"] for row in payments.json()["items"]]
+        assert amounts == sorted(amounts)
+
+        conversations = await client.get(
+            "/api/admin/conversations",
+            params={"userId": SUBJECT_ID, "sort": "messages", "order": "asc"},
+            headers=headers,
+        )
+        assert conversations.status_code == 200
+    finally:
+        async with SessionFactory() as session:
+            await session.execute(delete(User).where(User.id == other_id))
+            await session.commit()

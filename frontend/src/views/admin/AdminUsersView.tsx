@@ -2,9 +2,10 @@ import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
 import { Pagination } from "../../components/admin/Pagination";
+import { SortableTh } from "../../components/admin/SortableTh";
 import { useAdminUsers } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
-import { planChipClass } from "../../lib/adminFormat";
+import { planChipClass, type SortOrder } from "../../lib/adminFormat";
 import {
   adminPageFill,
   adminTableCard,
@@ -15,11 +16,23 @@ import {
   adminSelect,
   adminTable,
   adminTd,
-  adminTh,
 } from "../../lib/adminUi";
+import type { TranslationKey } from "../../lib/i18n";
 
 const route = getRouteApi("/admin/users");
 const PLANS = ["", "Free", "Trial", "Pro"] as const;
+
+/** Columns in render order; `field` is the sort key `services/admin.list_users` knows. */
+const COLUMNS: { field: string; label: TranslationKey; align?: "left" | "right" }[] = [
+  { field: "name", label: "admin_col_user" },
+  { field: "plan", label: "admin_col_plan" },
+  { field: "country", label: "admin_col_country" },
+  { field: "questions", label: "admin_col_questions", align: "right" },
+  { field: "conversations", label: "admin_col_conversations", align: "right" },
+  { field: "stars", label: "admin_col_stars", align: "right" },
+  { field: "lastActive", label: "admin_col_last_active" },
+  { field: "created", label: "admin_col_created" },
+];
 
 export function AdminUsersView() {
   const { t, formatDateTime, formatNumber } = useAdminT();
@@ -32,6 +45,9 @@ export function AdminUsersView() {
 
   const update = (patch: Partial<typeof search>) =>
     navigate({ search: (previous) => ({ ...previous, ...patch }) });
+
+  // A new sort reshuffles every page, so page 5 of the old order means nothing in the new one.
+  const sortBy = (sort: string, order: SortOrder) => update({ sort, order, page: 1 });
 
   return (
     <div className={adminPageFill}>
@@ -72,14 +88,17 @@ export function AdminUsersView() {
             <table className={adminTable}>
               <thead>
                 <tr>
-                  <th className={adminTh}>{t("admin_col_user")}</th>
-                  <th className={adminTh}>{t("admin_col_plan")}</th>
-                  <th className={adminTh}>{t("admin_col_country")}</th>
-                  <th className={`${adminTh} text-right`}>{t("admin_col_questions")}</th>
-                  <th className={`${adminTh} text-right`}>{t("admin_col_conversations")}</th>
-                  <th className={`${adminTh} text-right`}>{t("admin_col_stars")}</th>
-                  <th className={adminTh}>{t("admin_col_last_active")}</th>
-                  <th className={adminTh}>{t("admin_col_created")}</th>
+                  {COLUMNS.map((column) => (
+                    <SortableTh
+                      key={column.field}
+                      label={t(column.label)}
+                      field={column.field}
+                      align={column.align}
+                      sort={search.sort || "created"}
+                      order={search.order}
+                      onSort={sortBy}
+                    />
+                  ))}
                 </tr>
               </thead>
               <tbody>
@@ -122,7 +141,7 @@ export function AdminUsersView() {
                 ))}
                 {users.data.items.length === 0 ? (
                   <tr>
-                    <td className={`${adminTd} text-soft text-center`} colSpan={8}>
+                    <td className={`${adminTd} text-soft text-center`} colSpan={COLUMNS.length}>
                       {t("admin_empty")}
                     </td>
                   </tr>

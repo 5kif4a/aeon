@@ -11,7 +11,7 @@ import { AppShell, useAppShell } from "./App";
 import { resolveEntryHref } from "./lib/deeplinks";
 import { LanguageProvider } from "./lib/i18n-context";
 import { pickPracticeTab, pickProfileSheet } from "./lib/views";
-import { pickOptionalId, pickPage, pickStatsRange, pickString } from "./lib/adminFormat";
+import { pickOptionalId, pickOrder, pickPage, pickStatsRange, pickString } from "./lib/adminFormat";
 import { AdminAccessGrantView, AdminRoleNewView } from "./views/admin/AdminAccessGrantView";
 import { AdminAccessView } from "./views/admin/AdminAccessView";
 import { AdminBroadcastDetailView } from "./views/admin/AdminBroadcastDetailView";
@@ -134,6 +134,8 @@ const adminUsersRoute = createRoute({
   validateSearch: (search: Record<string, unknown>) => ({
     q: pickString(search.q),
     plan: pickString(search.plan),
+    sort: pickString(search.sort),
+    order: pickOrder(search.order),
     page: pickPage(search.page),
   }),
   component: AdminUsersView,
@@ -152,6 +154,8 @@ const adminConversationsRoute = createRoute({
     userId: pickOptionalId(search.userId),
     agentId: pickString(search.agentId),
     status: pickString(search.status),
+    sort: pickString(search.sort),
+    order: pickOrder(search.order),
     page: pickPage(search.page),
   }),
   component: AdminConversationsView,
@@ -166,7 +170,11 @@ const adminConversationRoute = createRoute({
 const adminPaymentsRoute = createRoute({
   getParentRoute: () => adminRoute,
   path: "/payments",
-  validateSearch: (search: Record<string, unknown>) => ({ page: pickPage(search.page) }),
+  validateSearch: (search: Record<string, unknown>) => ({
+    sort: pickString(search.sort),
+    order: pickOrder(search.order),
+    page: pickPage(search.page),
+  }),
   component: AdminPaymentsView,
 });
 

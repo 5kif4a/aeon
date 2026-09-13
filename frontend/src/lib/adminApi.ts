@@ -143,8 +143,14 @@ export const adminApi = {
 
   getStats: (days: number) => request<AdminStats>(`/api/admin/stats${query({ days })}`),
 
-  getUsers: (params: { q?: string; plan?: string; limit: number; offset: number }) =>
-    request<AdminPage<AdminUser>>(`/api/admin/users${query(params)}`),
+  getUsers: (params: {
+    q?: string;
+    plan?: string;
+    sort?: string;
+    order?: string;
+    limit: number;
+    offset: number;
+  }) => request<AdminPage<AdminUser>>(`/api/admin/users${query(params)}`),
   getUser: (userId: number) => request<AdminUserDetail>(`/api/admin/users/${userId}`),
   grantPro: (userId: number, days: number) =>
     request<AdminUser>(`/api/admin/users/${userId}/grant-pro`, {
@@ -160,13 +166,15 @@ export const adminApi = {
     userId?: number;
     agentId?: string;
     status?: string;
+    sort?: string;
+    order?: string;
     limit: number;
     offset: number;
   }) => request<AdminPage<AdminConversation>>(`/api/admin/conversations${query(params)}`),
   getConversation: (conversationId: string) =>
     request<AdminConversationDetail>(`/api/admin/conversations/${conversationId}`),
 
-  getPayments: (params: { limit: number; offset: number }) =>
+  getPayments: (params: { sort?: string; order?: string; limit: number; offset: number }) =>
     request<AdminPage<AdminPayment>>(`/api/admin/payments${query(params)}`),
 
   getSettings: () => request<AdminSetting[]>("/api/admin/settings"),

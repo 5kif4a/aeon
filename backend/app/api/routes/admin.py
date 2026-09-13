@@ -70,6 +70,9 @@ SettingsViewer = Annotated[AdminActor, Depends(require("settings.view"))]
 SettingsEditor = Annotated[AdminActor, Depends(require("settings.edit"))]
 
 STATS_DAYS = {7, 30, 90}
+# Table screens sort server-side: the column travels as `sort` (an unknown key falls back to
+# the list's own default in `services/admin`), the direction as `order`.
+SortOrder = Query(default="desc", pattern="^(asc|desc)$")
 # The prompt preview is a cost-capped, admin-only Gemini call outside the billing flow.
 PREVIEW_MAX_OUTPUT_TOKENS = 800
 PREVIEW_TIMEOUT_SECONDS = 40
@@ -294,10 +297,14 @@ async def admin_users(
     session: SessionDep,
     q: str = "",
     plan: str = "",
+    sort: str = "",
+    order: str = SortOrder,
     limit: int = Query(default=50, ge=1, le=admin.MAX_PAGE),
     offset: int = Query(default=0, ge=0),
 ) -> AdminPageOut[AdminUserOut]:
-    page = await admin.list_users(session, query=q, plan=plan, limit=limit, offset=offset)
+    page = await admin.list_users(
+        session, query=q, plan=plan, sort=sort, order=order, limit=limit, offset=offset
+    )
     return AdminPageOut(
         items=[
             _user_out(
@@ -413,11 +420,20 @@ async def admin_conversations(
     userId: int | None = None,
     agentId: str = "",
     status: str = "",
+    sort: str = "",
+    order: str = SortOrder,
     limit: int = Query(default=50, ge=1, le=admin.MAX_PAGE),
     offset: int = Query(default=0, ge=0),
 ) -> AdminPageOut[AdminConversationOut]:
     page = await admin.list_conversations(
-        session, user_id=userId, agent_id=agentId, status=status, limit=limit, offset=offset
+        session,
+        user_id=userId,
+        agent_id=agentId,
+        status=status,
+        sort=sort,
+        order=order,
+        limit=limit,
+        offset=offset,
     )
     return AdminPageOut(
         items=[
@@ -479,10 +495,12 @@ async def admin_conversation_detail(
 async def admin_payments(
     _: PaymentsViewer,
     session: SessionDep,
+    sort: str = "",
+    order: str = SortOrder,
     limit: int = Query(default=50, ge=1, le=admin.MAX_PAGE),
     offset: int = Query(default=0, ge=0),
 ) -> AdminPageOut[AdminPaymentOut]:
-    page = await admin.list_payments(session, limit=limit, offset=offset)
+    page = await admin.list_payments(session, sort=sort, order=order, limit=limit, offset=offset)
     return AdminPageOut(
         items=[
             _payment_out(payment, language, country) for payment, language, country in page.items

@@ -26,6 +26,17 @@ export function pickString(value: unknown): string {
   return typeof value === "string" ? value : "";
 }
 
+/**
+ * Table sorting travels in the URL, so a sorted table is a link someone can share. The key
+ * itself is not checked here - the backend falls back to the list's default for one it does
+ * not know, which is also what happens to a key a later release drops.
+ */
+export type SortOrder = "asc" | "desc";
+
+export function pickOrder(value: unknown): SortOrder {
+  return value === "asc" ? "asc" : "desc";
+}
+
 export function pickOptionalId(value: unknown): number | undefined {
   const number = Number(value);
   return Number.isInteger(number) && number > 0 ? number : undefined;

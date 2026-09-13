@@ -22,7 +22,7 @@ export function AdminConversationDetailView() {
     <div className="grid max-w-[880px] gap-4">
       <Link
         to="/admin/conversations"
-        search={{ agentId: "", status: "", page: 1, userId: undefined }}
+        search={{ agentId: "", status: "", sort: "", order: "desc", page: 1, userId: undefined }}
         className={`${adminLink} text-[12px]`}
       >
         ← {t("admin_nav_conversations")}

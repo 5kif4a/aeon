@@ -54,7 +54,7 @@ export function AdminUserDetailView() {
     <div className="grid gap-4">
       <Link
         to="/admin/users"
-        search={{ q: "", plan: "", page: 1 }}
+        search={{ q: "", plan: "", sort: "", order: "desc", page: 1 }}
         className={`${adminLink} text-[12px]`}
       >
         ← {t("admin_nav_users")}

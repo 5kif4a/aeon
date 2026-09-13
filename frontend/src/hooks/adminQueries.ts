@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { adminApi, hasAdminCredential, setAdminToken } from "../lib/adminApi";
+import type { SortOrder } from "../lib/adminFormat";
 import type {
   AdminConversation,
   AdminMe,
@@ -145,7 +146,13 @@ export function useAdminStats(days: number) {
   });
 }
 
-export function useAdminUsers(params: { q: string; plan: string; page: number }) {
+export function useAdminUsers(params: {
+  q: string;
+  plan: string;
+  sort: string;
+  order: SortOrder;
+  page: number;
+}) {
   return useQuery({
     queryKey: ["admin", "users", params],
     queryFn: devSafe<AdminPage<AdminUser>>(
@@ -153,6 +160,8 @@ export function useAdminUsers(params: { q: string; plan: string; page: number })
         adminApi.getUsers({
           q: params.q,
           plan: params.plan,
+          sort: params.sort,
+          order: params.order,
           limit: PAGE_SIZE,
           offset: (params.page - 1) * PAGE_SIZE,
         }),
@@ -224,6 +233,8 @@ export function useAdminConversations(params: {
   userId?: number;
   agentId: string;
   status: string;
+  sort: string;
+  order: SortOrder;
   page: number;
 }) {
   return useQuery({
@@ -234,6 +245,8 @@ export function useAdminConversations(params: {
           userId: params.userId,
           agentId: params.agentId,
           status: params.status,
+          sort: params.sort,
+          order: params.order,
           limit: PAGE_SIZE,
           offset: (params.page - 1) * PAGE_SIZE,
         }),
@@ -253,11 +266,17 @@ export function useAdminConversation(conversationId: string) {
   });
 }
 
-export function useAdminPayments(page: number) {
+export function useAdminPayments(params: { sort: string; order: SortOrder; page: number }) {
   return useQuery({
-    queryKey: ["admin", "payments", page],
+    queryKey: ["admin", "payments", params],
     queryFn: devSafe<AdminPage<AdminPayment>>(
-      () => adminApi.getPayments({ limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }),
+      () =>
+        adminApi.getPayments({
+          sort: params.sort,
+          order: params.order,
+          limit: PAGE_SIZE,
+          offset: (params.page - 1) * PAGE_SIZE,
+        }),
       () => fixtures().then((m) => m.devPayments()),
     ),
     placeholderData: (previous) => previous,

@@ -1,9 +1,10 @@
 import { getRouteApi, Link, useNavigate } from "@tanstack/react-router";
 
 import { Pagination } from "../../components/admin/Pagination";
+import { SortableTh } from "../../components/admin/SortableTh";
 import { useAdminConversations } from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
-import { agentLabel } from "../../lib/adminFormat";
+import { agentLabel, type SortOrder } from "../../lib/adminFormat";
 import {
   adminButton,
   adminPageFill,
@@ -16,10 +17,25 @@ import {
   adminTh,
 } from "../../lib/adminUi";
 import { AGENT_IDS } from "../../lib/agents";
+import type { TranslationKey } from "../../lib/i18n";
 
 const route = getRouteApi("/admin/conversations");
 const AGENT_OPTIONS = ["", ...AGENT_IDS, "council"];
 const STATUS_OPTIONS = ["", "active", "closed"] as const;
+
+/**
+ * Columns in render order; `field` is the sort key `services/admin.list_conversations` knows.
+ * The first message has none: sorting a page of dialogues by their opening words orders
+ * nothing anyone looks for.
+ */
+const COLUMNS: { field?: string; label: TranslationKey; align?: "left" | "right" }[] = [
+  { field: "updated", label: "admin_col_updated" },
+  { field: "agent", label: "admin_col_agent" },
+  { field: "user", label: "admin_col_user" },
+  { label: "admin_col_preview" },
+  { field: "status", label: "admin_col_status" },
+  { field: "messages", label: "admin_col_messages", align: "right" },
+];
 
 export function AdminConversationsView() {
   const { t, lang, formatDateTime } = useAdminT();
@@ -29,6 +45,9 @@ export function AdminConversationsView() {
 
   const update = (patch: Partial<typeof search>) =>
     navigate({ search: (previous) => ({ ...previous, ...patch }) });
+
+  // A new sort reshuffles every page, so page 5 of the old order means nothing in the new one.
+  const sortBy = (sort: string, order: SortOrder) => update({ sort, order, page: 1 });
 
   return (
     <div className={adminPageFill}>
@@ -80,12 +99,23 @@ export function AdminConversationsView() {
             <table className={adminTable}>
               <thead>
                 <tr>
-                  <th className={adminTh}>{t("admin_col_updated")}</th>
-                  <th className={adminTh}>{t("admin_col_agent")}</th>
-                  <th className={adminTh}>{t("admin_col_user")}</th>
-                  <th className={adminTh}>{t("admin_col_preview")}</th>
-                  <th className={adminTh}>{t("admin_col_status")}</th>
-                  <th className={`${adminTh} text-right`}>{t("admin_col_messages")}</th>
+                  {COLUMNS.map((column) =>
+                    column.field ? (
+                      <SortableTh
+                        key={column.label}
+                        label={t(column.label)}
+                        field={column.field}
+                        align={column.align}
+                        sort={search.sort || "updated"}
+                        order={search.order}
+                        onSort={sortBy}
+                      />
+                    ) : (
+                      <th key={column.label} className={adminTh}>
+                        {t(column.label)}
+                      </th>
+                    ),
+                  )}
                 </tr>
               </thead>
               <tbody>
@@ -135,7 +165,7 @@ export function AdminConversationsView() {
                 ))}
                 {conversations.data.items.length === 0 ? (
                   <tr>
-                    <td className={`${adminTd} text-soft text-center`} colSpan={6}>
+                    <td className={`${adminTd} text-soft text-center`} colSpan={COLUMNS.length}>
                       {t("admin_empty")}
                     </td>
                   </tr>

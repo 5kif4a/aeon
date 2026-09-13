@@ -8,7 +8,8 @@ import type { TFunc } from "../../lib/i18n";
 import { tg } from "../../lib/telegram";
 import { AdminLoginView } from "./AdminLoginView";
 
-const DEFAULT_LIST_SEARCH = { page: 1 } as const;
+// Empty `sort` means "the list's own default order", which every table screen resolves.
+const DEFAULT_LIST_SEARCH = { page: 1, sort: "", order: "desc" } as const;
 
 /** Sidebar entries with the default search params each list route validates.
  *
