@@ -232,52 +232,48 @@ MESSAGES: dict[str, dict[str, str]] = {
             "“{text}”\n\n— {agent}\n\nYour active goal: {goal}\n\nChoose one step for today."
         ),
         "daily_without_goal": "“{text}”\n\n— {agent}\n\nChoose one meaningful action for today.",
-        "daily_goal_button": "Open goal",
-        "daily_calendar_button": "Set a goal",
         "daily_done_button": "✓ Done for today",
         "daily_checkin_saved": "Action recorded. Your current streak is {streak} day(s).",
-        "notification_settings_button": "Notification settings",
-        "ask_quote_author_button": "Ask the author",
         # Billing
-        "payment_pro_title": "Aeon Pro",
-        "payment_pro_description": "30 days of answers grounded in original works and the Council of Three.",
-        "payment_pro_price": "Aeon Pro · 30 days",
+        "payment_pro_title": "Aeon Primus",
+        "payment_pro_description": "A month with the advisors at full strength: their books open, the Council of Three convened.",
+        "payment_pro_price": "Aeon Primus · 30 days",
         "payment_invalid": "This payment link is invalid or no longer available.",
-        "payment_success": "Aeon Pro is active. Your agents now answer with their books and the Council of Three is available.",
-        "payment_no_subscription": "You do not have an active renewable Pro subscription.",
-        "payment_canceled": "Automatic renewal is canceled. Pro remains active until {date}.",
-        "payment_restored": "Automatic renewal is back on. Pro continues after {date}.",
-        "payment_renewal_failed": "Telegram could not charge the renewal, most likely there were not enough Stars. Pro stays active until {date}; top up your Stars or subscribe again with /subscribe to keep it.",
-        "payment_support": "Aeon Pro is a digital subscription paid in Telegram Stars. You can stop the renewal at any time with /cancel_subscription; Pro stays active until the end of the paid period. Refunds are made only when a payment went through but Pro did not activate, or for a duplicate charge.\n\nDescribe the issue in one message (what happened and the approximate payment date) and we will check the transaction. Send /cancel to leave without a request.",
+        "payment_success": "Aeon Primus is open. The advisors now answer from their books and the Council of Three convenes.",
+        "payment_no_subscription": "You do not have an active renewable Primus subscription.",
+        "payment_canceled": "Automatic renewal is canceled. Primus remains open until {date}.",
+        "payment_restored": "Automatic renewal is back on. Primus continues after {date}.",
+        "payment_renewal_failed": "Telegram could not charge the renewal, most likely there were not enough Stars. Primus stays open until {date}; top up your Stars or subscribe again with /subscribe to keep it.",
+        "payment_support": "Aeon Primus is a digital subscription paid in Telegram Stars. You can stop the renewal at any time with /cancel_subscription; Primus stays open until the end of the paid period. Refunds are made only when a payment went through but Primus did not activate, or for a duplicate charge.\n\nDescribe the issue in one message (what happened and the approximate payment date) and we will check the transaction. Send /cancel to leave without a request.",
         "payment_support_received": "Thank you, your request has been passed to the team. We will reply here within a day.",
         "payment_support_canceled": "No request was sent.",
-        "payment_refunded": "Your payment of {amount} Stars has been refunded. Pro is switched off; the Stars return to your Telegram balance.",
+        "payment_refunded": "Your payment of {amount} Stars has been refunded. Primus is switched off; the Stars return to your Telegram balance.",
         "billing_trial_ending": (
-            "Your 7-day Trial ends tomorrow. After that the advisors answer without their books "
-            "and the Council of Three closes. Continue with Aeon Pro for {price} ★ per month: "
-            "30 book-grounded answers and 3 councils a day, cancel anytime."
+            "Your trial access ends tomorrow. After that the advisors answer without their books "
+            "and the Council of Three closes. Continue with Aeon Primus for {price} ★ per month, "
+            "cancel anytime."
         ),
         "billing_trial_ended": (
-            "Your Trial has ended and you are back on Free: 3 questions a day, no sources. "
-            "Aeon Pro keeps the books open for {price} ★ per month, cancel anytime."
+            "Your trial access has ended and you are back on Basic: no sources, no Council. "
+            "Aeon Primus brings the books back for {price} ★ per month, cancel anytime."
         ),
         "billing_pro_expired": (
-            "Your Aeon Pro has ended and was not renewed, so the advisors answer without their "
+            "Your Aeon Primus has ended and was not renewed, so the advisors answer without their "
             "books again. Renew for {price} ★ per month to bring back the sources and the "
             "Council of Three."
         ),
-        "question_limit_free": "You have used today's 3 free questions. Your limit resets tomorrow. Pro gives 30 answers a day grounded in the original books and the Council of Three.",
-        "question_limit_trial": "Today's Trial questions are used. Your book-grounded allowance resets tomorrow, or you can continue with Pro.",
-        "question_limit_pro": "Today's Pro questions are used. Your allowance resets tomorrow.",
+        "question_limit_free": "Today's free conversations are over. Tomorrow brings new ones, or open the advisors at full strength.",
+        "question_limit_trial": "Today's trial conversations are over. Tomorrow brings new ones, or open Primus.",
+        "question_limit_pro": "Today's conversations are over. The advisors are back with you tomorrow.",
         "council_usage": "Send one important question after the command:\n/council Should I change careers?",
         "council_thinking": "Marcus Aurelius, Machiavelli, and Carl Jung are considering your question...",
         "council_prompt": (
             "Council of Three\n\nSend one important decision or situation. "
             "You will receive three distinct perspectives and one concrete next step."
         ),
-        "council_limit_free": "The Council of Three is part of Pro: three councils a day.",
-        "council_limit_trial": "Your one Trial Council has already been used. Upgrade to Pro for three councils per day.",
-        "council_limit_pro": "Today's three Pro councils have been used. The limit resets tomorrow.",
+        "council_limit_free": "The Council of Three convenes in Primus.",
+        "council_limit_trial": "Your trial Council has already convened. In Primus the Council convenes every day.",
+        "council_limit_pro": "Today's Councils have convened. Again tomorrow.",
         # Agent dialogue
         "agent_mode_closed": "Dialogue closed. Choose what you want to do next.",
         "agent_intro_suffix": "Send one real question. You can switch perspectives after the answer.",
@@ -298,7 +294,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "back_home": "← Main menu",
         "back_settings": "← Settings",
         "switch_agent_button": "Switch advisor",
-        "upgrade_pro_button": "Continue with Pro",
+        "upgrade_pro_button": "Open Primus",
+        "trial_start_button": "Try it free",
+        "trial_started": "Trial access is open until {date}. The advisors answer from their books and the Council of Three convenes.",
         "chat_menu_button": "Open Aeon",
         # Settings
         "settings_title": (
@@ -385,51 +383,47 @@ MESSAGES: dict[str, dict[str, str]] = {
             "«{text}»\n\n— {agent}\n\nВаша активная цель: {goal}\n\nВыберите один шаг на сегодня."
         ),
         "daily_without_goal": "«{text}»\n\n— {agent}\n\nВыберите одно значимое действие на сегодня.",
-        "daily_goal_button": "Открыть цель",
-        "daily_calendar_button": "Поставить цель",
         "daily_done_button": "✓ Выполнено сегодня",
         "daily_checkin_saved": "Действие отмечено. Ваша текущая серия: {streak} дн.",
-        "notification_settings_button": "Настроить уведомления",
-        "ask_quote_author_button": "Спросить автора",
         # Billing
-        "payment_pro_title": "Aeon Pro",
-        "payment_pro_description": "30 дней ответов с опорой на оригинальные труды и доступ к Совету трёх.",
-        "payment_pro_price": "Aeon Pro · 30 дней",
+        "payment_pro_title": "Aeon Primus",
+        "payment_pro_description": "Месяц с наставниками в полную силу: их книги открыты, Совет трёх собирается.",
+        "payment_pro_price": "Aeon Primus · 30 дней",
         "payment_invalid": "Эта ссылка оплаты недействительна или больше недоступна.",
-        "payment_success": "Aeon Pro активирован. Агенты теперь отвечают с опорой на книги, а Совет трёх доступен.",
-        "payment_no_subscription": "У Вас нет активной Pro-подписки с автопродлением.",
-        "payment_canceled": "Автопродление отключено. Pro продолжит работать до {date}.",
-        "payment_restored": "Автопродление снова включено. Pro продолжится после {date}.",
-        "payment_renewal_failed": "Telegram не смог списать оплату за продление, скорее всего не хватило Stars. Pro работает до {date}; пополните баланс Stars или оформите подписку заново через /subscribe, чтобы сохранить доступ.",
-        "payment_support": "Aeon Pro — цифровая подписка, оплаченная Telegram Stars. Автопродление можно отключить в любой момент командой /cancel_subscription, Pro продолжит работать до конца оплаченного периода. Возврат делаем только если платёж прошёл, а Pro не активировался, или при двойном списании.\n\nОпишите проблему одним сообщением (что случилось и примерную дату платежа), мы проверим транзакцию. Чтобы выйти без обращения, отправьте /cancel.",
+        "payment_success": "Aeon Primus открыт. Наставники отвечают по своим книгам, Совет трёх собирается.",
+        "payment_no_subscription": "У Вас нет активной подписки Primus с автопродлением.",
+        "payment_canceled": "Автопродление отключено. Primus остаётся открытым до {date}.",
+        "payment_restored": "Автопродление снова включено. Primus продолжится после {date}.",
+        "payment_renewal_failed": "Telegram не смог списать оплату за продление, скорее всего не хватило Stars. Primus открыт до {date}; пополните баланс Stars или оформите подписку заново через /subscribe, чтобы сохранить доступ.",
+        "payment_support": "Aeon Primus — цифровая подписка, оплаченная Telegram Stars. Автопродление можно отключить в любой момент командой /cancel_subscription, Primus останется открытым до конца оплаченного периода. Возврат делаем только если платёж прошёл, а Primus не активировался, или при двойном списании.\n\nОпишите проблему одним сообщением (что случилось и примерную дату платежа), мы проверим транзакцию. Чтобы выйти без обращения, отправьте /cancel.",
         "payment_support_received": "Спасибо, обращение передано команде. Ответим здесь в течение суток.",
         "payment_support_canceled": "Обращение не отправлено.",
-        "payment_refunded": "Ваш платёж на {amount} Stars возвращён. Pro отключён, Stars вернулись на Ваш баланс Telegram.",
+        "payment_refunded": "Ваш платёж на {amount} Stars возвращён. Primus отключён, Stars вернулись на Ваш баланс Telegram.",
         "billing_trial_ending": (
-            "Ваш 7-дневный пробный период заканчивается завтра. После этого советники будут "
-            "отвечать без опоры на книги, а Совет трёх закроется. Продолжите с Aeon Pro за "
-            "{price} ★ в месяц: 30 ответов по книгам и 3 совета в день, отключить можно в любой момент."
+            "Пробный доступ заканчивается завтра. После этого наставники отвечают без своих книг, "
+            "а Совет трёх закрывается. Продолжите с Aeon Primus за {price} ★ в месяц, "
+            "отключить можно в любой момент."
         ),
         "billing_trial_ended": (
-            "Пробный период завершён, Вы снова на Free: 3 вопроса в день без источников. "
-            "Aeon Pro сохраняет доступ к книгам за {price} ★ в месяц, отключить можно в любой момент."
+            "Пробный доступ закончился, Вы снова на базовом: без источников и Совета. "
+            "Aeon Primus возвращает книги за {price} ★ в месяц, отключить можно в любой момент."
         ),
         "billing_pro_expired": (
-            "Ваш Aeon Pro закончился и не был продлён, советники снова отвечают без опоры на книги. "
+            "Ваш Aeon Primus закончился и не был продлён, наставники снова отвечают без своих книг. "
             "Продлите за {price} ★ в месяц, чтобы вернуть источники и Совет трёх."
         ),
-        "question_limit_free": "Сегодняшние 3 бесплатных вопроса использованы. Лимит обновится завтра. В Pro — 30 ответов в день на основе оригинальных книг и Совет трёх.",
-        "question_limit_trial": "Вопросы пробного периода на сегодня использованы. Лимит ответов по книгам обновится завтра, либо Вы можете продолжить с Pro.",
-        "question_limit_pro": "Вопросы Pro на сегодня использованы. Лимит обновится завтра.",
+        "question_limit_free": "Бесплатные разговоры на сегодня закончились. Завтра будут новые — или откройте наставников в полную силу.",
+        "question_limit_trial": "Пробные разговоры на сегодня закончились. Завтра будут новые, либо откройте Primus.",
+        "question_limit_pro": "Разговоры на сегодня закончились. Завтра наставники снова с Вами.",
         "council_usage": "Добавьте один важный вопрос после команды:\n/council Стоит ли мне сменить профессию?",
         "council_thinking": "Марк Аврелий, Макиавелли и Карл Юнг рассматривают Ваш вопрос...",
         "council_prompt": (
             "Совет трёх\n\nОтправьте одно важное решение или ситуацию. "
             "Вы получите три разных взгляда и один конкретный следующий шаг."
         ),
-        "council_limit_free": "Совет трёх входит в Pro: три совета в день.",
-        "council_limit_trial": "Единственный пробный Совет трёх уже использован. В Pro доступно три совета в день.",
-        "council_limit_pro": "Сегодняшние три Совета Pro использованы. Лимит обновится завтра.",
+        "council_limit_free": "Совет трёх собирается в Primus.",
+        "council_limit_trial": "Пробный Совет уже состоялся. В Primus Совет собирается каждый день.",
+        "council_limit_pro": "Советы на сегодня состоялись. Завтра снова.",
         # Agent dialogue
         "agent_mode_closed": "Диалог завершён. Выберите, что хотите сделать дальше.",
         "agent_intro_suffix": "Отправьте один настоящий вопрос. После ответа можно сменить точку зрения.",
@@ -450,7 +444,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "back_home": "← Главное меню",
         "back_settings": "← Настройки",
         "switch_agent_button": "Сменить советника",
-        "upgrade_pro_button": "Продолжить с Pro",
+        "upgrade_pro_button": "Открыть Primus",
+        "trial_start_button": "Попробовать бесплатно",
+        "trial_started": "Пробный доступ открыт до {date}. Наставники отвечают по своим книгам, Совет трёх собирается.",
         "chat_menu_button": "Открыть Aeon",
         # Settings
         "settings_title": (

@@ -33,9 +33,6 @@ import type { ProfileSheet as SheetName } from "../lib/views";
 
 const route = getRouteApi("/app/profile");
 
-/** Three reasons are enough for a decision; the rest is noise on a phone screen. */
-const PRO_FEATURES: TranslationKey[] = ["pro_feat_deep", "pro_feat_three_minds", "pro_feat_memory"];
-
 /** Pro is activated when Telegram's `successful_payment` reaches the backend; poll briefly for it. */
 const PAYMENT_POLL_INTERVAL_MS = 1500;
 const PAYMENT_POLL_TIMEOUT_MS = 12_000;
@@ -276,51 +273,15 @@ export function ProfileView() {
               {t("sheet_current_plan", { plan: planLabel(plan, t) })}
             </span>
             <p className={sheetCopy}>{t("pro_desc")}</p>
-            {billing && (
+            {/* No quotas on the sheet: the paid tier is sold as the advisors at full strength. */}
+            {billing && (billing.trialExpiresAt || billing.proExpiresAt) && (
               <div className="border-line grid gap-2 border-y py-3 text-[13px]">
                 <BillingRow
-                  label={t("billing_daily_limit")}
-                  value={`${billing.dailyRemaining}/${billing.dailyLimit}`}
+                  label={t("billing_active_until")}
+                  value={formatDate(billing.proExpiresAt ?? billing.trialExpiresAt, LOCALES[lang])}
                 />
-                {billing.plan === "Trial" && (
-                  <BillingRow
-                    label={t("billing_trial_total")}
-                    value={`${billing.trialTotalLimit - billing.trialTotalUsed}/${billing.trialTotalLimit}`}
-                  />
-                )}
-                {billing.councilLimit > 0 && (
-                  <BillingRow
-                    label={t("billing_council_left")}
-                    value={String(billing.councilRemaining)}
-                  />
-                )}
-                {(billing.trialExpiresAt || billing.proExpiresAt) && (
-                  <BillingRow
-                    label={t("billing_active_until")}
-                    value={formatDate(
-                      billing.proExpiresAt ?? billing.trialExpiresAt,
-                      LOCALES[lang],
-                    )}
-                  />
-                )}
               </div>
             )}
-            {plan !== "Pro" && (
-              <strong className="text-gold text-[12px] font-[750] tracking-[0.08em] uppercase">
-                {t("pro_features_title")}
-              </strong>
-            )}
-            <ul className="grid list-none gap-2 p-0">
-              {PRO_FEATURES.map((key) => (
-                <li
-                  key={key}
-                  className="grid grid-cols-[18px_1fr] gap-2 text-[14px] leading-[1.4] text-[#d7cebf]"
-                >
-                  <span className="text-success">✓</span>
-                  {t(key)}
-                </li>
-              ))}
-            </ul>
             {/* Pro is always the primary action; the Trial is a quieter fallback for Free users. */}
             {plan !== "Pro" && (
               <div className="grid gap-2">

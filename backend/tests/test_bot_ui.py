@@ -99,16 +99,24 @@ def test_greeting_keys_exist_in_both_languages():
     assert "{name}" not in t("ru", "home_welcome")
 
 
-def test_free_limit_leads_directly_to_pro_invoice():
-    keyboard = ui.limit_keyboard("en", "Free")
+def test_free_limit_offers_the_trial_first():
+    keyboard = ui.limit_keyboard("en", "Free", can_start_trial=True)
     primary = keyboard.inline_keyboard[0][0]
 
-    assert primary.text == "Continue with Pro"
+    assert primary.text == "Try it free"
+    assert primary.callback_data == "billing:trial"
+
+
+def test_free_limit_after_trial_leads_to_the_invoice():
+    keyboard = ui.limit_keyboard("en", "Free", can_start_trial=False)
+    primary = keyboard.inline_keyboard[0][0]
+
+    assert primary.text == "Open Primus"
     assert primary.callback_data == "billing:subscribe"
 
 
-def test_trial_limit_leads_directly_to_pro_invoice():
-    keyboard = ui.limit_keyboard("ru", "Trial")
+def test_trial_limit_leads_directly_to_the_invoice():
+    keyboard = ui.limit_keyboard("ru", "Trial", can_start_trial=True)
 
     assert keyboard.inline_keyboard[0][0].callback_data == "billing:subscribe"
 

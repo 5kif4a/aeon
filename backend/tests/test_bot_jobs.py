@@ -71,14 +71,14 @@ def test_calendar_keyboard_opens_calendar(monkeypatch):
         ),
     )
 
-    keyboard = _calendar_keyboard("ru", "jung")
+    keyboard = _calendar_keyboard("ru")
 
     assert keyboard is not None
+    assert len(keyboard.inline_keyboard) == 1
     button = keyboard.inline_keyboard[0][0]
     assert button.text == "Открыть календарь"
     assert button.web_app is not None
     assert button.web_app.url == "https://aeon.test/calendar?tab=life"
-    assert keyboard.inline_keyboard[1][0].callback_data == "agent:jung"
 
 
 def test_daily_agents_rotate_and_return_after_three_days():
@@ -132,7 +132,7 @@ def test_daily_notification_without_goal_uses_english_fallback():
     assert "Choose one meaningful action for today." in message
 
 
-def test_daily_keyboard_opens_calendar_with_goal_label(monkeypatch):
+def test_daily_keyboard_opens_calendar_on_goal_tab(monkeypatch):
     monkeypatch.setattr(
         webapp,
         "build_webapp_url",
@@ -141,21 +141,17 @@ def test_daily_keyboard_opens_calendar_with_goal_label(monkeypatch):
         ),
     )
 
-    keyboard = _daily_keyboard("ru", has_goal=True, agent_id="jung")
+    keyboard = _daily_keyboard("ru", has_goal=True)
 
     assert keyboard is not None
+    assert len(keyboard.inline_keyboard) == 2
     done_button = keyboard.inline_keyboard[0][0]
-    goal_button = keyboard.inline_keyboard[1][0]
-    author_button = keyboard.inline_keyboard[2][0]
-    settings_button = keyboard.inline_keyboard[3][0]
+    calendar_button = keyboard.inline_keyboard[1][0]
 
     assert done_button.callback_data == "daily:done"
-    assert goal_button.text == "Открыть цель"
-    assert goal_button.web_app is not None
-    assert goal_button.web_app.url == "https://aeon.test/calendar?tab=goal"
-    assert author_button.text == "Спросить автора"
-    assert author_button.callback_data == "agent:jung"
-    assert settings_button.callback_data == "settings:open"
+    assert calendar_button.text == "Открыть календарь"
+    assert calendar_button.web_app is not None
+    assert calendar_button.web_app.url == "https://aeon.test/calendar?tab=goal"
 
 
 def test_notification_is_due_in_the_users_local_timezone():
@@ -255,4 +251,4 @@ def test_billing_reminder_text_and_keyboard_are_localized():
     assert "заканчивается завтра" in text
     assert "350 ★" in text
     assert keyboard[0][0].callback_data == "billing:subscribe"
-    assert keyboard[0][0].text == "Продолжить с Pro"
+    assert keyboard[0][0].text == "Открыть Primus"

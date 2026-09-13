@@ -33,7 +33,7 @@ async def configure_commands(application: Application) -> None:
         BotCommand("language", "Change language"),
         BotCommand("council", "Ask the Council of Three"),
         BotCommand("settings", "Notifications and language"),
-        BotCommand("subscribe", "Get Aeon Pro"),
+        BotCommand("subscribe", "Get Aeon Primus"),
         BotCommand("paysupport", "Payment support"),
     ]
     russian = [
@@ -42,7 +42,7 @@ async def configure_commands(application: Application) -> None:
         BotCommand("language", "Сменить язык"),
         BotCommand("council", "Спросить Совет трёх"),
         BotCommand("settings", "Уведомления и язык"),
-        BotCommand("subscribe", "Подключить Aeon Pro"),
+        BotCommand("subscribe", "Подключить Aeon Primus"),
         BotCommand("paysupport", "Помощь с оплатой"),
     ]
     await application.bot.set_my_commands(english)

@@ -95,7 +95,11 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
             await bot.send_message(
                 chat_id,
                 t(language, f"question_limit_{error.plan.lower()}"),
-                reply_markup=ui.limit_keyboard(language, error.plan),
+                reply_markup=ui.limit_keyboard(
+                    language,
+                    error.plan,
+                    can_start_trial=billing.trial_available(user, error.plan),
+                ),
             )
             return True
         user.plan = grant.generation_plan
@@ -192,7 +196,11 @@ async def _process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
             await bot.send_message(
                 chat_id,
                 t(language, f"council_limit_{error.plan.lower()}"),
-                reply_markup=ui.limit_keyboard(language, error.plan),
+                reply_markup=ui.limit_keyboard(
+                    language,
+                    error.plan,
+                    can_start_trial=billing.trial_available(user, error.plan),
+                ),
             )
             return False
         user.plan = grant.plan

@@ -17,7 +17,7 @@ from app.bot.handlers.payments import (
 )
 from app.db.session import SessionFactory
 from app.i18n import normalize_language, t
-from app.services import events, users
+from app.services import billing, events, ops, users
 
 
 async def _user_for_update(update: Update):
@@ -145,6 +145,25 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
     if data == "billing:subscribe":
         await subscribe_command(update, context)
+        return
+    if data == "billing:trial":
+        # One tap from under the Free limit; a user who is no longer eligible gets the invoice.
+        try:
+            async with SessionFactory() as session:
+                db_user = await billing.start_trial(session, user.id)
+        except billing.TrialUnavailable:
+            await subscribe_command(update, context)
+            return
+        ops.trial_started(db_user)
+        await context.bot.send_message(
+            user.id,
+            t(
+                db_user.language,
+                "trial_started",
+                date=db_user.trial_expires_at.date().isoformat(),
+            ),
+            reply_markup=ui.agent_picker_keyboard(db_user.language),
+        )
         return
     if data == "marketing:off":
         # One-tap opt-out from under a marketing broadcast; daily reflections are untouched.
@@ -343,7 +362,7 @@ def build_command_handlers() -> list:
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(
             navigation_callback,
-            pattern=r"^(menu:home|lang:|council:start|billing:subscribe|daily:done|settings:|marketing:off)",
+            pattern=r"^(menu:home|lang:|council:start|billing:subscribe|billing:trial|daily:done|settings:|marketing:off)",
         ),
         MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
         MessageHandler(UNSUPPORTED_MESSAGE_FILTER, unsupported_message),

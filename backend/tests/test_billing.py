@@ -21,12 +21,12 @@ async def billing_user():
         await session.commit()
 
 
-async def test_trial_uses_five_rag_then_three_prompt_questions():
+async def test_trial_uses_five_rag_then_seven_prompt_questions():
     now = datetime(2026, 7, 21, 10, tzinfo=UTC)
     async with SessionFactory() as session:
         await billing.start_trial(session, USER_ID, now)
-        grants = [await billing.reserve_agent_question(session, USER_ID, now) for _ in range(8)]
-        assert [grant.mode for grant in grants] == ["rag"] * 5 + ["prompt"] * 3
+        grants = [await billing.reserve_agent_question(session, USER_ID, now) for _ in range(12)]
+        assert [grant.mode for grant in grants] == ["rag"] * 5 + ["prompt"] * 7
         with pytest.raises(billing.AccessLimitExceeded):
             await billing.reserve_agent_question(session, USER_ID, now)
 
@@ -59,8 +59,8 @@ async def test_expired_trial_falls_back_to_free():
     started = datetime(2026, 7, 1, 10, tzinfo=UTC)
     async with SessionFactory() as session:
         user = await billing.start_trial(session, USER_ID, started)
-        assert billing.effective_plan(user, started + timedelta(days=6)) == "Trial"
-        assert billing.effective_plan(user, started + timedelta(days=8)) == "Free"
+        assert billing.effective_plan(user, started + timedelta(days=2)) == "Trial"
+        assert billing.effective_plan(user, started + timedelta(days=4)) == "Free"
 
 
 async def test_successful_payment_activates_pro_idempotently():

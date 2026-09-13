@@ -34,11 +34,7 @@ export function TopBar() {
         {isPending ? (
           <Skeleton className="h-3 w-[108px]" />
         ) : billing ? (
-          <>
-            <b className="text-text font-[750]">{planLabel}</b>
-            <i className="bg-soft h-1 w-1 rounded-full" />
-            {t("home_answers_left", { count: billing.dailyRemaining })}
-          </>
+          <b className="text-text font-[750]">{planLabel}</b>
         ) : (
           <span aria-hidden="true">—</span>
         )}

@@ -175,12 +175,9 @@ export function HomeView({
       )}
 
       <section className="mt-6" aria-labelledby="agents-title">
-        <div className="mb-3">
-          <span className="text-muted block text-[12px]">{t("home_three_views")}</span>
-          <h2 id="agents-title" className="mt-1 font-serif text-[22px] leading-tight">
-            {t("home_agents")}
-          </h2>
-        </div>
+        <h2 id="agents-title" className="mb-3 font-serif text-[22px] leading-tight">
+          {t("home_three_views")}
+        </h2>
         {/* Three across, full width. Custom advisors will add rows, so revisit the height then. */}
         <div className="grid grid-cols-3 gap-2">
           {Object.entries(AGENTS).map(([agentId, agent]) => {

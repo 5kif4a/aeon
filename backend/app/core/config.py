@@ -28,10 +28,10 @@ class Settings(BaseSettings):
     rag_enabled: bool = True
     rag_allow_basic: bool = False
     pro_price_stars: int = 350
-    free_daily_questions: int = 3
-    trial_days: int = 7
+    free_daily_questions: int = 7
+    trial_days: int = 3
     trial_daily_rag_questions: int = 5
-    trial_total_rag_questions: int = 35
+    trial_total_rag_questions: int = 15
     pro_daily_rag_questions: int = 30
     pro_daily_council_questions: int = 3
     rag_data_dir: str = "data/rag"

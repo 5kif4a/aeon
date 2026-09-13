@@ -310,7 +310,7 @@ class TestBilling:
         assert response.status_code == 200
         status = response.json()
         assert status["plan"] == "Free"
-        assert status["dailyLimit"] == 3
+        assert status["dailyLimit"] == 7
         assert status["canStartTrial"] is True
         assert status["proPriceStars"] == 350
 

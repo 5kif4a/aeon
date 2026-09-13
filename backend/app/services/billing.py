@@ -140,6 +140,11 @@ async def _daily_usage(
     return usage
 
 
+def trial_available(user: User, plan: str) -> bool:
+    """The one-time Trial is offered only to users who never had it and never paid."""
+    return user.trial_started_at is None and user.pro_expires_at is None and plan != "Pro"
+
+
 async def start_trial(session: AsyncSession, user_id: int, now: datetime | None = None) -> User:
     current = now or utc_now()
     user = await _locked_user(session, user_id)
@@ -307,9 +312,7 @@ async def get_billing_snapshot(
         council_used=council_used,
         council_limit=council_limit,
         council_remaining=max(council_limit - council_used, 0),
-        can_start_trial=(
-            user.trial_started_at is None and user.pro_expires_at is None and plan != "Pro"
-        ),
+        can_start_trial=trial_available(user, plan),
         trial_started_at=_aware(user.trial_started_at),
         trial_expires_at=_aware(user.trial_expires_at),
         pro_expires_at=_aware(user.pro_expires_at),

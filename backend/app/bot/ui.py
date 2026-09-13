@@ -142,10 +142,16 @@ def back_home_keyboard(language: str) -> InlineKeyboardMarkup:
     )
 
 
-def limit_keyboard(language: str, plan: str) -> InlineKeyboardMarkup:
-    # Free and Trial users get the Stars invoice directly; the Trial is never promoted from the
-    # bot, it stays a secondary action inside the Mini App profile.
-    if plan.lower() in ("free", "trial"):
+def limit_keyboard(
+    language: str, plan: str, *, can_start_trial: bool = False
+) -> InlineKeyboardMarkup:
+    # A Free user who never had a Trial gets it in one tap; everyone else on Free/Trial gets
+    # the Stars invoice directly.
+    if plan.lower() == "free" and can_start_trial:
+        primary = InlineKeyboardButton(
+            t(language, "trial_start_button"), callback_data="billing:trial"
+        )
+    elif plan.lower() in ("free", "trial"):
         primary = InlineKeyboardButton(
             t(language, "upgrade_pro_button"), callback_data="billing:subscribe"
         )
