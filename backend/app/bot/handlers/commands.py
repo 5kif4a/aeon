@@ -26,7 +26,7 @@ async def _user_for_update(update: Update):
         return await users.get_or_create_user(
             session,
             update.effective_chat.id,
-            name=(telegram_user.first_name or "")[:64],
+            name=users.presentable_name(telegram_user.first_name),
             language=normalize_language(telegram_user.language_code),
             username=telegram_user.username or "",
         )
@@ -57,13 +57,22 @@ async def settings_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
 
+async def language_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = await _user_for_update(update)
+    await context.bot.send_message(
+        user.id,
+        t(user.language, "choose_language"),
+        reply_markup=ui.language_keyboard("lang", detected=user.language),
+    )
+
+
 async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     chat_id = update.effective_chat.id
     language = await chat.clear_active_agent(context.bot, chat_id, announce=False)
     await context.bot.send_message(
         chat_id,
         t(language, "agent_mode_closed"),
-        reply_markup=ui.agent_picker_keyboard(language),
+        reply_markup=ui.home_keyboard(language),
     )
 
 
@@ -110,6 +119,16 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "menu:home":
         context.user_data.clear()
         await send_home(context.bot, user.id, user)
+        return
+    if data.startswith("lang:"):
+        language = normalize_language(data.rsplit(":", 1)[1])
+        async with SessionFactory() as session:
+            db_user = await users.get_or_create_user(session, user.id)
+            await users.update_user(session, db_user, {"language": language})
+        await webapp.set_chat_menu_button(context.bot, user.id, language)
+        await messaging.try_edit(
+            context.bot, user.id, query.message.message_id, t(language, "language_saved"), None
+        )
         return
     if data == "council:start":
         pending_question = context.user_data.pop("pending_question", "")
@@ -312,6 +331,7 @@ def build_command_handlers() -> list:
         CommandHandler(["agents", "agent"], agents_command, filters=private),
         CommandHandler(["app", "menu"], menu_command, filters=private),
         CommandHandler("settings", settings_command, filters=private),
+        CommandHandler("language", language_command, filters=private),
         CommandHandler(["stop", "reset_agent"], stop_command, filters=private),
         CommandHandler("council", council_command, filters=private),
         CommandHandler("subscribe", subscribe_command, filters=private),
@@ -323,7 +343,7 @@ def build_command_handlers() -> list:
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(
             navigation_callback,
-            pattern=r"^(menu:home|council:start|billing:subscribe|daily:done|settings:|marketing:off)",
+            pattern=r"^(menu:home|lang:|council:start|billing:subscribe|daily:done|settings:|marketing:off)",
         ),
         MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
         MessageHandler(UNSUPPORTED_MESSAGE_FILTER, unsupported_message),

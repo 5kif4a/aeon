@@ -183,14 +183,24 @@ MONTHS = {
 MESSAGES: dict[str, dict[str, str]] = {
     "en": {
         # Onboarding
-        "home_welcome": (
+        "onboarding_choose_language": "✦ Welcome to Aeon.\n\nChoose your language:",
+        "home_welcome_named": (
             "✦ Welcome to Aeon, {name}.\n\n"
             "Bring one real decision. Marcus Aurelius will examine what is in your control, "
             "Machiavelli will test the strategy, and Carl Jung will look beneath the surface.\n\n"
-            "Choose one mind, or ask all three."
+            "Choose one mind to begin with."
         ),
-        "home_returning": "Welcome back, {name}.\n\nWhat do you want to examine today?",
-        "traveler_name": "Traveler",
+        "home_welcome": (
+            "✦ Welcome to Aeon.\n\n"
+            "Bring one real decision. Marcus Aurelius will examine what is in your control, "
+            "Machiavelli will test the strategy, and Carl Jung will look beneath the surface.\n\n"
+            "Choose one mind to begin with."
+        ),
+        "home_returning_named": "Welcome back, {name}.\n\nWhat do you want to examine today?",
+        "home_returning": "Welcome back.\n\nWhat do you want to examine today?",
+        "home_active_agent": "Your current advisor is {agent}.",
+        "choose_language": "Choose your language:",
+        "language_saved": "Language set to English.",
         "intro": (
             "✦ Welcome to Aeon.\n\n"
             "Become the man you choose to be.\n\n"
@@ -343,14 +353,24 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "ru": {
         # Onboarding
-        "home_welcome": (
+        "onboarding_choose_language": "✦ Welcome to Aeon.\n\nChoose your language:",
+        "home_welcome_named": (
             "✦ Добро пожаловать в Aeon, {name}.\n\n"
             "Принесите одно настоящее решение. Марк Аврелий отделит подвластное Вам, "
             "Макиавелли проверит стратегию, а Карл Юнг поможет заглянуть под поверхность.\n\n"
-            "Выберите одного советника или спросите всех троих."
+            "Выберите советника, с которого начнёте."
         ),
-        "home_returning": "С возвращением, {name}.\n\nЧто Вы хотите обдумать сегодня?",
-        "traveler_name": "Путник",
+        "home_welcome": (
+            "✦ Добро пожаловать в Aeon.\n\n"
+            "Принесите одно настоящее решение. Марк Аврелий отделит подвластное Вам, "
+            "Макиавелли проверит стратегию, а Карл Юнг поможет заглянуть под поверхность.\n\n"
+            "Выберите советника, с которого начнёте."
+        ),
+        "home_returning_named": "С возвращением, {name}.\n\nЧто Вы хотите обдумать сегодня?",
+        "home_returning": "С возвращением.\n\nЧто Вы хотите обдумать сегодня?",
+        "home_active_agent": "Сейчас Ваш советник — {agent}.",
+        "choose_language": "Выберите язык:",
+        "language_saved": "Язык переключён на русский.",
         "intro": (
             "✦ Добро пожаловать в Aeon.\n\n"
             "Станьте мужчиной, которым хотите быть.\n\n"

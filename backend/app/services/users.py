@@ -11,6 +11,12 @@ from app.i18n import normalize_language
 from app.services import events, ops
 
 
+def presentable_name(raw: str | None) -> str:
+    """A name worth greeting with, or "" (accounts that hide the name send a bare dash)."""
+    value = (raw or "").strip()[:64]
+    return value if any(ch.isalnum() for ch in value) else ""
+
+
 async def get_user(session: AsyncSession, user_id: int) -> User | None:
     return await session.get(User, user_id)
 

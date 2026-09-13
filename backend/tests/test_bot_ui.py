@@ -1,7 +1,10 @@
+import pytest
+
 from app.agents import AGENTS
 from app.bot import ui, webapp
 from app.db.models import User
 from app.i18n import t
+from app.services import users
 
 
 def _callbacks(keyboard) -> list[str]:
@@ -20,17 +23,80 @@ def test_agent_picker_offers_only_the_three_advisors():
     assert len(keyboard.inline_keyboard) == 3
 
 
+def test_agent_picker_prefix_addresses_the_onboarding_step():
+    keyboard = ui.agent_picker_keyboard("en", prefix="onboarding:agent")
+
+    assert _callbacks(keyboard) == [f"onboarding:agent:{agent_id}" for agent_id in AGENTS]
+
+
 def test_post_answer_keyboard_only_switches_advisor():
     assert _callbacks(ui.post_answer_keyboard("en")) == ["agent:picker"]
 
 
-def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch):
+def test_language_keyboard_puts_the_detected_language_first():
+    keyboard = ui.language_keyboard("onboarding:lang", detected="ru")
+
+    assert _callbacks(keyboard) == ["onboarding:lang:ru", "onboarding:lang:en"]
+    assert keyboard.inline_keyboard[0][0].text == "✓ Русский"
+    assert keyboard.inline_keyboard[1][0].text == "English"
+
+
+@pytest.mark.parametrize("build", [ui.home_keyboard, ui.onboarding_agent_keyboard])
+def test_home_style_keyboards_open_the_mini_app_and_switch_advisor(monkeypatch, build):
+    monkeypatch.setattr(
+        webapp, "build_webapp_url", lambda view="home", **params: f"https://aeon.test/{view}"
+    )
+
+    keyboard = build("en")
+    web_buttons = [b for row in keyboard.inline_keyboard for b in row if b.web_app]
+
+    assert len(web_buttons) == 1
+    assert web_buttons[0].web_app.url == "https://aeon.test/home"
+    assert _callbacks(keyboard) == ["agent:picker"]
+
+
+@pytest.mark.parametrize("build", [ui.home_keyboard, ui.onboarding_agent_keyboard])
+def test_keyboards_do_not_emit_empty_rows_without_mini_app(monkeypatch, build):
     monkeypatch.setattr(webapp, "build_webapp_url", lambda view="home", **params: "")
 
-    keyboard = ui.limit_keyboard("en", "Pro")
+    keyboard = build("en")
 
     assert keyboard.inline_keyboard
     assert all(row for row in keyboard.inline_keyboard)
+    assert _callbacks(keyboard) == ["agent:picker"]
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("Alikhan", "Alikhan"),
+        ("  Ali  ", "Ali"),
+        ("", ""),
+        ("   ", ""),
+        ("—", ""),
+        ("…", ""),
+        (None, ""),
+    ],
+)
+def test_presentable_name_drops_placeholders(raw, expected):
+    assert users.presentable_name(raw) == expected
+
+
+def test_greeting_keys_exist_in_both_languages():
+    for key in (
+        "home_welcome",
+        "home_welcome_named",
+        "home_returning",
+        "home_returning_named",
+        "home_active_agent",
+        "choose_language",
+        "language_saved",
+        "onboarding_choose_language",
+    ):
+        assert t("en", key) != key
+        assert t("ru", key) != key
+    assert "{name}" in t("ru", "home_welcome_named")
+    assert "{name}" not in t("ru", "home_welcome")
 
 
 def test_free_limit_leads_directly_to_pro_invoice():

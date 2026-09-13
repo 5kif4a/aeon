@@ -8,7 +8,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 
 from app.agents import AGENTS, agent_button
 from app.bot import webapp
-from app.i18n import t
+from app.i18n import SUPPORTED_LANGUAGES, t
 
 # (callback token, IANA zone, city label). Mirrored in frontend/src/lib/options.ts so the
 # bot and the Mini App offer the same zones; the Mini App additionally accepts whatever
@@ -64,16 +64,62 @@ def _markup(rows: Iterable[Iterable[InlineKeyboardButton | None]]) -> InlineKeyb
     return InlineKeyboardMarkup(cleaned)
 
 
-def agent_picker_keyboard(language: str) -> InlineKeyboardMarkup:
+LANGUAGE_LABELS = {"en": "English", "ru": "Русский"}
+
+
+def language_keyboard(prefix: str, *, detected: str) -> InlineKeyboardMarkup:
+    # The detected (or current) language goes first so the likely answer is one tap away.
+    ordered = [detected, *(code for code in SUPPORTED_LANGUAGES if code != detected)]
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    f"{'✓ ' if code == detected else ''}{LANGUAGE_LABELS[code]}",
+                    callback_data=f"{prefix}:{code}",
+                )
+            ]
+            for code in ordered
+        ]
+    )
+
+
+def agent_picker_keyboard(language: str, *, prefix: str = "agent") -> InlineKeyboardMarkup:
     # The bot offers only the three advisors; the council lives in the Mini App.
     return InlineKeyboardMarkup(
         [
             [
                 InlineKeyboardButton(
-                    agent_button(agent_id, language), callback_data=f"agent:{agent_id}"
+                    agent_button(agent_id, language), callback_data=f"{prefix}:{agent_id}"
                 )
             ]
             for agent_id in AGENTS
+        ]
+    )
+
+
+def home_keyboard(language: str) -> InlineKeyboardMarkup:
+    return _markup(
+        [
+            [_mini_app_button(language, "open_aeon", "home")],
+            [
+                InlineKeyboardButton(
+                    t(language, "switch_agent_button"), callback_data="agent:picker"
+                )
+            ],
+        ]
+    )
+
+
+def onboarding_agent_keyboard(language: str) -> InlineKeyboardMarkup:
+    # First advisor chosen: the first question is best asked from the Mini App starters.
+    return _markup(
+        [
+            [_mini_app_button(language, "onboarding_open_mini_app", "home")],
+            [
+                InlineKeyboardButton(
+                    t(language, "switch_agent_button"), callback_data="agent:picker"
+                )
+            ],
         ]
     )
 

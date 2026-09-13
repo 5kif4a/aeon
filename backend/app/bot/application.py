@@ -7,7 +7,7 @@ from telegram.ext import Application, ApplicationBuilder
 
 from app.bot.broadcasting import run_queue as run_broadcast_queue
 from app.bot.handlers.commands import build_command_handlers
-from app.bot.handlers.onboarding import build_onboarding_handler
+from app.bot.handlers.onboarding import build_onboarding_callbacks, build_onboarding_handler
 from app.bot.handlers.ops import build_ops_handlers, send_ops_digests
 from app.bot.handlers.payments import build_paysupport_handler
 from app.bot.jobs import (
@@ -30,6 +30,7 @@ async def configure_commands(application: Application) -> None:
     english = [
         BotCommand("start", "Open Aeon"),
         BotCommand("agents", "Choose an advisor"),
+        BotCommand("language", "Change language"),
         BotCommand("council", "Ask the Council of Three"),
         BotCommand("settings", "Notifications and language"),
         BotCommand("subscribe", "Get Aeon Pro"),
@@ -38,6 +39,7 @@ async def configure_commands(application: Application) -> None:
     russian = [
         BotCommand("start", "Открыть Aeon"),
         BotCommand("agents", "Выбрать советника"),
+        BotCommand("language", "Сменить язык"),
         BotCommand("council", "Спросить Совет трёх"),
         BotCommand("settings", "Уведомления и язык"),
         BotCommand("subscribe", "Подключить Aeon Pro"),
@@ -70,6 +72,8 @@ def build_application() -> Application:
     application = builder.build()
 
     application.add_handler(build_onboarding_handler())
+    for handler in build_onboarding_callbacks():
+        application.add_handler(handler)
     # Before the plain text handler: while a /paysupport request is open, the next message
     # goes to the ops group instead of the active agent.
     application.add_handler(build_paysupport_handler())
