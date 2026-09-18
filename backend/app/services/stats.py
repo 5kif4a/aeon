@@ -42,6 +42,9 @@ class Stats:
     subscriptions_canceled: int = 0
     limit_hits: int = 0
     generation_failures: int = 0
+    first_answers: int = 0
+    invoices_opened: int = 0
+    blocked: int = 0
     pro_active: int = 0
     trial_active: int = 0
     pro_expiring_soon: int = 0
@@ -194,6 +197,9 @@ async def collect_stats(
     stats.subscriptions_canceled = counts.get(events.SUBSCRIPTION_CANCELED, 0)
     stats.limit_hits = counts.get(events.QUESTION_LIMIT_HIT, 0)
     stats.generation_failures = counts.get(events.GENERATION_FAILED, 0)
+    stats.first_answers = counts.get(events.FIRST_ANSWER_DELIVERED, 0)
+    stats.invoices_opened = counts.get(events.INVOICE_OPENED, 0)
+    stats.blocked = counts.get(events.BOT_BLOCKED, 0)
 
     # Owners keep Pro for themselves while testing; they are not subscribers.
     is_owner = exists().where(
@@ -239,10 +245,14 @@ async def collect_stats(
 def format_stats(stats: Stats, title: str) -> str:
     """Telegram HTML for the ops group (internal, English only)."""
     lines = [f"<b>{html.escape(title)}</b> · {html.escape(stats.window.label)}", ""]
+    if stats.new_users >= 3 and stats.first_answers == 0:
+        lines += ["⚠️ new users signed up, none received a first answer", ""]
     lines += [
         "<b>Users</b>",
-        f"• new: {stats.new_users} · onboarded: {stats.onboarding_completed}",
-        f"• active: {stats.active_users} · total: {stats.users_total}",
+        f"• new: {stats.new_users} · first answers: {stats.first_answers} · "
+        f"onboarded: {stats.onboarding_completed}",
+        f"• active: {stats.active_users} · total: {stats.users_total} · "
+        f"blocked the bot: {stats.blocked}",
         "",
         "<b>Questions</b>",
         f"• total: {stats.questions_total} (prompt {stats.prompt_questions}, "
@@ -257,7 +267,8 @@ def format_stats(stats: Stats, title: str) -> str:
     lines += [
         "",
         "<b>Revenue</b>",
-        f"• payments: {stats.payments_count} · {stats.payments_stars} ★",
+        f"• payments: {stats.payments_count} · {stats.payments_stars} ★ · "
+        f"invoices opened: {stats.invoices_opened}",
         f"• trials started: {stats.trials_started} · canceled: {stats.subscriptions_canceled}",
         "",
         "<b>Now</b>",

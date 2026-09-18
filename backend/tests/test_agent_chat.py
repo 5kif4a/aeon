@@ -46,9 +46,11 @@ def test_history_roles_map_agent_to_model_and_drop_unknown_roles():
     assert "ignored" not in "".join(_text(turn) for turn in contents)
 
 
-def test_history_merges_consecutive_same_role_and_drops_leading_model_turn():
+def test_history_merges_consecutive_same_role_and_keeps_a_leading_model_turn():
+    # An advisor-first session (evening question) opens with a model turn; Gemini needs a
+    # user turn before it, so a neutral opener is inserted instead of dropping the question.
     history = _history(
-        ("agent", "Orphaned intro"),
+        ("agent", "Evening question"),
         ("user", "First"),
         ("user", "Second"),
         ("agent", "Reply"),
@@ -56,8 +58,9 @@ def test_history_merges_consecutive_same_role_and_drops_leading_model_turn():
 
     contents = agent_chat._history_contents(history)
 
-    assert _roles(contents) == ["user", "model"]
-    assert _text(contents[0]) == "First\n\nSecond"
+    assert _roles(contents) == ["user", "model", "user", "model"]
+    assert _text(contents[1]) == "Evening question"
+    assert _text(contents[2]) == "First\n\nSecond"
 
 
 def test_history_drops_trailing_user_turn_so_current_message_stays_last():

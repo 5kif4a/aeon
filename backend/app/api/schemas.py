@@ -9,12 +9,28 @@ from app.agents import agent_name
 from app.db.models import Conversation, User
 from app.i18n import SUPPORTED_LANGUAGES
 from app.services.billing import BillingSnapshot, effective_plan
-from app.services.users import calculate_age
+from app.services.users import (
+    TIMEZONE_SOURCE_DEFAULT,
+    TIMEZONE_SOURCE_DEVICE,
+    TIMEZONE_SOURCE_LANGUAGE,
+    TIMEZONE_SOURCE_MANUAL,
+    calculate_age,
+    checked_in_today,
+    checkin_week,
+    current_streak,
+    local_datetime,
+)
 
 LanguageCode = Literal[SUPPORTED_LANGUAGES]  # type: ignore[valid-type]
 
 # Longest agent excerpt the Mini App shows on the "continue" card.
 LAST_MESSAGE_LIMIT = 200
+
+
+class CheckinDayOut(BaseModel):
+    date: date
+    checked: bool
+    today: bool
 
 
 class ProfileOut(BaseModel):
@@ -32,11 +48,16 @@ class ProfileOut(BaseModel):
     plan: str
     tokens: int
     activeAgent: str | None
+    # Lapse-corrected: zero once a day was skipped, even if the column still says otherwise.
     dailyCheckinStreak: int
+    checkedInToday: bool
+    # The current local week, Monday first, for the week strip on the home screen.
+    checkinWeek: list[CheckinDayOut]
     isAdmin: bool = False
 
     @classmethod
     def from_user(cls, user: User, *, is_admin: bool = False) -> "ProfileOut":
+        today = local_datetime(user).date()
         return cls(
             id=user.id,
             language=user.language,
@@ -52,7 +73,12 @@ class ProfileOut(BaseModel):
             plan=effective_plan(user),
             tokens=user.tokens,
             activeAgent=user.active_agent,
-            dailyCheckinStreak=user.daily_checkin_streak or 0,
+            dailyCheckinStreak=current_streak(user),
+            checkedInToday=checked_in_today(user),
+            checkinWeek=[
+                CheckinDayOut(date=day, checked=checked, today=day == today)
+                for day, checked in checkin_week(user)
+            ],
             isAdmin=is_admin,
         )
 
@@ -85,57 +111,84 @@ class ProfileUpdate(BaseModel):
 
 
 class NotificationSettingsOut(BaseModel):
+    # Morning slot (a thought) and evening slot (a question); each has its own hour.
     dailyEnabled: bool
+    reminderHour: int
+    eveningEnabled: bool
+    eveningHour: int
     weeklyEnabled: bool
     # Marketing broadcasts from the admin panel; service announcements ignore it.
     marketingEnabled: bool
-    reminderHour: int
     reminderTimezone: str
-    # Nothing is ever sent to a user without a birth date; the Mini App says so instead
-    # of letting the settings look effective when they are not.
+    # default | language | device | manual. The Mini App sends the device zone silently only
+    # while the source is a guess ("default"/"language"); a manual choice is never overwritten.
+    timezoneSource: str
+    # Only the weekly life review needs a birth date; the daily slots do not.
     birthDateSet: bool
 
     @classmethod
     def from_user(cls, user: User) -> "NotificationSettingsOut":
         return cls(
             dailyEnabled=bool(user.daily_notifications_enabled),
+            reminderHour=user.reminder_hour if user.reminder_hour is not None else 9,
+            eveningEnabled=user.evening_enabled is not False,
+            eveningHour=user.evening_hour if user.evening_hour is not None else 21,
             weeklyEnabled=bool(user.weekly_notifications_enabled),
             marketingEnabled=user.marketing_enabled is not False,
-            reminderHour=user.reminder_hour if user.reminder_hour is not None else 9,
             reminderTimezone=user.reminder_timezone or "UTC",
+            timezoneSource=user.timezone_source or TIMEZONE_SOURCE_DEFAULT,
             birthDateSet=user.birth_date is not None,
         )
 
 
+def _validate_zone(value: str | None) -> str | None:
+    if value is None:
+        return value
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError, KeyError) as error:
+        raise ValueError("Unknown IANA time zone") from error
+    return value
+
+
 class NotificationSettingsUpdate(BaseModel):
     dailyEnabled: bool | None = None
+    eveningEnabled: bool | None = None
     weeklyEnabled: bool | None = None
     marketingEnabled: bool | None = None
     reminderHour: int | None = Field(default=None, ge=0, le=23)
+    eveningHour: int | None = Field(default=None, ge=0, le=23)
     # Any IANA zone the device reports is accepted, not only the curated picker list.
+    # `reminderTimezone` is the user's explicit choice; `deviceTimezone` is what the Mini App
+    # reports on open and only counts while the stored zone is still a guess.
     reminderTimezone: str | None = Field(default=None, max_length=64)
+    deviceTimezone: str | None = Field(default=None, max_length=64)
 
-    @field_validator("reminderTimezone")
+    @field_validator("reminderTimezone", "deviceTimezone")
     @classmethod
     def _known_timezone(cls, value: str | None) -> str | None:
-        if value is None:
-            return value
-        try:
-            ZoneInfo(value)
-        except (ZoneInfoNotFoundError, ValueError, KeyError) as error:
-            raise ValueError("Unknown IANA time zone") from error
-        return value
+        return _validate_zone(value)
 
-    def to_user_fields(self) -> dict:
+    def to_user_fields(self, current: User) -> dict:
         mapping = {
             "dailyEnabled": "daily_notifications_enabled",
+            "eveningEnabled": "evening_enabled",
             "weeklyEnabled": "weekly_notifications_enabled",
             "marketingEnabled": "marketing_enabled",
             "reminderHour": "reminder_hour",
+            "eveningHour": "evening_hour",
             "reminderTimezone": "reminder_timezone",
         }
         data = self.model_dump(exclude_unset=True, exclude_none=True)
-        return {mapping[key]: value for key, value in data.items() if key in mapping}
+        fields = {mapping[key]: value for key, value in data.items() if key in mapping}
+        if "reminder_timezone" in fields:
+            fields["timezone_source"] = TIMEZONE_SOURCE_MANUAL
+        elif data.get("deviceTimezone") and (
+            current.timezone_source or TIMEZONE_SOURCE_DEFAULT
+        ) in (TIMEZONE_SOURCE_DEFAULT, TIMEZONE_SOURCE_LANGUAGE):
+            fields["reminder_timezone"] = data["deviceTimezone"]
+            fields["timezone_source"] = TIMEZONE_SOURCE_DEVICE
+        return fields
 
 
 class GoalOut(BaseModel):
@@ -233,6 +286,8 @@ class BillingStatusOut(BaseModel):
     proExpiresAt: datetime | None
     proAutoRenew: bool
     proPriceStars: int
+    proYearPriceStars: int
+    proYearDiscountPercent: int
 
     @classmethod
     def from_snapshot(cls, snapshot: BillingSnapshot) -> "BillingStatusOut":
@@ -257,12 +312,15 @@ class BillingStatusOut(BaseModel):
             proExpiresAt=snapshot.pro_expires_at,
             proAutoRenew=snapshot.pro_auto_renew,
             proPriceStars=snapshot.pro_price_stars,
+            proYearPriceStars=snapshot.pro_year_price_stars,
+            proYearDiscountPercent=snapshot.pro_year_discount_percent,
         )
 
 
 class CheckoutOut(BaseModel):
     invoiceLink: str
     priceStars: int
+    period: Literal["month", "year"] = "month"
 
 
 class CancelSubscriptionOut(BaseModel):
@@ -310,6 +368,8 @@ class AdminMeOut(BaseModel):
     # Every permission key the role grants, or ["*"] for an owner.
     permissions: list[str] = Field(default_factory=list)
     isOwner: bool = False
+    # Environment switches the panel needs to show or hide dev-only actions.
+    userResetEnabled: bool = False
 
 
 class AdminSessionOut(BaseModel):
@@ -379,6 +439,9 @@ class AdminUserOut(BaseModel):
     proExpiresAt: datetime | None
     trialExpiresAt: datetime | None
     proAutoRenew: bool
+    acquiredFrom: str = ""
+    firstAnswerAt: datetime | None = None
+    blockedAt: datetime | None = None
 
 
 class AdminPageOut[T](BaseModel):
@@ -445,6 +508,11 @@ class AdminConversationDetailOut(BaseModel):
 
 class GrantProIn(BaseModel):
     days: int = Field(ge=1, le=365)
+
+
+class ResetUserIn(BaseModel):
+    # Also clear the profile (birth date, goal, ...) so the Mini App onboarding repeats too.
+    includeProfile: bool = False
 
 
 # Bot settings: prompt texts and generation knobs edited from the admin panel.

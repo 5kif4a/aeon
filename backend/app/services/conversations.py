@@ -128,6 +128,44 @@ async def append_exchange(
     return conversation
 
 
+async def append_agent_message(
+    session: AsyncSession, conversation: Conversation, text: str
+) -> None:
+    """An advisor speaks first (evening question, follow-up): one agent turn, no user turn.
+
+    The next user message is appended by `append_exchange` after it, so the stored history
+    keeps the question the user is answering. `updated_at` is left alone: it marks user
+    activity (segments, follow-up candidacy), and the bot writing to itself is not that.
+    """
+    position = conversation.message_count + 1
+    session.add(
+        ConversationMessage(
+            conversation_id=conversation.id,
+            position=position,
+            role="agent",
+            text=str(text or ""),
+        )
+    )
+    await session.execute(
+        update(Conversation)
+        .where(Conversation.id == conversation.id)
+        .values(message_count=position, updated_at=Conversation.updated_at)
+    )
+    await session.commit()
+    await session.refresh(conversation)
+
+
+async def reopen_session(session: AsyncSession, conversation: Conversation) -> None:
+    """Make a closed conversation the active one again, closing whatever else is active."""
+    await close_active_session(session, conversation.user_id)
+    await session.execute(
+        update(Conversation)
+        .where(Conversation.id == conversation.id)
+        .values(status="active", closed_at=None, updated_at=Conversation.updated_at)
+    )
+    await session.refresh(conversation)
+
+
 async def append_completed_session(
     session: AsyncSession,
     user_id: int,

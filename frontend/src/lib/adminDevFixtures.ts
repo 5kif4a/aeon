@@ -243,6 +243,9 @@ function user(
     proExpiresAt: plan === "Pro" ? ago(-20) : null,
     trialExpiresAt: plan === "Trial" ? ago(-2) : null,
     proAutoRenew: plan === "Pro",
+    acquiredFrom: "",
+    firstAnswerAt: ago(39),
+    blockedAt: null,
     ...extra,
   };
 }

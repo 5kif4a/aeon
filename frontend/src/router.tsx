@@ -42,6 +42,12 @@ const rootRoute = createRootRoute({ component: Outlet });
 const landingRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/landing",
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { mentor: "aurelius" | "machiavelli" | "jung" } => ({
+    mentor:
+      search.mentor === "machiavelli" || search.mentor === "jung" ? search.mentor : "aurelius",
+  }),
   component: LandingView,
 });
 

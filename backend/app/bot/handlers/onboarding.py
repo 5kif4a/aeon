@@ -1,4 +1,4 @@
-"""First-run experience: /start, the language step and the first advisor."""
+"""First-run experience: /start, the welcome and the first advisor."""
 
 from telegram import Update
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, filters
@@ -28,7 +28,7 @@ async def send_home(bot, chat_id: int, user: User, *, edit_message_id: int | Non
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Create a lightweight profile from Telegram; new users pick a language and an advisor."""
+    """Create a lightweight profile from Telegram; new users go straight to picking an advisor."""
     context.user_data.clear()
     telegram_user = update.effective_user
     chat_id = update.effective_chat.id
@@ -37,7 +37,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     async with SessionFactory() as session:
         user = await users.get_user(session, chat_id)
-        is_new = user is None
+        # `onboarding_pending` is set by the admin reset: the row stays, the welcome repeats.
+        is_new = user is None or user.onboarding_pending
         if user is None:
             user = await users.get_or_create_user(
                 session,
@@ -45,6 +46,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                 name=telegram_name,
                 language=detected_language,
                 username=getattr(telegram_user, "username", "") or "",
+                # `/start ads_brotherhood` from an ad link: the only place the source is known.
+                acquired_from=users.acquisition_source(context.args),
             )
         else:
             changes = {}
@@ -53,39 +56,23 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             username = (getattr(telegram_user, "username", "") or "")[:64]
             if user.username != username:
                 changes["username"] = username
+            if user.onboarding_pending:
+                changes["onboarding_pending"] = False
             if changes:
                 user = await users.update_user(session, user, changes)
 
     await webapp.set_chat_menu_button(context.bot, chat_id, user.language)
     if is_new:
-        # The client language is only a guess: the first step lets the user confirm it.
+        # The client language decides the greeting; /language changes it later if the guess is
+        # wrong. Nothing stands between /start and the first advisor.
+        welcome = t(user.language, "onboarding_welcome")
         await context.bot.send_message(
             chat_id,
-            t(detected_language, "onboarding_choose_language"),
-            reply_markup=ui.language_keyboard("onboarding:lang", detected=detected_language),
+            f"{welcome}\n\n{_greeting(user, 'home_welcome')}",
+            reply_markup=ui.agent_picker_keyboard(user.language, prefix="onboarding:agent"),
         )
     else:
         await send_home(context.bot, chat_id, user)
-
-
-async def onboarding_language_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    query = update.callback_query
-    await query.answer()
-    if not messaging.is_private_chat(update):
-        return
-    language = normalize_language(query.data.rsplit(":", 1)[1])
-    chat_id = update.effective_chat.id
-    async with SessionFactory() as session:
-        user = await users.get_or_create_user(session, chat_id)
-        user = await users.update_user(session, user, {"language": language})
-    await webapp.set_chat_menu_button(context.bot, chat_id, language)
-    await messaging.try_edit(
-        context.bot,
-        chat_id,
-        query.message.message_id,
-        _greeting(user, "home_welcome"),
-        ui.agent_picker_keyboard(language, prefix="onboarding:agent"),
-    )
 
 
 async def onboarding_agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -122,7 +109,6 @@ def build_onboarding_callbacks() -> list[CallbackQueryHandler]:
     # Each step is addressed by its callback prefix, so no in-memory state survives a restart
     # and none is needed.
     return [
-        CallbackQueryHandler(onboarding_language_callback, pattern=r"^onboarding:lang:"),
         CallbackQueryHandler(onboarding_agent_callback, pattern=r"^onboarding:agent:"),
     ]
 

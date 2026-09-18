@@ -34,6 +34,9 @@ PERMISSIONS: tuple[Permission, ...] = (
     Permission("stats.view", "dashboard", "See the dashboard and product metrics"),
     Permission("users.view", "users", "Browse users and open a user card"),
     Permission("users.grant_pro", "users", "Grant Pro without a payment"),
+    Permission(
+        "users.reset", "users", "Reset a user's dialogues and access to walk the funnel again (dev)"
+    ),
     Permission("conversations.view", "users", "Read user dialogues"),
     Permission("payments.view", "billing", "See payments"),
     Permission("payments.refund", "billing", "Refund a Stars charge"),

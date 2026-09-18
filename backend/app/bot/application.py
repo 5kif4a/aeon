@@ -11,8 +11,10 @@ from app.bot.handlers.onboarding import build_onboarding_callbacks, build_onboar
 from app.bot.handlers.ops import build_ops_handlers, send_ops_digests
 from app.bot.handlers.payments import build_paysupport_handler
 from app.bot.jobs import (
+    generate_conversation_followups,
     send_billing_reminders,
     send_daily_notifications,
+    send_evening_questions,
     send_life_weekly_reviews,
 )
 from app.core.config import get_settings
@@ -95,10 +97,26 @@ def build_application() -> Application:
     )
 
     application.job_queue.run_repeating(
+        send_evening_questions,
+        interval=15 * 60,
+        first=40,
+        name="evening_questions",
+    )
+
+    application.job_queue.run_repeating(
         send_billing_reminders,
         interval=15 * 60,
         first=45,
         name="billing_reminders",
+    )
+
+    # Recaps of quiet dialogues, delivered by the evening job. Runs between the sending jobs
+    # so a summary written now goes out at the user's next evening slot.
+    application.job_queue.run_repeating(
+        generate_conversation_followups,
+        interval=15 * 60,
+        first=50,
+        name="conversation_followups",
     )
 
     application.job_queue.run_repeating(

@@ -157,6 +157,11 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ days }),
     }),
+  resetUser: (userId: number, includeProfile: boolean) =>
+    request<AdminUser>(`/api/admin/users/${userId}/reset`, {
+      method: "POST",
+      body: JSON.stringify({ includeProfile }),
+    }),
   refundPayment: (userId: number, paymentId: string) =>
     request<AdminPayment>(`/api/admin/users/${userId}/payments/${paymentId}/refund`, {
       method: "POST",

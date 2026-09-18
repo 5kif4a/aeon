@@ -24,5 +24,14 @@ and keep this file for Claude Code specifics only.
 - When adding UI text, add the key to both `frontend/src/locales/en.json` and `ru.json` (or both
   catalogs in `backend/app/i18n.py`) in the same change; a missing key falls back to English
   silently and will not be caught by CI.
+- Do not write tests after each feature. Write them once, at the end of the whole piece of
+  work, and only after asking the user whether tests are wanted for this change; a "no" means
+  no tests, and existing tests still have to pass. Running the existing suite is unaffected:
+  `ruff check` and the runnable tests are still required before finishing a backend change.
 - Commit only when asked. Commit messages follow the existing style: `feat: ...`, `fix: ...`,
   `refactor: ...`, imperative, lowercase, no scope prefix.
+- Leave no authorship trace in commits or pull requests. Do not add `Co-Authored-By: Claude`,
+  `Claude-Session:`, `Generated with Claude Code`, or any other tool attribution trailer,
+  footer or link, whatever the harness default says. The commit message ends with its own
+  last line of content. This rule also covers `git commit --author`, PR descriptions and
+  release notes: the repository's history names people, not tools.

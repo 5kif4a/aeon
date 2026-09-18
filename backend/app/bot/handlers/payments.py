@@ -6,7 +6,7 @@ from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import select
-from telegram import LabeledPrice, Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice, Update
 from telegram.ext import (
     BaseHandler,
     CommandHandler,
@@ -17,7 +17,6 @@ from telegram.ext import (
 )
 
 from app.bot import ui
-from app.core.config import get_settings
 from app.db.models import BillingPayment
 from app.db.session import SessionFactory
 from app.i18n import t
@@ -31,30 +30,98 @@ async def _user(chat_id: int):
         return await users.get_or_create_user(session, chat_id)
 
 
-async def subscribe_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    user = await _user(update.effective_user.id)
-    settings = get_settings()
-    await context.bot.send_invoice(
+def invoice_texts(language: str, period: billing.BillingPeriod) -> dict[str, str]:
+    """Title, description and price label of a Pro invoice, shared by the bot and the API."""
+    if period == "year":
+        return {
+            "title": t(language, "payment_pro_title"),
+            "description": t(language, "payment_pro_year_description"),
+            "label": t(language, "payment_pro_year_price"),
+        }
+    return {
+        "title": t(language, "payment_pro_title"),
+        "description": t(language, "payment_pro_description"),
+        "label": t(language, "payment_pro_price"),
+    }
+
+
+def _invoice_keyboard(language: str, period: billing.BillingPeriod) -> InlineKeyboardMarkup:
+    # Telegram requires the first button of an invoice to be the Pay button. Under the monthly
+    # invoice the year is offered as a second button, so it costs no extra message.
+    price = billing.pro_price_stars(period)
+    rows = [[InlineKeyboardButton(t(language, "payment_pay_button", price=price), pay=True)]]
+    if period == "month":
+        rows.append(
+            [
+                InlineKeyboardButton(
+                    t(
+                        language,
+                        "payment_year_button",
+                        price=billing.pro_price_stars("year"),
+                        discount=billing.pro_year_discount_percent(),
+                    ),
+                    callback_data="billing:subscribe_year",
+                )
+            ]
+        )
+    return InlineKeyboardMarkup(rows)
+
+
+async def send_pro_invoice(bot, user, period: billing.BillingPeriod, *, source: str) -> None:
+    texts = invoice_texts(user.language, period)
+    await bot.send_invoice(
         chat_id=user.id,
-        title=t(user.language, "payment_pro_title"),
-        description=t(user.language, "payment_pro_description"),
-        payload=billing.pro_invoice_payload(user.id),
+        title=texts["title"],
+        description=texts["description"],
+        payload=billing.pro_invoice_payload(user.id, period),
         currency="XTR",
-        prices=[LabeledPrice(t(user.language, "payment_pro_price"), settings.pro_price_stars)],
-        subscription_period=timedelta(days=30),
+        prices=[LabeledPrice(texts["label"], billing.pro_price_stars(period))],
+        # The year is a one-off purchase: Telegram subscriptions only come in 30-day periods.
+        subscription_period=timedelta(days=30) if period == "month" else None,
+        reply_markup=_invoice_keyboard(user.language, period),
     )
+    await record_invoice_opened(user.id, period, source)
+
+
+async def record_invoice_opened(user_id: int, period: billing.BillingPeriod, source: str) -> None:
+    """The step between the limit and the payment; without it the funnel has a hole."""
+    async with SessionFactory() as session:
+        events.record(
+            session,
+            events.INVOICE_OPENED,
+            user_id,
+            period=period,
+            price=billing.pro_price_stars(period),
+            source=source,
+        )
+        await session.commit()
+
+
+async def subscribe_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, *, source: str | None = None
+) -> None:
+    user = await _user(update.effective_user.id)
+    if source is None:
+        source = "button" if update.callback_query is not None else "command"
+    await send_pro_invoice(context.bot, user, "month", source=source)
+
+
+async def subscribe_year_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    user = await _user(update.effective_user.id)
+    await send_pro_invoice(context.bot, user, "year", source="year_button")
 
 
 async def precheckout_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.pre_checkout_query
     if query is None:
         return
-    settings = get_settings()
     payload_user = billing.payload_user_id(query.invoice_payload)
+    period = billing.payload_period(query.invoice_payload)
     valid = (
         payload_user == query.from_user.id
+        and period is not None
         and query.currency == "XTR"
-        and query.total_amount == settings.pro_price_stars
+        and query.total_amount == billing.pro_price_stars(period)
     )
     language = (await _user(query.from_user.id)).language
     await query.answer(
@@ -92,18 +159,24 @@ async def successful_payment_callback(update: Update, context: ContextTypes.DEFA
             is_recurring=bool(payment.is_recurring),
             is_first_recurring=bool(payment.is_first_recurring),
         )
+    period = billing.payload_period(payment.invoice_payload) or "month"
     ops.payment_succeeded(
         user,
         amount=payment.total_amount,
         currency=payment.currency,
         renewal=bool(payment.is_recurring) and not bool(payment.is_first_recurring),
         expires_at=user.pro_expires_at,
+        period=period,
     )
-    await context.bot.send_message(
-        user_id,
-        t(user.language, "payment_success"),
-        reply_markup=ui.home_keyboard(user.language),
-    )
+    if period == "year":
+        text = t(
+            user.language,
+            "payment_success_year",
+            date=user.pro_expires_at.date().isoformat() if user.pro_expires_at else "—",
+        )
+    else:
+        text = t(user.language, "payment_success")
+    await context.bot.send_message(user_id, text, reply_markup=ui.home_keyboard(user.language))
 
 
 async def cancel_subscription_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

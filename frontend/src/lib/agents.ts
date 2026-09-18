@@ -12,17 +12,17 @@ export const AGENTS: Record<string, AgentDef> = {
   aurelius: {
     icon: "♜",
     name: { en: "Marcus Aurelius", ru: "Марк Аврелий" },
-    role: { en: "Sage psychologist", ru: "Мудрец-психолог" },
+    role: { en: "Resilience", ru: "Стойкость" },
   },
   machiavelli: {
     icon: "♞",
     name: { en: "Machiavelli", ru: "Макиавелли" },
-    role: { en: "Business tactician", ru: "Бизнес-тактик" },
+    role: { en: "Power", ru: "Власть" },
   },
   jung: {
     icon: "◐",
     name: { en: "Carl Jung", ru: "Карл Юнг" },
-    role: { en: "Shadow analyst", ru: "Аналитик тени" },
+    role: { en: "Self-knowledge", ru: "Самопознание" },
   },
 };
 

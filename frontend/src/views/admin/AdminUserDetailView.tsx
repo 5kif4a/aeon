@@ -2,13 +2,21 @@ import { getRouteApi, Link } from "@tanstack/react-router";
 import { useState } from "react";
 
 import { Modal } from "../../components/admin/Modal";
-import { useAdminUser, useGrantPro, useRefundPayment } from "../../hooks/adminQueries";
+import {
+  useAdminMe,
+  useAdminUser,
+  useCan,
+  useGrantPro,
+  useRefundPayment,
+  useResetUser,
+} from "../../hooks/adminQueries";
 import { useAdminT } from "../../lib/admin-i18n-context";
 import { agentLabel, planChipClass } from "../../lib/adminFormat";
 import {
   adminButton,
   adminCard,
   adminChip,
+  adminDangerButton,
   adminInput,
   adminLink,
   adminMuted,
@@ -29,8 +37,15 @@ export function AdminUserDetailView() {
   const detail = useAdminUser(id);
   const grant = useGrantPro(id);
   const refund = useRefundPayment(id);
+  const reset = useResetUser(id);
+  const me = useAdminMe();
+  const can = useCan();
   const [days, setDays] = useState(30);
   const [proOpen, setProOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetProfile, setResetProfile] = useState(false);
+  // Dev environments only: the backend refuses the call unless the switch is on.
+  const canReset = can("users.reset") && me.data?.userResetEnabled === true;
   // Two-step confirm inside the row instead of a browser dialog: refunds are irreversible.
   const [refundArmed, setRefundArmed] = useState<string | null>(null);
 
@@ -48,6 +63,9 @@ export function AdminUserDetailView() {
     [t("admin_user_pro_until"), formatDateTime(user.proExpiresAt)],
     [t("admin_user_trial_until"), formatDateTime(user.trialExpiresAt)],
     [t("admin_user_auto_renew"), user.proAutoRenew ? t("admin_yes") : t("admin_no")],
+    [t("admin_user_source"), user.acquiredFrom || t("admin_user_source_organic")],
+    [t("admin_user_first_answer"), formatDateTime(user.firstAnswerAt)],
+    [t("admin_user_blocked"), user.blockedAt ? formatDateTime(user.blockedAt) : t("admin_no")],
   ];
 
   return (
@@ -88,6 +106,18 @@ export function AdminUserDetailView() {
           <button type="button" className={adminPrimaryButton} onClick={() => setProOpen(true)}>
             {t("admin_grant_pro")}
           </button>
+          {canReset ? (
+            <button
+              type="button"
+              className={adminDangerButton}
+              onClick={() => {
+                reset.reset();
+                setResetOpen(true);
+              }}
+            >
+              {t("admin_reset_user")}
+            </button>
+          ) : null}
           {/* Access is granted on its own screen; the user is preselected there. */}
           <Link
             to="/admin/access/grant"
@@ -149,6 +179,45 @@ export function AdminUserDetailView() {
           {grant.isError ? <p className="text-danger text-[13px]">{t("admin_error")}</p> : null}
         </div>
       </Modal>
+      <Modal
+        open={resetOpen}
+        title={t("admin_reset_user")}
+        onClose={() => setResetOpen(false)}
+        footer={
+          <button
+            type="button"
+            className={adminDangerButton}
+            disabled={reset.isPending}
+            onClick={() =>
+              reset.mutate(resetProfile, {
+                onSuccess: () => setResetOpen(false),
+              })
+            }
+          >
+            {t("admin_reset_confirm")}
+          </button>
+        }
+      >
+        <div className="grid gap-3">
+          <p className="text-muted text-[13px] leading-relaxed">{t("admin_reset_intro")}</p>
+          <p className="text-muted text-[13px] leading-relaxed">{t("admin_reset_keeps")}</p>
+          <label className="flex items-start gap-2 text-[13px]">
+            <input
+              type="checkbox"
+              className="mt-[3px]"
+              checked={resetProfile}
+              onChange={(event) => setResetProfile(event.target.checked)}
+            />
+            <span>{t("admin_reset_include_profile")}</span>
+          </label>
+          {reset.isError ? (
+            <p className="text-danger text-[13px]">
+              {t("admin_error")}: {reset.error.message}
+            </p>
+          ) : null}
+        </div>
+      </Modal>
+      {reset.isSuccess ? <p className="text-success text-[13px]">{t("admin_reset_done")}</p> : null}
       {grant.isSuccess ? <p className="text-success text-[13px]">{t("admin_grant_done")}</p> : null}
       {refund.isSuccess ? (
         <p className="text-success text-[13px]">{t("admin_refund_done")}</p>

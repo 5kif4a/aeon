@@ -1,18 +1,26 @@
-"""Scheduled bot jobs: local-time daily notifications and weekly life reviews."""
+"""Scheduled bot jobs: local-time morning and evening messages, weekly life reviews.
+
+Two slots a day at most: a thought in the morning (`reminder_hour`) and a question in the
+evening (`evening_hour`), each in the user's own zone. Nothing daily goes to a user whose zone
+is only the platform default; the auto-decay in `users` mutes slots nobody reacts to.
+"""
 
 import logging
 from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
+from telegram.error import Forbidden
 from telegram.ext import ContextTypes
 
+from app.agents import AGENTS, agent_name
 from app.bot import webapp
 from app.core.config import get_settings
 from app.db.models import Goal, User
 from app.db.session import SessionFactory
-from app.i18n import daily_notification_content, life_weekly_content, t
-from app.services import billing, users
+from app.i18n import life_weekly_content, notification_agent_id, t
+from app.notification_texts import evening_question, morning_content
+from app.services import billing, conversations, events, followups, ops, users
 
 # Billing reminders are sent only inside the user's local daytime window.
 BILLING_REMINDER_HOURS = range(9, 22)
@@ -62,6 +70,14 @@ def _calendar_keyboard(language: str) -> InlineKeyboardMarkup | None:
     )
 
 
+async def _send_failed(session, user: User, error: Exception, *, job: str) -> None:
+    """A Forbidden means the user blocked the bot: remember it instead of retrying daily."""
+    if isinstance(error, Forbidden):
+        await users.mark_blocked(session, user, source=job)
+        return
+    logger.warning("%s notification failed for %s: %s", job, user.id, error)
+
+
 async def send_life_weekly_reviews(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(UTC)
     async with SessionFactory() as session:
@@ -81,43 +97,48 @@ async def send_life_weekly_reviews(context: ContextTypes.DEFAULT_TYPE) -> None:
                     reply_markup=_calendar_keyboard(user.language),
                 )
             except Exception as error:
-                logger.warning("Life weekly notification failed for %s: %s", user.id, error)
+                await _send_failed(session, user, error, job="weekly")
                 continue
             await users.mark_life_weekly_sent(session, user, today)
 
 
 def build_daily_notification(user: User, goal: Goal | None, today: date) -> str:
-    sequence = max((today - user.birth_date).days, 0) if user.birth_date else 0
-    agent, text = daily_notification_content(user.language, sequence)
+    """Morning message: a signed advisor line or an unsigned aphorism, then the goal."""
+    text, author = morning_content(user.language, users.notification_sequence(user, today))
+    if author:
+        quote = t(user.language, "morning_signed_quote", text=text, agent=author)
+    else:
+        quote = t(user.language, "morning_plain_quote", text=text)
     if goal is not None:
-        return t(
-            user.language,
-            "daily_with_goal",
-            agent=agent,
-            goal=goal.text,
-            text=text,
-        )
-    return t(
-        user.language,
-        "daily_without_goal",
-        agent=agent,
-        text=text,
-    )
+        return t(user.language, "morning_with_goal", quote=quote, goal=goal.text)
+    return t(user.language, "morning_without_goal", quote=quote)
 
 
 def _daily_keyboard(language: str, has_goal: bool) -> InlineKeyboardMarkup:
-    """Mark the day done, or open the calendar (on the goal tab when there is one)."""
+    """Mark the day done, open the calendar (goal tab when there is one), or mute mornings.
+
+    The mute sits on the message itself: nobody walks to /settings to quiet a bot, they block
+    it. One tap here keeps the evening question alive.
+    """
     url = webapp.build_webapp_url("calendar", tab="goal" if has_goal else "life")
     rows = [[InlineKeyboardButton(t(language, "daily_done_button"), callback_data="daily:done")]]
     if url:
         rows.append(
             [InlineKeyboardButton(t(language, "life_weekly_button"), web_app=WebAppInfo(url=url))]
         )
+    rows.append(
+        [
+            InlineKeyboardButton(
+                t(language, "morning_mute_button"), callback_data="notify:morning_off"
+            )
+        ]
+    )
     return InlineKeyboardMarkup(rows)
 
 
 async def send_daily_notifications(context: ContextTypes.DEFAULT_TYPE) -> None:
     now = datetime.now(UTC)
+    sent = blocked = 0
     async with SessionFactory() as session:
         candidates = await users.daily_notification_candidates(session)
         for user, goal in candidates:
@@ -133,9 +154,96 @@ async def send_daily_notifications(context: ContextTypes.DEFAULT_TYPE) -> None:
                     reply_markup=_daily_keyboard(user.language, goal is not None),
                 )
             except Exception as error:
-                logger.warning("Daily notification failed for %s: %s", user.id, error)
+                blocked += isinstance(error, Forbidden)
+                await _send_failed(session, user, error, job="morning")
                 continue
+            sent += 1
+            events.record(session, events.NOTIFICATION_SENT, user.id, kind="morning")
             await users.mark_daily_notification_sent(session, user, goal, today)
+    ops.blocked_wave("morning", sent=sent, blocked=blocked)
+
+
+def evening_agent_id(user: User, today: date) -> str:
+    """The advisor who asks tonight: the current one, or the rotation when there is none."""
+    if user.active_agent in AGENTS:
+        return user.active_agent
+    return notification_agent_id(users.notification_sequence(user, today))
+
+
+def build_evening_message(user: User, agent_id: str, question: str) -> str:
+    """The question (or follow-up recap) signed by the advisor who asks it."""
+    return t(
+        user.language,
+        "evening_question",
+        question=question,
+        agent=agent_name(agent_id, user.language),
+    )
+
+
+def build_evening_question(user: User, today: date, agent_id: str) -> str:
+    question = evening_question(user.language, users.notification_sequence(user, today))
+    return build_evening_message(user, agent_id, question)
+
+
+async def _send_evening(context, session, user: User, today: date, now: datetime) -> bool:
+    """One evening message: a pending follow-up if there is one, else the rotation question.
+
+    Whatever is sent is stored as the advisor's turn in the conversation the reply will land
+    in, so the answer (often a single word) reaches the advisor with its question attached.
+    """
+    followup = await followups.pending_for_user(session, user.id)
+    if followup is not None:
+        agent_id = followup.agent_id
+        question = followup.summary
+    else:
+        agent_id = evening_agent_id(user, today)
+        question = evening_question(user.language, users.notification_sequence(user, today))
+
+    try:
+        await context.bot.send_message(user.id, build_evening_message(user, agent_id, question))
+    except Exception as error:
+        await _send_failed(session, user, error, job="evening")
+        return False
+
+    if followup is not None:
+        await conversations.reopen_session(session, followup)
+        conversation = followup
+        await followups.mark_sent(session, conversation, now)
+    else:
+        conversation = await conversations.start_session(session, user.id, agent_id)
+    user.active_agent = agent_id
+    # Stored unsigned: in the history it is simply the advisor's own turn.
+    await conversations.append_agent_message(session, conversation, question)
+    events.record(
+        session,
+        events.NOTIFICATION_SENT,
+        user.id,
+        kind="followup" if followup is not None else "evening",
+        agent_id=agent_id,
+    )
+    await users.mark_evening_notification_sent(session, user, today)
+    return True
+
+
+async def send_evening_questions(context: ContextTypes.DEFAULT_TYPE) -> None:
+    now = datetime.now(UTC)
+    async with SessionFactory() as session:
+        candidates = await users.evening_notification_candidates(session)
+        for user in candidates:
+            if not users.evening_notification_is_due(user, now):
+                continue
+            today = users.local_datetime(user, now).date()
+            if user.last_evening_notification_date == today:
+                continue
+            await _send_evening(context, session, user, today, now)
+
+
+async def generate_conversation_followups(context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Recaps for dialogues that went quiet; the evening job delivers them."""
+    try:
+        await followups.generate_pending()
+    except Exception as error:
+        logger.warning("Follow-up generation failed: %s", error)
 
 
 def build_billing_reminder(user: User, reminder: billing.BillingReminder) -> str:
@@ -179,6 +287,6 @@ async def send_billing_reminders(context: ContextTypes.DEFAULT_TYPE) -> None:
                     reply_markup=_billing_keyboard(user.language),
                 )
             except Exception as error:
-                logger.warning("Billing reminder %s failed for %s: %s", reminder, user.id, error)
+                await _send_failed(session, user, error, job=f"billing:{reminder}")
                 continue
             await billing.mark_billing_reminder_sent(session, user, reminder, now)

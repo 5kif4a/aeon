@@ -9,7 +9,7 @@ from telegram.error import TelegramError
 from app.api.deps import CurrentUser, SessionDep
 from app.api.schemas import BillingStatusOut, CancelSubscriptionOut, CheckoutOut
 from app.bot import runtime
-from app.core.config import get_settings
+from app.bot.handlers.payments import invoice_texts, record_invoice_opened
 from app.core.ratelimit import DIALOG_LIMITER
 from app.i18n import t
 from app.services import billing, ops
@@ -30,7 +30,7 @@ async def billing_status(user: CurrentUser, session: SessionDep) -> BillingStatu
 @router.post("/trial", response_model=BillingStatusOut)
 async def activate_trial(user: CurrentUser, session: SessionDep) -> BillingStatusOut:
     try:
-        user = await billing.start_trial(session, user.id)
+        user = await billing.start_trial(session, user.id, source="mini_app")
     except billing.TrialUnavailable as error:
         raise HTTPException(status_code=409, detail=str(error)) from error
     ops.trial_started(user)
@@ -38,7 +38,9 @@ async def activate_trial(user: CurrentUser, session: SessionDep) -> BillingStatu
 
 
 @router.post("/checkout", response_model=CheckoutOut)
-async def create_checkout(user: CurrentUser) -> CheckoutOut:
+async def create_checkout(
+    user: CurrentUser, period: billing.BillingPeriod = "month"
+) -> CheckoutOut:
     # Each call creates a Telegram invoice; share the per-user window with the dialogue calls.
     if not DIALOG_LIMITER.hit(str(user.id)):
         raise HTTPException(status_code=429, detail=t(user.language, "error_too_many_requests"))
@@ -46,19 +48,22 @@ async def create_checkout(user: CurrentUser) -> CheckoutOut:
     if application is None:
         raise HTTPException(status_code=503, detail="Telegram bot is not running")
 
-    settings = get_settings()
+    texts = invoice_texts(user.language, period)
+    price = billing.pro_price_stars(period)
     try:
         invoice_link = await application.bot.create_invoice_link(
-            title=t(user.language, "payment_pro_title"),
-            description=t(user.language, "payment_pro_description"),
-            payload=billing.pro_invoice_payload(user.id),
+            title=texts["title"],
+            description=texts["description"],
+            payload=billing.pro_invoice_payload(user.id, period),
             currency="XTR",
-            prices=[LabeledPrice(t(user.language, "payment_pro_price"), settings.pro_price_stars)],
-            subscription_period=timedelta(days=30),
+            prices=[LabeledPrice(texts["label"], price)],
+            # The year is a one-off purchase: Telegram subscriptions only come in 30-day periods.
+            subscription_period=timedelta(days=30) if period == "month" else None,
         )
     except TelegramError as error:
         raise HTTPException(status_code=502, detail="Could not create Telegram invoice") from error
-    return CheckoutOut(invoiceLink=invoice_link, priceStars=settings.pro_price_stars)
+    await record_invoice_opened(user.id, period, "mini_app")
+    return CheckoutOut(invoiceLink=invoice_link, priceStars=price, period=period)
 
 
 @router.post("/cancel", response_model=CancelSubscriptionOut)

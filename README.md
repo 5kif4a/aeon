@@ -48,8 +48,10 @@ PostgreSQL is the single source of truth: profiles, goals, and diary entries cre
 - **Onboarding in the bot** — `/start` flow (language → first advisor → Mini App hand-off) editing one Telegram message; the birth date for the life calendar is filled in the Mini App.
 - **Memento Mori calendar** — 90 years as 4,680 life weeks, computed from the birth date in the profile.
 - **Diary** — reflection notes with quick prompts, stored server-side.
-- **Goals** — one active goal connected to localized daily agent notifications (`JobQueue`, configurable hour and timezone).
-- **Daily agent notifications** — five ru/en messages per agent, daily rotation, active-goal context, and a direct Mini App action.
+- **Goals** — one active goal shown in the morning message (`JobQueue`, per-user hours and timezone).
+- **Morning message and evening question** — a signed advisor line or an aphorism in the morning, one question about the day in the evening whose answer goes straight to the advisor; both ru/en, deterministic rotation, one-tap mute, auto-decay when nobody reacts.
+- **Conversation follow-ups** — a dialogue that went quiet gets a one-line recap from its advisor in the evening slot.
+- **Streak** — writing to an advisor is the day's check-in; shown under the answer and on the Mini App home screen.
 - **Weekly life review** — a localized message from one of three rotating agents, the user's life-week number, and a button that opens the calendar.
 - **Personal cabinet** — profile memory card, completion progress, plan/tokens.
 - **Mini App auth** — every API request is authenticated with Telegram `initData` (HMAC validation) via the `Authorization: tma <initData>` header.
@@ -285,6 +287,9 @@ PYTHONPATH=. uv run python scripts/import_legacy.py
 | `RAG_EMBEDDING_MODEL` | `gemini-embedding-001` | Gemini embedding model used for chunks and queries |
 | `RAG_EMBEDDING_DIM` | `768` | embedding size stored in `rag_chunks`; change requires `embed_rag.py --force` |
 | `DATABASE_URL` | local postgres | PostgreSQL DSN (asyncpg) |
-| `REMINDER_HOUR` | `9` | default notification hour for new users; each user can change it in the bot |
-| `REMINDER_TZ` | `UTC` | default notification timezone for new users; each user can change it in the bot |
+| `REMINDER_HOUR` | `8` | default morning hour for new users; each user can change it in the bot or the Mini App |
+| `EVENING_HOUR` | `21` | default evening-question hour for new users |
+| `REMINDER_TZ` | `UTC` | default timezone when neither the language nor the device gives one; nothing daily is sent until a zone is known |
+| `FOLLOWUP_ENABLED` | `true` | generate evening follow-up recaps for quiet dialogues (Gemini, paid by us) |
+| `FOLLOWUP_DAILY_CAP` | `300` | recaps generated per day at most |
 | `STATIC_DIR` | — | path to built frontend (set in Docker) |

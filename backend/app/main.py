@@ -15,7 +15,7 @@ from app.api.routes import api_router
 from app.bot import runtime
 from app.bot.application import ALLOWED_UPDATES, build_application, configure_commands
 from app.core.config import get_settings
-from app.services import bot_settings
+from app.services import bot_settings, ops
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -61,6 +61,9 @@ async def lifespan(app: FastAPI):
             logger.info("Telegram bot started in polling mode")
     else:
         logger.warning("BOT_TOKEN is not set; running API without the bot")
+
+    # One message per process start: the limits this environment actually runs with.
+    ops.settings_drift(settings.funnel_overrides())
 
     if settings.bot_mode == "webhook" and not settings.admin_session_secret:
         logger.warning(

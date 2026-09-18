@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 
-from sqlalchemy import Date, DateTime, case, cast, func, or_, select
+from sqlalchemy import Date, DateTime, case, cast, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import (
@@ -12,6 +12,8 @@ from app.db.models import (
     Conversation,
     ConversationMessage,
     DailyUsage,
+    DiaryEntry,
+    Goal,
     ProductEvent,
     User,
 )
@@ -375,6 +377,90 @@ async def list_payments(
         .offset(offset)
     )
     return Page(items=list(rows.all()), total=int(total))
+
+
+class ResetBlocked(Exception):
+    """The user still has a renewing Stars subscription; Telegram would keep charging it."""
+
+
+PROFILE_RESET_FIELDS: dict[str, object] = {
+    "gender": "",
+    "birth_date": None,
+    "country": "",
+    "location": "",
+    "activity": "",
+    "interests": "",
+    "main_goal": "",
+    "current_problem": "",
+}
+
+
+async def reset_user(
+    session: AsyncSession,
+    user_id: int,
+    *,
+    actor_id: int,
+    include_profile: bool = False,
+) -> User | None:
+    """Dev/test action: put a user back to the state right after their first /start.
+
+    Deletes dialogues, daily usage, goals and diary entries and clears entitlements, streaks
+    and notification bookkeeping. The user row, payments and product events stay, so the
+    metrics see no fake signup and the money trail is intact; the action itself is recorded.
+    Refused while a renewing Stars subscription is active: cancel it first, otherwise Telegram
+    keeps charging a subscription we no longer track.
+    """
+    user = await session.get(User, user_id, with_for_update=True)
+    if user is None:
+        return None
+    if user.pro_auto_renew and user.pro_subscription_charge_id:
+        raise ResetBlocked()
+
+    deleted: dict[str, int] = {}
+    for label, model in (
+        ("conversations", Conversation),  # messages go with them (FK ON DELETE CASCADE)
+        ("daily_usages", DailyUsage),
+        ("goals", Goal),
+        ("diary_entries", DiaryEntry),
+    ):
+        result = await session.execute(delete(model).where(model.user_id == user_id))
+        deleted[label] = result.rowcount or 0
+
+    user.plan = "Free"
+    user.trial_started_at = None
+    user.trial_expires_at = None
+    user.trial_rag_used = 0
+    user.trial_council_used = False
+    user.pro_expires_at = None
+    user.pro_subscription_charge_id = None
+    user.pro_auto_renew = False
+    user.trial_ending_reminded_at = None
+    user.trial_ended_reminded_at = None
+    user.pro_expired_reminded_at = None
+    user.active_agent = None
+    user.last_daily_notification_date = None
+    user.last_evening_notification_date = None
+    user.last_life_weekly_date = None
+    user.last_daily_checkin_date = None
+    user.daily_checkin_streak = 0
+    user.unanswered_notifications = 0
+    user.last_webapp_open_at = None
+    user.onboarding_pending = True
+    if include_profile:
+        for field, value in PROFILE_RESET_FIELDS.items():
+            setattr(user, field, value)
+
+    events.record(
+        session,
+        events.ADMIN_USER_RESET,
+        user_id,
+        reset_by=actor_id,
+        include_profile=include_profile,
+        **deleted,
+    )
+    await session.commit()
+    await session.refresh(user)
+    return user
 
 
 async def grant_pro(

@@ -178,18 +178,17 @@ COUNTRIES = [
 MESSAGES: dict[str, dict[str, str]] = {
     "en": {
         # Onboarding
-        "onboarding_choose_language": (
+        "onboarding_welcome": (
             "✦ Welcome to Aeon.\n\n"
             "Three minds think alongside you here: Marcus Aurelius, on what is actually "
             "yours to control; Machiavelli, on strategy, influence and people; "
             "Carl Jung, on what moves beneath the surface.\n\n"
             "Tell them what is going on — a decision you keep turning over, a doubt, "
             "or simply how the day went. It is a conversation, not a form to fill in. "
-            "Aeon also keeps your goals, your diary and the years of your life in one place.\n\n"
-            "Choose your language / Выберите язык:"
+            "Aeon also keeps your goals, your diary and the years of your life in one place."
         ),
-        "home_welcome_named": "Good, {name}. Who should speak with you first?",
-        "home_welcome": "Good. Who should speak with you first?",
+        "home_welcome_named": "{name}, who should speak with you first?",
+        "home_welcome": "Who should speak with you first?",
         "home_returning_named": "Welcome back, {name}.\n\nWhat do you want to examine today?",
         "home_returning": "Welcome back.\n\nWhat do you want to examine today?",
         "home_active_agent": "Your current advisor is {agent}.",
@@ -227,16 +226,28 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Choose one goal for the coming week."
         ),
         "life_weekly_button": "Open calendar",
-        "daily_with_goal": (
-            "“{text}”\n\n— {agent}\n\nYour active goal: {goal}\n\nChoose one step for today."
+        "morning_with_goal": "{quote}\n\nYour active goal: {goal}\n\nChoose one step for today.",
+        "morning_without_goal": "{quote}\n\nChoose one meaningful action for today.",
+        "morning_signed_quote": "“{text}”\n\n— {agent}",
+        "morning_plain_quote": "“{text}”",
+        "morning_mute_button": "Not in the morning",
+        "morning_muted": (
+            "Understood. The morning message is off; the evening question stays. "
+            "Both are in /settings."
         ),
-        "daily_without_goal": "“{text}”\n\n— {agent}\n\nChoose one meaningful action for today.",
+        "evening_question": "{question}\n\n— {agent}",
         "daily_done_button": "✓ Done for today",
         "daily_checkin_saved": "Action recorded. Your current streak is {streak} day(s).",
+        "streak_footer": "✦ Day {streak} in a row",
         # Billing
         "payment_pro_title": "Aeon Primus",
         "payment_pro_description": "A month with the advisors at full strength: their books open, the Council of Three convened.",
         "payment_pro_price": "Aeon Primus · 30 days",
+        "payment_pro_year_description": "Twelve months with the advisors at full strength in one payment: their books open, the Council of Three convened. No renewal.",
+        "payment_pro_year_price": "Aeon Primus · 12 months",
+        "payment_pay_button": "Pay {price} ⭐",
+        "payment_year_button": "A year for {price} ⭐ · save {discount}%",
+        "payment_success_year": "Aeon Primus is open for a year, until {date}. The advisors now answer from their books and the Council of Three convenes.",
         "payment_invalid": "This payment link is invalid or no longer available.",
         "payment_success": "Aeon Primus is open. The advisors now answer from their books and the Council of Three convenes.",
         "payment_no_subscription": "You do not have an active renewable Primus subscription.",
@@ -262,6 +273,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Council of Three."
         ),
         "question_limit_free": "Today's free conversations are over. Tomorrow brings new ones, or open the advisors at full strength.",
+        "question_limit_free_trial": "Today's free conversations are over; the limit resets tomorrow. Or skip the wait: a free {days}-day trial opens the advisors at full strength right now, one tap below.",
         "question_limit_trial": "Today's trial conversations are over. Tomorrow brings new ones, or open Primus.",
         "question_limit_pro": "Today's conversations are over. The advisors are back with you tomorrow.",
         "council_usage": "Send one important question after the command:\n/council Should I change careers?",
@@ -301,10 +313,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "chat_menu_button": "Open Aeon",
         # Settings
         "settings_title": (
-            "Settings\n\nReflections arrive at {hour:02d}:00 in {timezone}. "
-            "You can pause daily and weekly messages independently."
+            "Settings\n\nA thought in the morning at {hour:02d}:00, a question in the evening at "
+            "{eveningHour:02d}:00, {timezone}. Each message can be paused on its own."
         ),
-        "daily_setting": "Daily",
+        "daily_setting": "Morning",
+        "evening_setting": "Evening question",
         "weekly_setting": "Weekly",
         "marketing_setting": "News and offers",
         "notifications_on": "On",
@@ -315,9 +328,11 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Your daily reflections stay as they are - change them in /settings."
         ),
         "settings_open_app": "Open in the app",
-        "reminder_time_button": "Time {hour:02d}:00",
+        "reminder_time_button": "Morning {hour:02d}:00",
+        "evening_time_button": "Evening {hour:02d}:00",
         "timezone_button": "Zone: {timezone}",
-        "choose_reminder_time": "When should Aeon send your reflections?",
+        "choose_reminder_time": "When should the morning message arrive?",
+        "choose_evening_time": "When should the evening question arrive?",
         "choose_timezone": "Choose the city closest to your time zone.",
         # LLM error messages
         "error_rate_limit": "The advisors are receiving too many questions right now. Please try again shortly.",
@@ -331,18 +346,17 @@ MESSAGES: dict[str, dict[str, str]] = {
     },
     "ru": {
         # Onboarding
-        "onboarding_choose_language": (
+        "onboarding_welcome": (
             "✦ Добро пожаловать в Aeon.\n\n"
             "Здесь вместе с Вами думают трое: Марк Аврелий — о том, что действительно "
             "в Вашей власти; Макиавелли — о стратегии, влиянии и людях; "
             "Карл Юнг — о том, что движется под поверхностью.\n\n"
             "Расскажите им, что происходит: решение, которое Вы обдумываете, сомнение "
             "или просто как прошёл день. Это разговор, а не анкета. "
-            "А ещё Aeon хранит Ваши цели, дневник и годы Вашей жизни в одном месте.\n\n"
-            "Выберите язык / Choose your language:"
+            "А ещё Aeon хранит Ваши цели, дневник и годы Вашей жизни в одном месте."
         ),
-        "home_welcome_named": "Хорошо, {name}. Кто заговорит с Вами первым?",
-        "home_welcome": "Хорошо. Кто заговорит с Вами первым?",
+        "home_welcome_named": "{name}, кто заговорит с Вами первым?",
+        "home_welcome": "Кто заговорит с Вами первым?",
         "home_returning_named": "С возвращением, {name}.\n\nЧто Вы хотите обдумать сегодня?",
         "home_returning": "С возвращением.\n\nЧто Вы хотите обдумать сегодня?",
         "home_active_agent": "Сейчас Ваш советник — {agent}.",
@@ -380,16 +394,27 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Выберите одну цель на новую неделю."
         ),
         "life_weekly_button": "Открыть календарь",
-        "daily_with_goal": (
-            "«{text}»\n\n— {agent}\n\nВаша активная цель: {goal}\n\nВыберите один шаг на сегодня."
+        "morning_with_goal": "{quote}\n\nВаша активная цель: {goal}\n\nВыберите один шаг на сегодня.",
+        "morning_without_goal": "{quote}\n\nВыберите одно значимое действие на сегодня.",
+        "morning_signed_quote": "«{text}»\n\n— {agent}",
+        "morning_plain_quote": "«{text}»",
+        "morning_mute_button": "Не присылать утром",
+        "morning_muted": (
+            "Понял. Утреннее сообщение выключено, вечерний вопрос остаётся. Оба — в /settings."
         ),
-        "daily_without_goal": "«{text}»\n\n— {agent}\n\nВыберите одно значимое действие на сегодня.",
+        "evening_question": "{question}\n\n— {agent}",
         "daily_done_button": "✓ Выполнено сегодня",
         "daily_checkin_saved": "Действие отмечено. Ваша текущая серия: {streak} дн.",
+        "streak_footer": "✦ День {streak} подряд",
         # Billing
         "payment_pro_title": "Aeon Primus",
         "payment_pro_description": "Месяц с наставниками в полную силу: их книги открыты, Совет трёх собирается.",
         "payment_pro_price": "Aeon Primus · 30 дней",
+        "payment_pro_year_description": "Двенадцать месяцев с наставниками в полную силу одним платежом: их книги открыты, Совет трёх собирается. Без автопродления.",
+        "payment_pro_year_price": "Aeon Primus · 12 месяцев",
+        "payment_pay_button": "Оплатить {price} ⭐",
+        "payment_year_button": "Год за {price} ⭐ · выгода {discount}%",
+        "payment_success_year": "Aeon Primus открыт на год, до {date}. Наставники отвечают по своим книгам, Совет трёх собирается.",
         "payment_invalid": "Эта ссылка оплаты недействительна или больше недоступна.",
         "payment_success": "Aeon Primus открыт. Наставники отвечают по своим книгам, Совет трёх собирается.",
         "payment_no_subscription": "У Вас нет активной подписки Primus с автопродлением.",
@@ -414,6 +439,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Продлите за {price} ★ в месяц, чтобы вернуть источники и Совет трёх."
         ),
         "question_limit_free": "Бесплатные разговоры на сегодня закончились. Завтра будут новые — или откройте наставников в полную силу.",
+        "question_limit_free_trial": "Бесплатные разговоры на сегодня закончились, лимит обновится завтра. Можно не ждать: бесплатный пробный доступ на {days} дня открывает наставников в полную силу прямо сейчас, одна кнопка ниже.",
         "question_limit_trial": "Пробные разговоры на сегодня закончились. Завтра будут новые, либо откройте Primus.",
         "question_limit_pro": "Разговоры на сегодня закончились. Завтра наставники снова с Вами.",
         "council_usage": "Добавьте один важный вопрос после команды:\n/council Стоит ли мне сменить профессию?",
@@ -453,10 +479,11 @@ MESSAGES: dict[str, dict[str, str]] = {
         "chat_menu_button": "Открыть Aeon",
         # Settings
         "settings_title": (
-            "Настройки\n\nСообщения приходят в {hour:02d}:00, часовой пояс: {timezone}. "
-            "Ежедневные и еженедельные сообщения можно отключать отдельно."
+            "Настройки\n\nМысль утром в {hour:02d}:00, вопрос вечером в {eveningHour:02d}:00, "
+            "часовой пояс: {timezone}. Каждое сообщение можно отключить отдельно."
         ),
-        "daily_setting": "Ежедневные",
+        "daily_setting": "Утро",
+        "evening_setting": "Вечерний вопрос",
         "weekly_setting": "Еженедельные",
         "marketing_setting": "Новости и предложения",
         "notifications_on": "Вкл.",
@@ -467,9 +494,11 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Ежедневные размышления остаются как были — их можно изменить в /settings."
         ),
         "settings_open_app": "Открыть в приложении",
-        "reminder_time_button": "Время {hour:02d}:00",
+        "reminder_time_button": "Утро {hour:02d}:00",
+        "evening_time_button": "Вечер {hour:02d}:00",
         "timezone_button": "Пояс: {timezone}",
-        "choose_reminder_time": "В какое время Aeon должен присылать размышления?",
+        "choose_reminder_time": "Когда присылать утреннее сообщение?",
+        "choose_evening_time": "Когда присылать вечерний вопрос?",
         "choose_timezone": "Выберите город с ближайшим к Вам часовым поясом.",
         # LLM error messages
         "error_rate_limit": "Советники сейчас получают слишком много вопросов. Пожалуйста, попробуйте немного позже.",

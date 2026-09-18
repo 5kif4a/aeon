@@ -46,6 +46,7 @@ export const DEV_ADMIN: AdminMe = {
   roleTitle: "Owner (dev)",
   permissions: ["*"],
   isOwner: true,
+  userResetEnabled: false,
 };
 
 /**
@@ -200,6 +201,19 @@ export function useAdminUser(userId: number) {
     ),
     // `0` is what callers pass for "no user yet"; it must not become GET /users/0.
     enabled: Number.isFinite(userId) && userId > 0,
+  });
+}
+
+export function useResetUser(userId: number) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (includeProfile: boolean) => adminApi.resetUser(userId, includeProfile),
+    onSuccess: () => {
+      // Dialogues, usage and events changed too: reload the whole card.
+      queryClient.invalidateQueries({ queryKey: ["admin", "user", userId] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
+      queryClient.invalidateQueries({ queryKey: ["admin", "conversations"] });
+    },
   });
 }
 

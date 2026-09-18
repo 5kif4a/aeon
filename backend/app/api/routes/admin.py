@@ -35,6 +35,7 @@ from app.api.schemas import (
     AdminUserDetailOut,
     AdminUserOut,
     GrantProIn,
+    ResetUserIn,
     WindowOut,
 )
 from app.bot import runtime
@@ -64,6 +65,7 @@ router = APIRouter(prefix="/admin", tags=["admin"])
 StatsViewer = Annotated[AdminActor, Depends(require("stats.view"))]
 UsersViewer = Annotated[AdminActor, Depends(require("users.view"))]
 ProGranter = Annotated[AdminActor, Depends(require("users.grant_pro"))]
+UserResetter = Annotated[AdminActor, Depends(require("users.reset"))]
 ConversationsViewer = Annotated[AdminActor, Depends(require("conversations.view"))]
 PaymentsViewer = Annotated[AdminActor, Depends(require("payments.view"))]
 Refunder = Annotated[AdminActor, Depends(require("payments.refund"))]
@@ -161,6 +163,7 @@ def _admin_me(user: User, identity: admin_access.AdminIdentity) -> AdminMeOut:
         roleTitle=identity.role_title,
         permissions=sorted(identity.permissions),
         isOwner=identity.is_owner,
+        userResetEnabled=get_settings().admin_user_reset_enabled,
     )
 
 
@@ -244,6 +247,9 @@ def _user_out(
         proExpiresAt=user.pro_expires_at,
         trialExpiresAt=user.trial_expires_at,
         proAutoRenew=bool(user.pro_auto_renew),
+        acquiredFrom=user.acquired_from or "",
+        firstAnswerAt=user.first_answer_at,
+        blockedAt=user.blocked_at,
     )
 
 
@@ -351,6 +357,26 @@ async def admin_grant_pro(
     user_id: int, payload: GrantProIn, actor: ProGranter, session: SessionDep
 ) -> AdminUserOut:
     user = await admin.grant_pro(session, user_id, days=payload.days, granted_by=actor.id)
+    if user is None:
+        raise HTTPException(status_code=404, detail="User not found")
+    return _user_out(user, plan=billing.effective_plan(user))
+
+
+@router.post("/users/{user_id}/reset", response_model=AdminUserOut)
+async def admin_reset_user(
+    user_id: int, payload: ResetUserIn, actor: UserResetter, session: SessionDep
+) -> AdminUserOut:
+    """Dev/test: send a user back to the state after their first /start without deleting them."""
+    if not get_settings().admin_user_reset_enabled:
+        raise HTTPException(status_code=403, detail="User reset is disabled in this environment")
+    try:
+        user = await admin.reset_user(
+            session, user_id, actor_id=actor.id, include_profile=payload.includeProfile
+        )
+    except admin.ResetBlocked as error:
+        raise HTTPException(
+            status_code=409, detail="Cancel the renewing Stars subscription first"
+        ) from error
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
     return _user_out(user, plan=billing.effective_plan(user))

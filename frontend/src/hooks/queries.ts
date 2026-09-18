@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "../lib/api";
 import type {
+  BillingPeriod,
   BillingStatus,
   DiaryEntry,
   Goal,
@@ -129,7 +130,7 @@ export function useStartTrial() {
 }
 
 export function useCreateCheckout() {
-  return useMutation({ mutationFn: api.createCheckout });
+  return useMutation({ mutationFn: (period: BillingPeriod) => api.createCheckout(period) });
 }
 
 export function useCancelSubscription() {

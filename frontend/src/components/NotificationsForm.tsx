@@ -24,6 +24,37 @@ function SelectChevron() {
   );
 }
 
+function HourSelect({
+  label,
+  value,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  value: number;
+  disabled: boolean;
+  onChange: (hour: number) => void;
+}) {
+  return (
+    <label className={fieldLabel}>
+      {label}
+      <div className="relative">
+        <select
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(Number(event.target.value))}
+          className={`${field} cursor-pointer appearance-none pr-9`}
+        >
+          {HOURS.map((hour) => (
+            <option key={hour} value={hour}>{`${String(hour).padStart(2, "0")}:00`}</option>
+          ))}
+        </select>
+        <SelectChevron />
+      </div>
+    </label>
+  );
+}
+
 /**
  * Switch row. `w-full` matters: a button sizes to its content, so without it the
  * switch column lands wherever the label ends instead of on the card's right edge.
@@ -71,8 +102,9 @@ function Toggle({
 }
 
 /**
- * Delivery window for the daily message and the weekly life review. The same columns
- * back the bot's /settings, so a change here shows up there and vice versa.
+ * Delivery windows for the morning message, the evening question and the weekly life
+ * review. The same columns back the bot's /settings, so a change here shows up there and
+ * vice versa.
  */
 export function NotificationsForm() {
   const { t, lang } = useT();
@@ -130,6 +162,13 @@ export function NotificationsForm() {
           onChange={(next) => save({ dailyEnabled: next })}
         />
         <Toggle
+          label={t("notifications_evening")}
+          hint={t("notifications_evening_hint")}
+          checked={settings.eveningEnabled}
+          disabled={pending}
+          onChange={(next) => save({ eveningEnabled: next })}
+        />
+        <Toggle
           label={t("notifications_weekly")}
           hint={t("notifications_weekly_hint")}
           checked={settings.weeklyEnabled}
@@ -145,22 +184,20 @@ export function NotificationsForm() {
         />
       </div>
 
-      <label className={fieldLabel}>
-        {t("notifications_hour")}
-        <div className="relative">
-          <select
-            value={settings.reminderHour}
-            disabled={pending}
-            onChange={(event) => save({ reminderHour: Number(event.target.value) })}
-            className={`${field} cursor-pointer appearance-none pr-9`}
-          >
-            {HOURS.map((hour) => (
-              <option key={hour} value={hour}>{`${String(hour).padStart(2, "0")}:00`}</option>
-            ))}
-          </select>
-          <SelectChevron />
-        </div>
-      </label>
+      <div className="grid grid-cols-2 gap-3">
+        <HourSelect
+          label={t("notifications_hour")}
+          value={settings.reminderHour}
+          disabled={pending}
+          onChange={(hour) => save({ reminderHour: hour })}
+        />
+        <HourSelect
+          label={t("notifications_evening_hour")}
+          value={settings.eveningHour}
+          disabled={pending}
+          onChange={(hour) => save({ eveningHour: hour })}
+        />
+      </div>
 
       <label className={fieldLabel}>
         {t("notifications_timezone")}

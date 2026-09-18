@@ -59,6 +59,10 @@ async def send_ops_digests(context: ContextTypes.DEFAULT_TYPE) -> None:
                 continue
             window = stats.digest_window(period, today, settings.ops_timezone)
             collected = await stats.collect_stats(session, window, now)
+        if period == "daily":
+            ops.no_first_answers(
+                collected.new_users, collected.first_answers, collected.window.label
+            )
         text = stats.format_stats(collected, DIGEST_TITLES[period])
         if not await ops.send(text, ops.THREAD_DIGESTS):
             logger.warning("Ops %s digest was not delivered", period)

@@ -4,10 +4,17 @@ import { createContext, useContext, useEffect, useRef, useState } from "react";
 import { AssistantSheet, type AssistantMessage } from "./components/AssistantSheet";
 import { BottomNav } from "./components/BottomNav";
 import { TopBar } from "./components/TopBar";
-import { useProfile, useStartCouncil, useStartDialog } from "./hooks/queries";
+import {
+  useNotificationSettings,
+  useProfile,
+  useStartCouncil,
+  useStartDialog,
+  useUpdateNotificationSettings,
+} from "./hooks/queries";
 import { agentMeta, DEFAULT_AGENT_ID } from "./lib/agents";
 import { ApiError } from "./lib/api";
 import { useT } from "./lib/i18n-context";
+import { deviceTimezone } from "./lib/options";
 import { closeMiniApp, haptic, showBackButton, STABLE_HEIGHT_VAR } from "./lib/telegram";
 import { VIEW_PATHS, viewFromPathname, type ViewName } from "./lib/views";
 
@@ -44,9 +51,25 @@ export function AppShell() {
   const [assistantMessage, setAssistantMessage] = useState<AssistantMessage | null>(null);
 
   const { data: profile } = useProfile();
+  const { data: notifications } = useNotificationSettings();
+  const updateNotifications = useUpdateNotificationSettings();
   const startDialog = useStartDialog();
   const startCouncil = useStartCouncil();
   const closeTimer = useRef<number | null>(null);
+  const zoneSent = useRef(false);
+
+  // The bot cannot know where the user is; the device can. While the stored zone is only a
+  // guess, report the device zone once per open so the morning and evening messages land in
+  // the user's actual day. A zone the user chose by hand is never overwritten (server rule).
+  useEffect(() => {
+    if (!notifications || zoneSent.current) return;
+    const device = deviceTimezone();
+    const guessed =
+      notifications.timezoneSource === "default" || notifications.timezoneSource === "language";
+    if (!device || !guessed || device === notifications.reminderTimezone) return;
+    zoneSent.current = true;
+    updateNotifications.mutate({ deviceTimezone: device });
+  }, [notifications, updateNotifications]);
 
   // The close timer must not outlive the shell.
   useEffect(() => {

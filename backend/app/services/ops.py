@@ -184,9 +184,18 @@ def format_trial_started(user: User) -> str:
 
 
 def format_payment_succeeded(
-    user: User, *, amount: int, currency: str, renewal: bool, expires_at: datetime | None
+    user: User,
+    *,
+    amount: int,
+    currency: str,
+    renewal: bool,
+    expires_at: datetime | None,
+    period: str = "month",
 ) -> str:
-    title = "🔁 Subscription renewed" if renewal else "💫 New Pro subscription"
+    if period == "year":
+        title = "💫 Pro for a year (one-off)"
+    else:
+        title = "🔁 Subscription renewed" if renewal else "💫 New Pro subscription"
     days = _days_since_signup(user)
     return _compose(
         f"{title} · <b>{amount} {'★' if currency == 'XTR' else html.escape(currency)}</b>",
@@ -255,11 +264,22 @@ def trial_started(user: User) -> None:
 
 
 def payment_succeeded(
-    user: User, *, amount: int, currency: str, renewal: bool, expires_at: datetime | None
+    user: User,
+    *,
+    amount: int,
+    currency: str,
+    renewal: bool,
+    expires_at: datetime | None,
+    period: str = "month",
 ) -> None:
     notify(
         format_payment_succeeded(
-            user, amount=amount, currency=currency, renewal=renewal, expires_at=expires_at
+            user,
+            amount=amount,
+            currency=currency,
+            renewal=renewal,
+            expires_at=expires_at,
+            period=period,
         )
     )
 
@@ -311,6 +331,62 @@ def generation_failed(
         f"gemini:{kind}",
         format_generation_failed(user, error, kind=kind, agent_id=agent_id, mode=mode),
     )
+
+
+def limit_without_answer(user: User) -> None:
+    """A Free user hit the daily limit before ever getting an answer.
+
+    This is the failure that went unnoticed for four months in the previous product (a free
+    limit of zero). Throttled per kind, so a broken deploy produces one message, not a flood.
+    """
+    alert(
+        "limit_without_answer",
+        _compose(
+            "⚠️ Free limit hit before the first answer",
+            user,
+            "check FREE_DAILY_QUESTIONS in this environment and Gemini errors",
+        ),
+    )
+
+
+BLOCKED_WAVE_MIN_ATTEMPTS = 20
+BLOCKED_WAVE_SHARE = 0.05
+
+
+def blocked_wave(job: str, *, sent: int, blocked: int) -> None:
+    """Too many Forbidden answers in one scheduled run: the message or its timing repels."""
+    attempts = sent + blocked
+    if attempts < BLOCKED_WAVE_MIN_ATTEMPTS or blocked < attempts * BLOCKED_WAVE_SHARE:
+        return
+    alert(
+        f"blocked_wave:{job}",
+        f"📉 <b>Blocked wave · {html.escape(job)}</b>\n"
+        f"{blocked} of {attempts} recipients have blocked the bot "
+        f"({blocked * 100 // attempts}%). Check the text and the send hour.",
+    )
+
+
+def no_first_answers(new_users: int, first_answers: int, label: str) -> None:
+    """Signups without a single first answer in the window: /start -> answer is broken."""
+    if new_users < 3 or first_answers > 0:
+        return
+    alert(
+        "no_first_answers",
+        f"🚨 <b>No first answers</b> · {html.escape(label)}\n"
+        f"{new_users} new users, none received an advisor answer. "
+        "Check the free limit, Gemini and the /start flow.",
+    )
+
+
+def settings_drift(overrides: dict[str, tuple[object, object]]) -> None:
+    """Startup notice: limits and prices in this environment differ from the code defaults."""
+    if not overrides:
+        return
+    lines = [
+        f"• {html.escape(name)} = {html.escape(str(value))} (code default {html.escape(str(default))})"
+        for name, (value, default) in sorted(overrides.items())
+    ]
+    notify("ℹ️ <b>Limits differ from code defaults</b>\n" + "\n".join(lines))
 
 
 def _broadcast_line(broadcast) -> str:

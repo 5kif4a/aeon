@@ -34,11 +34,6 @@ def test_is_private_chat_reads_the_chat_type():
         (commands.navigation_callback, "billing:trial", (commands, "_user_for_update")),
         (commands.agent_callback, "agent:marcus", (commands.chat, "set_active_agent")),
         (
-            onboarding.onboarding_language_callback,
-            "onboarding:lang:ru",
-            (onboarding, "SessionFactory"),
-        ),
-        (
             onboarding.onboarding_agent_callback,
             "onboarding:agent:marcus",
             (onboarding, "SessionFactory"),

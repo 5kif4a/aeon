@@ -120,14 +120,18 @@ def agent_intro_keyboard(language: str) -> InlineKeyboardMarkup | None:
     return InlineKeyboardMarkup([[button]]) if button else None
 
 
-def post_answer_keyboard(language: str) -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
+def post_answer_keyboard(language: str, *, offer_app: bool = False) -> InlineKeyboardMarkup:
+    """Under an advisor's answer: switch advisor, and, until the Mini App has been opened
+    once, the app itself. The bot is where people start; the app is where the goals, the
+    diary and the device time zone live, so the first answers keep pointing at it."""
+    return _markup(
         [
             [
                 InlineKeyboardButton(
                     t(language, "switch_agent_button"), callback_data="agent:picker"
-                ),
+                )
             ],
+            [_mini_app_button(language, "open_aeon", "home")] if offer_app else [],
         ]
     )
 
@@ -164,11 +168,14 @@ def limit_keyboard(
 def settings_keyboard(user) -> InlineKeyboardMarkup:
     language = user.language
     daily_enabled = user.daily_notifications_enabled is not False
+    evening_enabled = user.evening_enabled is not False
     weekly_enabled = user.weekly_notifications_enabled is not False
     reminder_hour = user.reminder_hour if user.reminder_hour is not None else 9
+    evening_hour = user.evening_hour if user.evening_hour is not None else 21
     reminder_timezone = user.reminder_timezone or "UTC"
     marketing_enabled = user.marketing_enabled is not False
     daily_key = "notifications_on" if daily_enabled else "notifications_off"
+    evening_key = "notifications_on" if evening_enabled else "notifications_off"
     weekly_key = "notifications_on" if weekly_enabled else "notifications_off"
     marketing_key = "notifications_on" if marketing_enabled else "notifications_off"
     # Same settings, larger screen: the Mini App writes the very same columns.
@@ -180,7 +187,21 @@ def settings_keyboard(user) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     f"{t(language, 'daily_setting')}: {t(language, daily_key)}",
                     callback_data="settings:daily",
-                )
+                ),
+                InlineKeyboardButton(
+                    t(language, "reminder_time_button", hour=reminder_hour),
+                    callback_data="settings:time",
+                ),
+            ],
+            [
+                InlineKeyboardButton(
+                    f"{t(language, 'evening_setting')}: {t(language, evening_key)}",
+                    callback_data="settings:evening",
+                ),
+                InlineKeyboardButton(
+                    t(language, "evening_time_button", hour=evening_hour),
+                    callback_data="settings:evening_time",
+                ),
             ],
             [
                 InlineKeyboardButton(
@@ -195,10 +216,6 @@ def settings_keyboard(user) -> InlineKeyboardMarkup:
                 )
             ],
             [
-                InlineKeyboardButton(
-                    t(language, "reminder_time_button", hour=reminder_hour),
-                    callback_data="settings:time",
-                ),
                 InlineKeyboardButton(
                     t(language, "timezone_button", timezone=timezone_label(reminder_timezone)),
                     callback_data="settings:timezone",
@@ -217,12 +234,18 @@ def _chunk(buttons: list[InlineKeyboardButton], per_row: int) -> list[list[Inlin
     return [buttons[start : start + per_row] for start in range(0, len(buttons), per_row)]
 
 
-def reminder_time_keyboard(language: str, selected_hour: int | None = None) -> InlineKeyboardMarkup:
-    """Every hour of the day; the current one is marked so the choice is visible."""
+def reminder_time_keyboard(
+    language: str, selected_hour: int | None = None, *, slot: str = "hour"
+) -> InlineKeyboardMarkup:
+    """Every hour of the day; the current one is marked so the choice is visible.
+
+    `slot` is the callback token: "hour" for the morning message, "evening_hour" for the
+    evening question.
+    """
     buttons = [
         InlineKeyboardButton(
             f"• {hour:02d}:00" if hour == selected_hour else f"{hour:02d}:00",
-            callback_data=f"settings:hour:{hour}",
+            callback_data=f"settings:{slot}:{hour}",
         )
         for hour in REMINDER_HOURS
     ]
@@ -249,9 +272,15 @@ def timezone_from_token(token: str) -> str | None:
 
 
 def timezone_label(zone: str) -> str:
-    """City plus its current UTC offset; falls back to the raw zone for device-set ones."""
-    label = next((value for _key, known, value in TIMEZONE_OPTIONS if known == zone), zone)
+    """City plus its current UTC offset; falls back to the raw zone for device-set ones.
+
+    `Etc/GMT-4` is the language fallback zone and means UTC+4 (the IANA sign is inverted);
+    showing its name would read as the opposite offset, so it is shown as the offset alone.
+    """
     offset = utc_offset_label(zone)
+    if zone.startswith("Etc/"):
+        return offset or zone
+    label = next((value for _key, known, value in TIMEZONE_OPTIONS if known == zone), zone)
     return f"{label} ({offset})" if offset else label
 
 

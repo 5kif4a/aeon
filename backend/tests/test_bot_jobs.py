@@ -111,24 +111,35 @@ def test_notification_agent_id_matches_content_rotation():
 
 
 def test_daily_notification_includes_active_goal():
-    user = User(id=1, language="ru", birth_date=date(2000, 1, 1))
+    user = User(id=1, language="ru", created_at=datetime(2000, 1, 1, tzinfo=UTC))
     goal = Goal(user_id=user.id, text="Завершить первую версию")
 
-    message = build_daily_notification(user, goal, date(2000, 1, 15))
+    # Day 0 of the rotation is a signed advisor line.
+    message = build_daily_notification(user, goal, date(2000, 1, 1))
 
     assert message.startswith("«")
-    assert message.index("»") < message.index("— Карл Юнг")
-    assert "Карл Юнг" in message
+    assert message.index("»") < message.index("— Марк Аврелий")
     assert "Ваша активная цель: Завершить первую версию" in message
     assert "Выберите один шаг на сегодня." in message
 
 
+def test_daily_notification_alternates_unsigned_lines():
+    user = User(id=1, language="ru", created_at=datetime(2000, 1, 1, tzinfo=UTC))
+
+    # Day 1 of the rotation is an unsigned aphorism: no author line at all.
+    message = build_daily_notification(user, None, date(2000, 1, 2))
+
+    assert message.startswith("«Новый день. Будет ли он отличаться от вчерашнего?»")
+    assert "— " not in message
+    assert "Выберите одно значимое действие на сегодня." in message
+
+
 def test_daily_notification_without_goal_uses_english_fallback():
-    user = User(id=1, language="unsupported", birth_date=date(2000, 1, 1))
+    user = User(id=1, language="unsupported", created_at=datetime(2000, 1, 1, tzinfo=UTC))
 
-    message = build_daily_notification(user, None, date(2000, 1, 15))
+    message = build_daily_notification(user, None, date(2000, 1, 1))
 
-    assert "Carl Jung" in message
+    assert "Marcus Aurelius" in message
     assert "Choose one meaningful action for today." in message
 
 
@@ -144,14 +155,17 @@ def test_daily_keyboard_opens_calendar_on_goal_tab(monkeypatch):
     keyboard = _daily_keyboard("ru", has_goal=True)
 
     assert keyboard is not None
-    assert len(keyboard.inline_keyboard) == 2
+    assert len(keyboard.inline_keyboard) == 3
     done_button = keyboard.inline_keyboard[0][0]
     calendar_button = keyboard.inline_keyboard[1][0]
+    mute_button = keyboard.inline_keyboard[2][0]
 
     assert done_button.callback_data == "daily:done"
     assert calendar_button.text == "Открыть календарь"
     assert calendar_button.web_app is not None
     assert calendar_button.web_app.url == "https://aeon.test/calendar?tab=goal"
+    # Muting the morning slot is one tap on the message itself, not a trip to /settings.
+    assert mute_button.callback_data == "notify:morning_off"
 
 
 def test_notification_is_due_in_the_users_local_timezone():

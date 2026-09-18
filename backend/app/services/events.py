@@ -22,9 +22,17 @@ SUBSCRIPTION_PAYMENT_FAILED = "subscription_payment_failed"
 PAYMENT_REFUNDED = "payment_refunded"
 PAYSUPPORT_REQUEST = "paysupport_request"
 QUESTION_LIMIT_HIT = "question_limit_hit"
+# Funnel health. `first_answer_delivered` is the metric whose absence hid a broken free
+# limit for four months in the previous product; `invoice_opened` closes the gap between
+# the limit and the payment.
+FIRST_ANSWER_DELIVERED = "first_answer_delivered"
+INVOICE_OPENED = "invoice_opened"
+BOT_BLOCKED = "bot_blocked"
+BOT_UNBLOCKED = "bot_unblocked"
 GENERATION_FAILED = "generation_failed"
 OPS_DIGEST_SENT = "ops_digest_sent"
 PRO_GRANTED = "pro_granted"
+ADMIN_USER_RESET = "admin_user_reset"
 ADMIN_LOGIN = "admin_login"
 ADMIN_VIEW_CONVERSATION = "admin_view_conversation"
 ADMIN_SETTING_CHANGED = "admin_setting_changed"
@@ -37,6 +45,11 @@ SEGMENT_CHANGED = "segment_changed"
 BROADCAST_QUEUED = "broadcast_queued"
 BROADCAST_FINISHED = "broadcast_finished"
 MARKETING_OPTED_OUT = "marketing_opted_out"
+# Re-engagement funnel. Payloads carry kinds and ids only, never message text.
+NOTIFICATION_SENT = "notification_sent"
+CHECKIN_RECORDED = "checkin_recorded"
+CONVERSATION_FOLLOWUP_GENERATED = "conversation_followup_generated"
+CONVERSATION_FOLLOWUP_SENT = "conversation_followup_sent"
 
 
 def record(

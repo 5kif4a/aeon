@@ -12,6 +12,7 @@ from app.bot.handlers.payments import (
     precheckout_callback,
     refunded_payment_callback,
     subscribe_command,
+    subscribe_year_command,
     subscription_update_callback,
     successful_payment_callback,
 )
@@ -23,13 +24,16 @@ from app.services import billing, events, ops, users
 async def _user_for_update(update: Update):
     telegram_user = update.effective_user
     async with SessionFactory() as session:
-        return await users.get_or_create_user(
+        user = await users.get_or_create_user(
             session,
             update.effective_chat.id,
             name=users.presentable_name(telegram_user.first_name),
             language=normalize_language(telegram_user.language_code),
             username=telegram_user.username or "",
         )
+        # Any command or button press is a reaction: the notification decay restarts.
+        await users.mark_reaction(session, user)
+        return user
 
 
 async def _user_language(chat_id: int) -> str:
@@ -150,13 +154,16 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "billing:subscribe":
         await subscribe_command(update, context)
         return
+    if data == "billing:subscribe_year":
+        await subscribe_year_command(update, context)
+        return
     if data == "billing:trial":
         # One tap from under the Free limit; a user who is no longer eligible gets the invoice.
         try:
             async with SessionFactory() as session:
-                db_user = await billing.start_trial(session, user.id)
+                db_user = await billing.start_trial(session, user.id, source="limit_button")
         except billing.TrialUnavailable:
-            await subscribe_command(update, context)
+            await subscribe_command(update, context, source="trial_unavailable")
             return
         ops.trial_started(db_user)
         await context.bot.send_message(
@@ -187,12 +194,21 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
     if data == "daily:done":
         async with SessionFactory() as session:
             db_user = await users.get_or_create_user(session, user.id)
+            events.record(session, events.CHECKIN_RECORDED, user.id, source="button")
             streak = await users.record_daily_checkin(session, db_user)
         await context.bot.send_message(
             user.id,
             t(user.language, "daily_checkin_saved", streak=streak),
             reply_markup=ui.post_answer_keyboard(user.language),
         )
+        return
+    if data == "notify:morning_off":
+        # One tap under the morning message; the evening question is untouched.
+        async with SessionFactory() as session:
+            db_user = await users.get_or_create_user(session, user.id)
+            await users.update_user(session, db_user, {"daily_notifications_enabled": False})
+        await _drop_button(query, "notify:morning_off")
+        await context.bot.send_message(user.id, t(user.language, "morning_muted"))
         return
     if data.startswith("settings:"):
         await _handle_settings_callback(update, context, user)
@@ -221,6 +237,19 @@ async def _handle_settings_callback(
             ),
         )
         return
+    if data == "settings:evening_time":
+        await messaging.try_edit(
+            context.bot,
+            user.id,
+            query.message.message_id,
+            t(user.language, "choose_evening_time"),
+            ui.reminder_time_keyboard(
+                user.language,
+                user.evening_hour if user.evening_hour is not None else 21,
+                slot="evening_hour",
+            ),
+        )
+        return
     if data == "settings:timezone":
         await messaging.try_edit(
             context.bot,
@@ -234,16 +263,21 @@ async def _handle_settings_callback(
     fields: dict = {}
     if data == "settings:daily":
         fields["daily_notifications_enabled"] = user.daily_notifications_enabled is False
+    elif data == "settings:evening":
+        fields["evening_enabled"] = user.evening_enabled is False
     elif data == "settings:weekly":
         fields["weekly_notifications_enabled"] = user.weekly_notifications_enabled is False
     elif data == "settings:marketing":
         fields["marketing_enabled"] = user.marketing_enabled is False
     elif data.startswith("settings:hour:"):
         fields["reminder_hour"] = min(max(int(data.rsplit(":", 1)[1]), 0), 23)
+    elif data.startswith("settings:evening_hour:"):
+        fields["evening_hour"] = min(max(int(data.rsplit(":", 1)[1]), 0), 23)
     elif data.startswith("settings:tz:"):
         timezone = ui.timezone_from_token(data.rsplit(":", 1)[1])
         if timezone:
             fields["reminder_timezone"] = timezone
+            fields["timezone_source"] = users.TIMEZONE_SOURCE_MANUAL
     elif data.startswith("settings:language:"):
         fields["language"] = normalize_language(data.rsplit(":", 1)[1])
 
@@ -282,11 +316,13 @@ async def _drop_button(query, callback_data: str) -> None:
 
 def _settings_text(user) -> str:
     reminder_hour = user.reminder_hour if user.reminder_hour is not None else 9
+    evening_hour = user.evening_hour if user.evening_hour is not None else 21
     reminder_timezone = user.reminder_timezone or "UTC"
     return t(
         user.language,
         "settings_title",
         hour=reminder_hour,
+        eveningHour=evening_hour,
         timezone=ui.timezone_label(reminder_timezone),
     )
 
@@ -366,7 +402,7 @@ def build_command_handlers() -> list:
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(
             navigation_callback,
-            pattern=r"^(menu:home|lang:|council:start|billing:subscribe|billing:trial|daily:done|settings:|marketing:off)",
+            pattern=r"^(menu:home|lang:|council:start|billing:subscribe|billing:trial|daily:done|notify:|settings:|marketing:off)",
         ),
         MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
         MessageHandler(UNSUPPORTED_MESSAGE_FILTER, unsupported_message),

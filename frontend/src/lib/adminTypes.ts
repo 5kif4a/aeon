@@ -31,6 +31,8 @@ export interface AdminMe {
   /** Permission keys the role grants, or ["*"] for an owner. */
   permissions: string[];
   isOwner: boolean;
+  /** Dev-only "reset user" action is switched on in this environment. */
+  userResetEnabled: boolean;
 }
 
 export interface AdminSession {
@@ -96,6 +98,10 @@ export interface AdminUser {
   proExpiresAt: string | null;
   trialExpiresAt: string | null;
   proAutoRenew: boolean;
+  /** `/start <source>` payload on first contact; empty for organic. */
+  acquiredFrom: string;
+  firstAnswerAt: string | null;
+  blockedAt: string | null;
 }
 
 export interface AdminPage<T> {

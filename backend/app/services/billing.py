@@ -12,6 +12,11 @@ from app.db.models import BillingPayment, DailyUsage, User
 from app.services import events
 
 PRO_PAYLOAD_PREFIX = "aeon:pro:v1:"
+# The year is a plain (non-renewing) Stars invoice; a distinct prefix keeps the two apart
+# in `successful_payment`, where the payload is the only thing that says what was bought.
+PRO_YEAR_PAYLOAD_PREFIX = "aeon:pro-year:v1:"
+
+BillingPeriod = Literal["month", "year"]
 
 BillingReminder = Literal["trial_ending", "trial_ended", "pro_expired"]
 # "Trial ends tomorrow" goes out once the trial has less than this left.
@@ -81,6 +86,8 @@ class BillingSnapshot:
     pro_expires_at: datetime | None
     pro_auto_renew: bool
     pro_price_stars: int
+    pro_year_price_stars: int
+    pro_year_discount_percent: int
 
 
 def utc_now() -> datetime:
@@ -104,17 +111,44 @@ def effective_plan(user: User, now: datetime | None = None) -> Literal["Free", "
     return "Free"
 
 
-def pro_invoice_payload(user_id: int) -> str:
-    return f"{PRO_PAYLOAD_PREFIX}{user_id}"
+def _payload_prefix(period: BillingPeriod) -> str:
+    return PRO_YEAR_PAYLOAD_PREFIX if period == "year" else PRO_PAYLOAD_PREFIX
+
+
+def pro_invoice_payload(user_id: int, period: BillingPeriod = "month") -> str:
+    return f"{_payload_prefix(period)}{user_id}"
+
+
+def payload_period(payload: str) -> BillingPeriod | None:
+    if payload.startswith(PRO_YEAR_PAYLOAD_PREFIX):
+        return "year"
+    if payload.startswith(PRO_PAYLOAD_PREFIX):
+        return "month"
+    return None
 
 
 def payload_user_id(payload: str) -> int | None:
-    if not payload.startswith(PRO_PAYLOAD_PREFIX):
+    period = payload_period(payload)
+    if period is None:
         return None
     try:
-        return int(payload.removeprefix(PRO_PAYLOAD_PREFIX))
+        return int(payload.removeprefix(_payload_prefix(period)))
     except ValueError:
         return None
+
+
+def pro_price_stars(period: BillingPeriod) -> int:
+    settings = get_settings()
+    return settings.pro_year_price_stars if period == "year" else settings.pro_price_stars
+
+
+def pro_year_discount_percent() -> int:
+    """How much cheaper the year is than twelve months, rounded to whole percent."""
+    settings = get_settings()
+    monthly_total = 12 * settings.pro_price_stars
+    if monthly_total <= 0:
+        return 0
+    return max(round((1 - settings.pro_year_price_stars / monthly_total) * 100), 0)
 
 
 async def _locked_user(session: AsyncSession, user_id: int) -> User:
@@ -145,7 +179,9 @@ def trial_available(user: User, plan: str) -> bool:
     return user.trial_started_at is None and user.pro_expires_at is None and plan != "Pro"
 
 
-async def start_trial(session: AsyncSession, user_id: int, now: datetime | None = None) -> User:
+async def start_trial(
+    session: AsyncSession, user_id: int, now: datetime | None = None, *, source: str = ""
+) -> User:
     current = now or utc_now()
     user = await _locked_user(session, user_id)
     if effective_plan(user, current) == "Pro":
@@ -161,7 +197,9 @@ async def start_trial(session: AsyncSession, user_id: int, now: datetime | None 
     user.trial_expires_at = current + timedelta(days=settings.trial_days)
     user.trial_rag_used = 0
     user.trial_council_used = False
-    events.record(session, events.TRIAL_STARTED, user.id, expires_at=user.trial_expires_at)
+    events.record(
+        session, events.TRIAL_STARTED, user.id, expires_at=user.trial_expires_at, source=source
+    )
     await session.commit()
     await session.refresh(user)
     return user
@@ -318,6 +356,8 @@ async def get_billing_snapshot(
         pro_expires_at=_aware(user.pro_expires_at),
         pro_auto_renew=user.pro_auto_renew and plan == "Pro",
         pro_price_stars=settings.pro_price_stars,
+        pro_year_price_stars=settings.pro_year_price_stars,
+        pro_year_discount_percent=pro_year_discount_percent(),
     )
 
 
@@ -342,7 +382,19 @@ async def record_successful_payment(
             BillingPayment.telegram_payment_charge_id == telegram_payment_charge_id
         )
     )
-    expires_at = subscription_expires_at or current + timedelta(days=30)
+    period = payload_period(invoice_payload) or "month"
+    if period == "year":
+        # A one-off year: no Telegram-side expiry, so it is computed here. It starts when the
+        # current Pro period ends, so buying a year on top of a running month wastes nothing.
+        # A replayed update reuses the stored expiry instead of adding another year.
+        is_recurring = False
+        if payment is not None and payment.subscription_expires_at is not None:
+            expires_at = _aware(payment.subscription_expires_at)
+        else:
+            start = max(current, _aware(user.pro_expires_at) or current)
+            expires_at = start + timedelta(days=get_settings().pro_year_days)
+    else:
+        expires_at = subscription_expires_at or current + timedelta(days=30)
     if payment is None:
         payment = BillingPayment(
             user_id=user_id,
@@ -360,16 +412,24 @@ async def record_successful_payment(
         payment.status = "paid"
 
     user.plan = "Pro"
-    user.pro_expires_at = expires_at
-    if is_first_recurring or not user.pro_subscription_charge_id:
-        user.pro_subscription_charge_id = telegram_payment_charge_id
-    user.pro_auto_renew = is_recurring
+    # Never shorten an entitlement: a monthly renewal charged while a prepaid year is running
+    # (or an admin grant reaching further) keeps the later date.
+    current_expiry = _aware(user.pro_expires_at)
+    user.pro_expires_at = (
+        max(current_expiry, expires_at) if current_expiry is not None else expires_at
+    )
+    if period == "month":
+        # The year does not touch the subscription: whatever renewal state the user has stays.
+        if is_first_recurring or not user.pro_subscription_charge_id:
+            user.pro_subscription_charge_id = telegram_payment_charge_id
+        user.pro_auto_renew = is_recurring
     events.record(
         session,
         events.PAYMENT_SUCCEEDED,
         user.id,
         amount=amount,
         currency=currency,
+        period=period,
         renewal=is_recurring and not is_first_recurring,
         expires_at=expires_at,
     )
@@ -560,7 +620,8 @@ async def billing_reminder_candidates(
             or_(
                 User.trial_expires_at >= cutoff,
                 User.pro_expires_at >= cutoff,
-            )
+            ),
+            User.blocked_at.is_(None),
         )
     )
     return list(result.scalars().all())

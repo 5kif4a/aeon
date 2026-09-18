@@ -79,7 +79,9 @@ def _history_contents(history: list[dict]) -> list[dict]:
         if role is None or not text:
             continue
         if not contents and role == "model":
-            continue
+            # An advisor-first session (evening question, follow-up): Gemini needs a user
+            # turn first, so a neutral opener stands in for the message that never existed.
+            contents.append({"role": "user", "parts": [{"text": "(The conversation begins.)"}]})
         if contents and contents[-1]["role"] == role:
             contents[-1]["parts"][0]["text"] += f"\n\n{text}"
             continue
@@ -279,6 +281,44 @@ def _retry_body(agent_id: str, message: str, language: str, book_context: str = 
             "maxOutputTokens": min(settings.gemini_max_output_tokens, 1200),
         },
     }
+
+
+def _followup_body(agent_id: str, history: list[dict], language: str) -> dict:
+    transcript = "\n".join(
+        f"{'User' if item.get('role') == 'user' else 'You'}: "
+        f"{str(item.get('text', '')).strip()[:600]}"
+        for item in (history or [])[-12:]
+        if isinstance(item, dict) and str(item.get("text", "")).strip()
+    )
+    prompt = (
+        "Below is your recent conversation with the user; it went quiet about a day ago.\n"
+        "Write them a short message, one or two sentences, at most 300 characters: in one "
+        "clause recall what they brought to you (no quotes, no advice, do not summarize your "
+        "own words), then one short question inviting them to continue. Plain text, no "
+        "greeting, no signature.\n\n"
+        f"{transcript}"
+    )
+    return {
+        "systemInstruction": {"parts": [{"text": _build_system_prompt(agent_id, language)}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        # Gemini 2.5 thinks by default and the thinking counts against maxOutputTokens; a
+        # small budget without this would return a truncated first clause.
+        "generationConfig": {
+            "temperature": 0.6,
+            "maxOutputTokens": 400,
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+
+
+async def summarize_for_followup(agent_id: str, history: list[dict], language: str) -> str:
+    """One or two sentences in the advisor's voice recalling a dialogue that went quiet.
+
+    Product-initiated and paid by us: the one Gemini call made without a billing grant
+    (see services/followups.py for the cap), so it is small and non-streaming.
+    """
+    result = await gemini.generate_content(_followup_body(agent_id, history, language), timeout=30)
+    return sanitize_answer(gemini.extract_text(result)).strip()[:400]
 
 
 # --- answer post-processing --------------------------------------------------

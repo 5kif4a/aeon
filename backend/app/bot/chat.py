@@ -79,7 +79,9 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
         if agent_id not in AGENTS:
             await users.update_user(session, user, {"active_agent": None})
             return False
+        await users.mark_reaction(session, user)
         language = user.language
+        offer_app = user.last_webapp_open_at is None
         active_goal = await goals.get_active_goal(session, chat_id)
         diary_entries = await diary.list_entries(session, chat_id, limit=3)
         if not settings.gemini_api_key:
@@ -92,13 +94,22 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
                 session, events.QUESTION_LIMIT_HIT, chat_id, kind="agent", plan=error.plan
             )
             await session.commit()
+            if error.plan == "Free" and user.first_answer_at is None:
+                # The failure mode that killed the previous product: a paywall before any
+                # answer. One alert per 10 minutes is enough to notice the same day.
+                ops.limit_without_answer(user)
+            can_start_trial = billing.trial_available(user, error.plan)
+            if error.plan == "Free" and can_start_trial:
+                # The limit is the moment the Trial is offered: say plainly that the free
+                # questions come back tomorrow and that the Trial opens everything right now.
+                text = t(language, "question_limit_free_trial", days=settings.trial_days)
+            else:
+                text = t(language, f"question_limit_{error.plan.lower()}")
             await bot.send_message(
                 chat_id,
-                t(language, f"question_limit_{error.plan.lower()}"),
+                text,
                 reply_markup=ui.limit_keyboard(
-                    language,
-                    error.plan,
-                    can_start_trial=billing.trial_available(user, error.plan),
+                    language, error.plan, can_start_trial=can_start_trial
                 ),
             )
             return True
@@ -160,15 +171,41 @@ async def _process_agent_message(bot: Bot, chat_id: int, text: str) -> bool:
             return True
 
     await agent_chat.append_history(chat_id, agent_id, text, answer)
+    await _mark_first_answer(chat_id, agent_id, grant.mode)
+    footer = await _checkin_footer(chat_id, language)
     await messaging.send_or_edit(
         bot,
         chat_id,
         progress.message_id,
-        answer,
-        reply_markup=ui.post_answer_keyboard(language),
+        f"{answer}\n\n{footer}" if footer else answer,
+        reply_markup=ui.post_answer_keyboard(language, offer_app=offer_app),
         markdown=True,
     )
     return True
+
+
+async def _mark_first_answer(chat_id: int, agent_id: str, mode: str) -> None:
+    async with SessionFactory() as session:
+        user = await users.get_user(session, chat_id)
+        if user is not None:
+            await users.mark_first_answer(session, user, agent_id=agent_id, mode=mode)
+
+
+async def _checkin_footer(chat_id: int, language: str) -> str:
+    """Writing to an advisor is the day's check-in. The first message of a local day advances
+    the streak; from the second day on, one line under the answer says so. It is not the
+    advisor speaking, hence the separate line and the marker."""
+    async with SessionFactory() as session:
+        user = await users.get_user(session, chat_id)
+        if user is None:
+            return ""
+        before = user.last_daily_checkin_date
+        streak = await users.record_daily_checkin(session, user)
+        if user.last_daily_checkin_date == before:
+            return ""
+        events.record(session, events.CHECKIN_RECORDED, chat_id, source="message", streak=streak)
+        await session.commit()
+    return t(language, "streak_footer", streak=streak) if streak >= 2 else ""
 
 
 async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:

@@ -2,6 +2,7 @@ import { tg } from "./telegram";
 import type {
   ActiveConversation,
   Agent,
+  BillingPeriod,
   BillingStatus,
   Checkout,
   DiaryEntry,
@@ -92,7 +93,8 @@ export const api = {
 
   getBillingStatus: () => request<BillingStatus>("/api/billing/status"),
   startTrial: () => request<BillingStatus>("/api/billing/trial", { method: "POST" }),
-  createCheckout: () => request<Checkout>("/api/billing/checkout", { method: "POST" }),
+  createCheckout: (period: BillingPeriod = "month") =>
+    request<Checkout>(`/api/billing/checkout?period=${period}`, { method: "POST" }),
   cancelSubscription: () =>
     request<{ ok: boolean; activeUntil: string | null }>("/api/billing/cancel", { method: "POST" }),
 };

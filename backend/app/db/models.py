@@ -69,9 +69,31 @@ class User(Base):
     # Opt-out for marketing broadcasts; service broadcasts ignore it (see services/broadcasts.py).
     marketing_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     reminder_timezone: Mapped[str] = mapped_column(String(64), default="UTC")
+    # Where reminder_timezone came from: default | language | device | manual. Nothing daily
+    # is sent while it is "default" (an unknown zone means an unknown night).
+    timezone_source: Mapped[str] = mapped_column(String(16), default="default")
+    # Morning slot (daily_notifications_enabled / reminder_hour) and evening slot.
     reminder_hour: Mapped[int] = mapped_column(Integer, default=9)
+    evening_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    evening_hour: Mapped[int] = mapped_column(Integer, default=21)
     last_daily_notification_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_evening_notification_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     last_life_weekly_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # Morning/evening messages sent since the user last reacted (message, button, Mini App
+    # open). The jobs mute the morning slot at 10 and the evening slot at 24; any reaction
+    # resets it. The user's own toggles are never rewritten by the decay.
+    unanswered_notifications: Mapped[int] = mapped_column(Integer, default=0)
+    # Set by the admin reset; the next /start greets the user as on first contact.
+    onboarding_pending: Mapped[bool] = mapped_column(Boolean, default=False)
+    # `/start <source>` on first contact (ad link, seed); empty for organic.
+    acquired_from: Mapped[str] = mapped_column(String(64), default="")
+    # First advisor answer delivered; None means the funnel never got past /start.
+    first_answer_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Telegram refused a send (user blocked the bot); cleared when the user writes again.
+    blocked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_webapp_open_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     last_daily_checkin_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     daily_checkin_streak: Mapped[int] = mapped_column(Integer, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
@@ -148,6 +170,12 @@ class Conversation(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Follow-up hook: a short recap in the advisor's voice, generated once the dialogue has
+    # gone quiet, delivered in the evening slot instead of the generic question.
+    summary: Mapped[str] = mapped_column(Text, default="")
+    followup_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     user: Mapped[User] = relationship(back_populates="conversations")
     messages: Mapped[list["ConversationMessage"]] = relationship(

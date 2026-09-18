@@ -42,7 +42,7 @@ async def test_user_creation_records_one_event_even_when_called_twice():
 
     recorded = await _events_of(USER_ID)
     assert [event.type for event in recorded] == [events.USER_CREATED]
-    assert recorded[0].payload == {"language": "ru"}
+    assert recorded[0].payload == {"language": "ru", "source": ""}
 
 
 async def test_billing_transitions_are_recorded_as_events():

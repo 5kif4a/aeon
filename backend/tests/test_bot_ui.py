@@ -53,9 +53,9 @@ def test_post_answer_keyboard_only_switches_advisor():
 
 
 def test_language_keyboard_puts_the_detected_language_first():
-    keyboard = ui.language_keyboard("onboarding:lang", detected="ru")
+    keyboard = ui.language_keyboard("lang", detected="ru")
 
-    assert _callbacks(keyboard) == ["onboarding:lang:ru", "onboarding:lang:en"]
+    assert _callbacks(keyboard) == ["lang:ru", "lang:en"]
     assert keyboard.inline_keyboard[0][0].text == "✓ Русский"
     assert keyboard.inline_keyboard[1][0].text == "English"
 
@@ -108,7 +108,7 @@ def test_greeting_keys_exist_in_both_languages():
         "home_active_agent",
         "choose_language",
         "language_saved",
-        "onboarding_choose_language",
+        "onboarding_welcome",
     ):
         assert t("en", key) != key
         assert t("ru", key) != key
@@ -151,9 +151,11 @@ def test_settings_keyboard_contains_independent_notification_toggles():
     keyboard = ui.settings_keyboard(user)
     labels = [button.text for row in keyboard.inline_keyboard for button in row]
 
-    assert "Daily: On" in labels
+    assert "Morning: On" in labels
+    assert "Morning 10:00" in labels
+    assert "Evening question: On" in labels
+    assert "Evening 21:00" in labels
     assert "Weekly: Off" in labels
-    assert "Time 10:00" in labels
     # The offset moves with DST, so only its shape is asserted.
     assert any(label.startswith("Zone: London (UTC") for label in labels)
 

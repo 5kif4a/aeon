@@ -116,12 +116,31 @@ closes every other active session. `agent_chat.get_history` / `append_history` r
 these tables directly (there is no cache layer). Council answers are stored as closed sessions
 with `agent_id="council"`.
 
-**Notifications.** `JobQueue` runs `send_daily_notifications`, `send_life_weekly_reviews`,
-`send_billing_reminders` and the broadcast queue in-process; the first three run
-every 15 minutes; per-user `reminder_timezone` / `reminder_hour` decide "due",
-`last_daily_notification_date` / `last_life_weekly_date` prevent duplicates. Only users with a
-`birth_date` receive anything. A weekly review suppresses that day's daily message.
+**Notifications.** `JobQueue` runs `send_daily_notifications` (morning), `send_evening_questions`,
+`send_life_weekly_reviews`, `send_billing_reminders`, `generate_conversation_followups` and the
+broadcast queue in-process, every 15 minutes. Two slots a day at most, in the user's own zone:
+a thought at `reminder_hour` (`daily_notifications_enabled`) and a question at `evening_hour`
+(`evening_enabled`); texts live in `app/notification_texts.py` and rotate by days since signup.
+`last_daily_notification_date` / `last_evening_notification_date` / `last_life_weekly_date` prevent
+duplicates; a weekly review suppresses that day's morning message and still needs a `birth_date`,
+the daily slots do not. `timezone_source` records where `reminder_timezone` came from
+(`default | language | device | manual`): nothing daily is sent on `default`, the Mini App reports
+the device zone silently while the source is a guess, a `manual` choice is never overwritten.
+`unanswered_notifications` counts sends since the user last reacted (message, button, Mini App open,
+see `users.mark_reaction`); at 10 the morning slot goes quiet, at 24 the evening slot too, and the
+user's own toggles are never rewritten. The evening question is stored as the advisor's turn in
+the conversation the reply lands in (`conversations.append_agent_message`), so a one-word answer
+reaches the advisor with its question. Writing to an advisor is the day's check-in
+(`users.record_daily_checkin`); the streak line under the answer is not the advisor speaking.
 Running more than one backend replica will duplicate notifications; keep a single instance.
+
+**Conversation follow-ups** (`services/followups.py`). A dialogue that went quiet (last user
+message 20 h to 7 days old, at least two user messages, nothing written since) gets a one-line
+recap in the advisor's voice, generated once by Gemini and stored in `conversations.summary`; the
+evening job delivers it in place of that day's question and reopens the conversation. This is the
+**one Gemini call made without a billing grant**: product-initiated, paid by us, bounded by
+`FOLLOWUP_DAILY_CAP` and `FOLLOWUP_ENABLED`. The recap is dialogue content: it never goes to the
+ops group and never into an event payload.
 
 **Ops notifications.** `product_events` is an append-only log written by services inside the
 same transaction as the state change (`events.record`: `user_created`, `trial_started`,
@@ -204,7 +223,8 @@ dependency. Never keep a session open across a Gemini call or a Telegram send.
 
 ## Things not to do
 
-- Do not call Gemini without a billing grant, and do not swallow a failed generation without
+- Do not call Gemini without a billing grant (the follow-up recap in `services/followups.py` is
+  the one deliberate exception), and do not swallow a failed generation without
   releasing the grant.
 - Do not read `user.plan` to decide access; use `effective_plan` or the grant.
 - Do not commit anything under `backend/data/` (RAG corpora are built locally per environment).

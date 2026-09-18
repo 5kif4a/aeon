@@ -1,3 +1,5 @@
+from datetime import UTC, datetime, timedelta
+
 from fastapi import APIRouter
 
 from app.api.deps import CurrentUser, SessionDep
@@ -12,8 +14,22 @@ from app.services import admin_access, events, ops, users
 router = APIRouter(tags=["profile"])
 
 
+# How often an open of the Mini App is written down; every screen calls /me.
+WEBAPP_OPEN_STAMP_INTERVAL = timedelta(hours=1)
+
+
 @router.get("/me", response_model=ProfileOut)
 async def get_me(user: CurrentUser, session: SessionDep) -> ProfileOut:
+    # Opening the Mini App is a reaction: it restarts the notification decay and tells the
+    # bot it no longer has to point at the app under every answer.
+    now = datetime.now(UTC)
+    if (
+        user.last_webapp_open_at is None
+        or user.last_webapp_open_at < now - WEBAPP_OPEN_STAMP_INTERVAL
+    ):
+        user = await users.update_user(
+            session, user, {"last_webapp_open_at": now, "unanswered_notifications": 0}
+        )
     # `isAdmin` only decides whether the Mini App shows the panel link; the panel itself
     # re-checks every request against the role matrix.
     is_admin = await admin_access.resolve_identity(session, user.id) is not None
@@ -50,8 +66,8 @@ async def get_notification_settings(user: CurrentUser) -> NotificationSettingsOu
 async def update_notification_settings(
     payload: NotificationSettingsUpdate, user: CurrentUser, session: SessionDep
 ) -> NotificationSettingsOut:
-    """Delivery hour and time zone are the same columns the bot's /settings writes."""
-    fields = payload.to_user_fields()
+    """Delivery hours and time zone are the same columns the bot's /settings writes."""
+    fields = payload.to_user_fields(user)
     if fields:
         user = await users.update_user(session, user, fields)
     return NotificationSettingsOut.from_user(user)

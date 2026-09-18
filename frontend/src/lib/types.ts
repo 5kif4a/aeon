@@ -18,7 +18,19 @@ export interface Profile {
   plan: string;
   tokens: number;
   activeAgent: string | null;
+  /** Lapse-corrected: zero once a day was skipped. */
   dailyCheckinStreak: number;
+  checkedInToday: boolean;
+  /** The last seven local days, oldest first, for the week strip on the home screen. */
+  checkinWeek: CheckinDay[];
+  isAdmin: boolean;
+}
+
+export interface CheckinDay {
+  /** ISO date in the user's notification time zone. */
+  date: string;
+  checked: boolean;
+  today: boolean;
 }
 
 export interface ProfileUpdate {
@@ -33,22 +45,39 @@ export interface ProfileUpdate {
   language?: string;
 }
 
+export type TimezoneSource = "default" | "language" | "device" | "manual";
+
 export interface NotificationSettings {
+  /** Morning slot: a thought to read. */
   dailyEnabled: boolean;
+  reminderHour: number;
+  /** Evening slot: a question to answer. */
+  eveningEnabled: boolean;
+  eveningHour: number;
   weeklyEnabled: boolean;
   /** News and offers sent from the admin panel; service announcements ignore it. */
   marketingEnabled: boolean;
-  reminderHour: number;
   reminderTimezone: string;
-  /** Nothing is delivered until the birth date is set; the form says so. */
+  /** A guessed zone ("default"/"language") is replaced silently by the device zone. */
+  timezoneSource: TimezoneSource;
+  /** Only the weekly life review needs a birth date. */
   birthDateSet: boolean;
 }
 
 export type NotificationSettingsUpdate = Partial<
   Pick<
     NotificationSettings,
-    "dailyEnabled" | "weeklyEnabled" | "marketingEnabled" | "reminderHour" | "reminderTimezone"
-  >
+    | "dailyEnabled"
+    | "eveningEnabled"
+    | "weeklyEnabled"
+    | "marketingEnabled"
+    | "reminderHour"
+    | "eveningHour"
+    | "reminderTimezone"
+  > & {
+    /** What the device reports; applied only while the stored zone is a guess. */
+    deviceTimezone: string;
+  }
 >;
 
 export interface Goal {
@@ -108,9 +137,14 @@ export interface BillingStatus {
   proExpiresAt: string | null;
   proAutoRenew: boolean;
   proPriceStars: number;
+  proYearPriceStars: number;
+  proYearDiscountPercent: number;
 }
+
+export type BillingPeriod = "month" | "year";
 
 export interface Checkout {
   invoiceLink: string;
   priceStars: number;
+  period: BillingPeriod;
 }

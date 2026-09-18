@@ -63,10 +63,15 @@ export function deviceTimezone(): string {
   }
 }
 
-/** "Asia/Almaty" → "Almaty · UTC+5"; unknown zones keep their raw name. */
+/**
+ * "Asia/Almaty" → "Almaty · UTC+5"; unknown zones keep their raw name. The language
+ * fallback zone `Etc/GMT-4` means UTC+4 (IANA inverts the sign), so it is shown as the offset
+ * alone rather than a name that reads as the opposite.
+ */
 export function timezoneLabel(zone: string, locale: string): string {
-  const city = zone === "UTC" ? "UTC" : (zone.split("/").pop() ?? zone).replace(/_/g, " ");
   const offset = timezoneOffsetLabel(zone, locale);
+  if (zone.startsWith("Etc/")) return offset || zone;
+  const city = zone === "UTC" ? "UTC" : (zone.split("/").pop() ?? zone).replace(/_/g, " ");
   return offset ? `${city} · ${offset}` : city;
 }
 

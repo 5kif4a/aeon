@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import ClassVar
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -28,6 +29,9 @@ class Settings(BaseSettings):
     rag_enabled: bool = True
     rag_allow_basic: bool = False
     pro_price_stars: int = 350
+    # One-off Stars invoice for 12 months of Pro (Telegram subscriptions are 30-day only).
+    pro_year_price_stars: int = 2500
+    pro_year_days: int = 365
     free_daily_questions: int = 7
     trial_days: int = 3
     trial_daily_rag_questions: int = 5
@@ -44,8 +48,42 @@ class Settings(BaseSettings):
     # Weight of the embedding ranking against BM25 (1.0) in reciprocal rank fusion.
     rag_semantic_weight: float = 1.0
 
-    reminder_hour: int = 9
+    # Default delivery hours for new users (local time): the morning quote and the evening
+    # question. Both are per-user settings afterwards.
+    reminder_hour: int = 8
+    evening_hour: int = 21
     reminder_tz: str = "UTC"
+    # Conversation follow-ups: a Gemini recap of a dialogue that went quiet, sent in the
+    # evening slot. Product-initiated, so it is paid by us, outside the user's quota; the cap
+    # bounds the daily spend.
+    followup_enabled: bool = True
+    # Admin "reset user" action (dialogues, usage, entitlements) for walking the funnel again
+    # from /start. Off by default: meant for the dev environment, never for real users.
+    admin_user_reset_enabled: bool = False
+
+    # Knobs whose silent divergence from the documented values breaks the funnel.
+    FUNNEL_KNOBS: ClassVar[tuple[str, ...]] = (
+        "free_daily_questions",
+        "trial_days",
+        "trial_daily_rag_questions",
+        "trial_total_rag_questions",
+        "pro_daily_rag_questions",
+        "pro_daily_council_questions",
+        "pro_price_stars",
+        "pro_year_price_stars",
+    )
+
+    def funnel_overrides(self) -> dict[str, tuple[object, object]]:
+        """Env values that differ from the code defaults, as {name: (value, default)}."""
+        overrides = {}
+        for name in self.FUNNEL_KNOBS:
+            default = type(self).model_fields[name].default
+            value = getattr(self, name)
+            if value != default:
+                overrides[name.upper()] = (value, default)
+        return overrides
+
+    followup_daily_cap: int = 300
     # Telegram re-issues initData on every Mini App launch; a stolen header should not stay
     # usable for days.
     init_data_max_age: int = 21_600

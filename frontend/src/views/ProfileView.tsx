@@ -27,7 +27,7 @@ import {
 import { formatDateOnly, parseLocalDate } from "../lib/life";
 import { timezoneLabel } from "../lib/options";
 import { openInvoice } from "../lib/telegram";
-import type { BillingStatus, NotificationSettings, Profile } from "../lib/types";
+import type { BillingPeriod, BillingStatus, NotificationSettings, Profile } from "../lib/types";
 import { goldButton } from "../lib/ui";
 import type { ProfileSheet as SheetName } from "../lib/views";
 
@@ -52,6 +52,13 @@ const sheetPrimary = `${goldButton} min-h-[52px] w-full px-3 py-2 text-[14px] le
 const sheetGhost =
   "text-muted min-h-11 w-full cursor-pointer rounded-[8px] bg-transparent text-[13px] font-[650] underline decoration-[rgba(255,255,255,0.25)] underline-offset-4";
 const sheetCopy = "text-muted text-[14px] leading-[1.5]";
+/** Plan cards: both offers get the same gold weight, the saving badge is the only accent. */
+const planCard = `${goldButton} relative grid min-h-[108px] content-center gap-1 px-3 py-3 text-center disabled:cursor-default disabled:opacity-60`;
+const planCardTitle = "text-[11px] font-[800] tracking-[0.08em] uppercase opacity-75";
+const planCardPrice = "font-serif text-[22px] leading-none font-[700]";
+const planCardNote = "text-[11px] leading-[1.3] opacity-75";
+const planCardBadge =
+  "absolute -top-2 right-2 rounded-full bg-[#1e1711] px-2 py-[3px] text-[10px] font-[800] tracking-[0.04em] uppercase text-gold-strong";
 
 export function ProfileView() {
   const { t, lang, setLang } = useT();
@@ -109,9 +116,14 @@ export function ProfileView() {
     setPaymentState(status?.plan === "Pro" ? "paid" : "pending");
   };
 
-  const beginCheckout = () => {
+  const monthPrice = billing?.proPriceStars ?? 350;
+  const yearPrice = billing?.proYearPriceStars ?? 2500;
+  const yearDiscount = billing?.proYearDiscountPercent ?? 40;
+  const checkoutBusy = createCheckout.isPending || paymentState === "confirming";
+
+  const beginCheckout = (period: BillingPeriod) => {
     setPaymentState(null);
-    createCheckout.mutate(undefined, {
+    createCheckout.mutate(period, {
       onSuccess: async ({ invoiceLink }) => {
         const result = await openInvoice(invoiceLink);
         if (result === "paid") {
@@ -284,18 +296,36 @@ export function ProfileView() {
             )}
             {/* Pro is always the primary action; the Trial is a quieter fallback for Free users. */}
             {plan !== "Pro" && (
-              <div className="grid gap-2">
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                {/* Two equal offers; the year is a one-off invoice (Telegram subscriptions are
+                    30-day only) and carries the saving badge. */}
                 <button
                   type="button"
-                  className={sheetPrimary}
-                  disabled={createCheckout.isPending || paymentState === "confirming"}
-                  onClick={beginCheckout}
+                  className={planCard}
+                  disabled={checkoutBusy}
+                  onClick={() => beginCheckout("month")}
                 >
-                  {t("pro_upgrade", { price: billing?.proPriceStars ?? 350 })}
+                  <span className={planCardTitle}>{t("pro_plan_month_title")}</span>
+                  <span className={planCardPrice}>
+                    {t("pro_plan_price", { price: monthPrice })}
+                  </span>
+                  <span className={planCardNote}>{t("pro_plan_month_note")}</span>
                 </button>
-                <span className="text-soft text-center text-[12px] leading-[1.4]">
-                  {t("pro_renewal_note")}
-                </span>
+                <button
+                  type="button"
+                  className={planCard}
+                  disabled={checkoutBusy}
+                  onClick={() => beginCheckout("year")}
+                >
+                  <span className={planCardBadge}>
+                    {t("pro_save_badge", { discount: yearDiscount })}
+                  </span>
+                  <span className={planCardTitle}>{t("pro_plan_year_title")}</span>
+                  <span className={planCardPrice}>{t("pro_plan_price", { price: yearPrice })}</span>
+                  <span className={planCardNote}>
+                    {t("pro_plan_year_note", { monthly: Math.round(yearPrice / 12) })}
+                  </span>
+                </button>
               </div>
             )}
             {plan === "Free" && billing?.canStartTrial && (
