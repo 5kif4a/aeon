@@ -220,9 +220,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "goal_closed": "Goal closed. Reminders stopped.",
         "reminder": "Your active goal: {goal}\n\nWhat is the smallest useful step you can complete today?",
         "life_weekly": (
+            "Week {weeksLived} of your life has come to an end.\n\n"
             "“{text}”\n\n"
             "— {agent}\n\n"
-            "Week {weeksLived} of your life has come to an end.\n\n"
             "Choose one goal for the coming week."
         ),
         "life_weekly_button": "Open calendar",
@@ -235,7 +235,7 @@ MESSAGES: dict[str, dict[str, str]] = {
             "Understood. The morning message is off; the evening question stays. "
             "Both are in /settings."
         ),
-        "evening_question": "{question}\n\n— {agent}",
+        "evening_question": "{question}",
         "daily_done_button": "✓ Done for today",
         "daily_checkin_saved": "Action recorded. Your current streak is {streak} day(s).",
         "streak_footer": "✦ Day {streak} in a row",
@@ -388,9 +388,9 @@ MESSAGES: dict[str, dict[str, str]] = {
         "goal_closed": "Цель закрыта. Напоминания остановлены.",
         "reminder": "Ваша активная цель: {goal}\n\nКакой самый небольшой полезный шаг Вы можете завершить сегодня?",
         "life_weekly": (
+            "Завершилась {weeksLived}-я неделя Вашей жизни.\n\n"
             "«{text}»\n\n"
             "— {agent}\n\n"
-            "Завершилась {weeksLived}-я неделя Вашей жизни.\n\n"
             "Выберите одну цель на новую неделю."
         ),
         "life_weekly_button": "Открыть календарь",
@@ -402,7 +402,7 @@ MESSAGES: dict[str, dict[str, str]] = {
         "morning_muted": (
             "Понял. Утреннее сообщение выключено, вечерний вопрос остаётся. Оба — в /settings."
         ),
-        "evening_question": "{question}\n\n— {agent}",
+        "evening_question": "{question}",
         "daily_done_button": "✓ Выполнено сегодня",
         "daily_checkin_saved": "Действие отмечено. Ваша текущая серия: {streak} дн.",
         "streak_footer": "✦ День {streak} подряд",

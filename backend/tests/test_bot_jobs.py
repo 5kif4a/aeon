@@ -8,6 +8,7 @@ from app.bot.jobs import (
     billing_reminder_is_due,
     build_billing_reminder,
     build_daily_notification,
+    build_evening_message,
     build_life_weekly_message,
     reminder_today,
 )
@@ -55,11 +56,20 @@ def test_build_life_weekly_message_uses_russian_localization():
 
     message = build_life_weekly_message(user, date(2000, 1, 15))
 
-    assert message.startswith("«")
+    assert message.startswith("Завершилась 2-я неделя Вашей жизни.")
+    assert message.index("Завершилась") < message.index("«")
     assert message.index("»") < message.index("— Карл Юнг")
-    assert "Завершилась 2-я неделя Вашей жизни." in message
     assert "Карл Юнг" in message
     assert "Выберите одну цель на новую неделю." in message
+
+
+def test_evening_message_has_no_agent_signature():
+    user = User(id=1, language="ru")
+
+    message = build_evening_message(user, "aurelius", "Вы этот день потратили или использовали?")
+
+    assert message == "Вы этот день потратили или использовали?"
+    assert "Марк Аврелий" not in message
 
 
 def test_calendar_keyboard_opens_calendar(monkeypatch):

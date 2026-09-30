@@ -13,7 +13,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from telegram.error import Forbidden
 from telegram.ext import ContextTypes
 
-from app.agents import AGENTS, agent_name
+from app.agents import AGENTS
 from app.bot import webapp
 from app.core.config import get_settings
 from app.db.models import Goal, User
@@ -170,14 +170,9 @@ def evening_agent_id(user: User, today: date) -> str:
     return notification_agent_id(users.notification_sequence(user, today))
 
 
-def build_evening_message(user: User, agent_id: str, question: str) -> str:
-    """The question (or follow-up recap) signed by the advisor who asks it."""
-    return t(
-        user.language,
-        "evening_question",
-        question=question,
-        agent=agent_name(agent_id, user.language),
-    )
+def build_evening_message(user: User, _agent_id: str, question: str) -> str:
+    """Show an evening question or follow-up recap without an advisor signature."""
+    return t(user.language, "evening_question", question=question)
 
 
 def build_evening_question(user: User, today: date, agent_id: str) -> str:
