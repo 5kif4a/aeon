@@ -73,7 +73,7 @@ function HomeRoute() {
       activeAgentId={shell.activeAgentId}
       onSelectAgent={shell.selectAgent}
       onStartDialog={shell.beginDialog}
-      onStartCouncil={shell.beginCouncil}
+      onStartDiscussion={shell.beginDiscussion}
     />
   );
 }

@@ -241,15 +241,15 @@ MESSAGES: dict[str, dict[str, str]] = {
         "streak_footer": "✦ Day {streak} in a row",
         # Billing
         "payment_pro_title": "Aeon Primus",
-        "payment_pro_description": "A month with the advisors at full strength: their books open, the Council of Three convened.",
+        "payment_pro_description": "A month with the advisors at full strength: their books open and Discussion available.",
         "payment_pro_price": "Aeon Primus · 30 days",
-        "payment_pro_year_description": "Twelve months with the advisors at full strength in one payment: their books open, the Council of Three convened. No renewal.",
+        "payment_pro_year_description": "Twelve months with the advisors at full strength in one payment: their books open and Discussion available. No renewal.",
         "payment_pro_year_price": "Aeon Primus · 12 months",
         "payment_pay_button": "Pay {price} ⭐",
         "payment_year_button": "A year for {price} ⭐ · save {discount}%",
-        "payment_success_year": "Aeon Primus is open for a year, until {date}. The advisors now answer from their books and the Council of Three convenes.",
+        "payment_success_year": "Aeon Primus is open for a year, until {date}. The advisors now answer from their books and Discussion is available.",
         "payment_invalid": "This payment link is invalid or no longer available.",
-        "payment_success": "Aeon Primus is open. The advisors now answer from their books and the Council of Three convenes.",
+        "payment_success": "Aeon Primus is open. The advisors now answer from their books and Discussion is available.",
         "payment_no_subscription": "You do not have an active renewable Primus subscription.",
         "payment_canceled": "Automatic renewal is canceled. Primus remains open until {date}.",
         "payment_restored": "Automatic renewal is back on. Primus continues after {date}.",
@@ -260,31 +260,39 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_refunded": "Your payment of {amount} Stars has been refunded. Primus is switched off; the Stars return to your Telegram balance.",
         "billing_trial_ending": (
             "Your trial access ends tomorrow. After that the advisors answer without their books "
-            "and the Council of Three closes. Continue with Aeon Primus for {price} ★ per month, "
+            "and Discussion closes. Continue with Aeon Primus for {price} ★ per month, "
             "cancel anytime."
         ),
         "billing_trial_ended": (
-            "Your trial access has ended and you are back on Basic: no sources, no Council. "
+            "Your trial access has ended and you are back on Basic: no sources, no Discussion. "
             "Aeon Primus brings the books back for {price} ★ per month, cancel anytime."
         ),
         "billing_pro_expired": (
             "Your Aeon Primus has ended and was not renewed, so the advisors answer without their "
             "books again. Renew for {price} ★ per month to bring back the sources and the "
-            "Council of Three."
+            "Discussion."
         ),
         "question_limit_free": "Today's free conversations are over. Tomorrow brings new ones, or open the advisors at full strength.",
         "question_limit_free_trial": "Today's free conversations are over; the limit resets tomorrow. Or skip the wait: a free {days}-day trial opens the advisors at full strength right now, one tap below.",
         "question_limit_trial": "Today's trial conversations are over. Tomorrow brings new ones, or open Primus.",
         "question_limit_pro": "Today's conversations are over. The advisors are back with you tomorrow.",
-        "council_usage": "Send one important question after the command:\n/council Should I change careers?",
-        "council_thinking": "Marcus Aurelius, Machiavelli, and Carl Jung are considering your question...",
-        "council_prompt": (
-            "Council of Three\n\nSend one important decision or situation. "
-            "You will receive three distinct perspectives and one concrete next step."
+        "council_usage": "Send one topic after the command:\n/discussion Should I change careers?",
+        "council_thinking": "Marcus Aurelius, Machiavelli, and Carl Jung are beginning the discussion...",
+        "discussion_prompt": (
+            "Discussion\n\nSend one important decision or situation. "
+            "The three advisors will challenge one another's positions."
         ),
-        "council_limit_free": "The Council of Three convenes in Primus.",
-        "council_limit_trial": "Your trial Council has already convened. In Primus the Council convenes every day.",
-        "council_limit_pro": "Today's Councils have convened. Again tomorrow.",
+        "council_limit_free": "Discussion is available in Primus.",
+        "council_limit_trial": "Your trial Discussion has already taken place. In Primus you can start new discussions every day.",
+        "council_limit_pro": "Today's Discussion limit is used. You can start another tomorrow.",
+        "discussion_thinking": "The three advisors are preparing their positions...",
+        "discussion_continuing": "The advisors are considering one another's arguments...",
+        "discussion_continue_button": "Continue discussion",
+        "discussion_summary_button": "Summarize",
+        "discussion_summary_title": "Discussion summary",
+        "discussion_goal_button": "Turn into a goal",
+        "discussion_new_button": "New discussion",
+        "discussion_not_found": "This discussion is no longer available. Start a new one.",
         # Agent dialogue
         "agent_mode_closed": "Dialogue closed. Choose what you want to do next.",
         "agent_intro_suffix": (
@@ -302,14 +310,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "dialog_menu_title": "What do you want to do?",
         "open_mini_app": "Open Aeon",
         "open_aeon": "Open Aeon",
-        "council_button": "Council of Three",
+        "discussion_button": "Discussion",
         "settings_button": "Settings",
         "back_home": "← Main menu",
         "back_settings": "← Settings",
         "switch_agent_button": "Switch advisor",
         "upgrade_pro_button": "Open Primus",
         "trial_start_button": "Try it free",
-        "trial_started": "Trial access is open until {date}. The advisors answer from their books and the Council of Three convenes.",
+        "trial_started": "Trial access is open until {date}. The advisors answer from their books and Discussion is available.",
         "chat_menu_button": "Open Aeon",
         # Settings
         "settings_title": (
@@ -408,15 +416,15 @@ MESSAGES: dict[str, dict[str, str]] = {
         "streak_footer": "✦ День {streak} подряд",
         # Billing
         "payment_pro_title": "Aeon Primus",
-        "payment_pro_description": "Месяц с наставниками в полную силу: их книги открыты, Совет трёх собирается.",
+        "payment_pro_description": "Месяц с наставниками в полную силу: их книги открыты, Дискуссия доступна.",
         "payment_pro_price": "Aeon Primus · 30 дней",
-        "payment_pro_year_description": "Двенадцать месяцев с наставниками в полную силу одним платежом: их книги открыты, Совет трёх собирается. Без автопродления.",
+        "payment_pro_year_description": "Двенадцать месяцев с наставниками в полную силу одним платежом: их книги открыты, Дискуссия доступна. Без автопродления.",
         "payment_pro_year_price": "Aeon Primus · 12 месяцев",
         "payment_pay_button": "Оплатить {price} ⭐",
         "payment_year_button": "Год за {price} ⭐ · выгода {discount}%",
-        "payment_success_year": "Aeon Primus открыт на год, до {date}. Наставники отвечают по своим книгам, Совет трёх собирается.",
+        "payment_success_year": "Aeon Primus открыт на год, до {date}. Наставники отвечают по своим книгам, Дискуссия доступна.",
         "payment_invalid": "Эта ссылка оплаты недействительна или больше недоступна.",
-        "payment_success": "Aeon Primus открыт. Наставники отвечают по своим книгам, Совет трёх собирается.",
+        "payment_success": "Aeon Primus открыт. Наставники отвечают по своим книгам, Дискуссия доступна.",
         "payment_no_subscription": "У Вас нет активной подписки Primus с автопродлением.",
         "payment_canceled": "Автопродление отключено. Primus остаётся открытым до {date}.",
         "payment_restored": "Автопродление снова включено. Primus продолжится после {date}.",
@@ -427,30 +435,38 @@ MESSAGES: dict[str, dict[str, str]] = {
         "payment_refunded": "Ваш платёж на {amount} Stars возвращён. Primus отключён, Stars вернулись на Ваш баланс Telegram.",
         "billing_trial_ending": (
             "Пробный доступ заканчивается завтра. После этого наставники отвечают без своих книг, "
-            "а Совет трёх закрывается. Продолжите с Aeon Primus за {price} ★ в месяц, "
+            "а Дискуссия закрывается. Продолжите с Aeon Primus за {price} ★ в месяц, "
             "отключить можно в любой момент."
         ),
         "billing_trial_ended": (
-            "Пробный доступ закончился, Вы снова на базовом: без источников и Совета. "
+            "Пробный доступ закончился, Вы снова на базовом: без источников и Дискуссии. "
             "Aeon Primus возвращает книги за {price} ★ в месяц, отключить можно в любой момент."
         ),
         "billing_pro_expired": (
             "Ваш Aeon Primus закончился и не был продлён, наставники снова отвечают без своих книг. "
-            "Продлите за {price} ★ в месяц, чтобы вернуть источники и Совет трёх."
+            "Продлите за {price} ★ в месяц, чтобы вернуть источники и Дискуссию."
         ),
         "question_limit_free": "Бесплатные разговоры на сегодня закончились. Завтра будут новые — или откройте наставников в полную силу.",
         "question_limit_free_trial": "Бесплатные разговоры на сегодня закончились, лимит обновится завтра. Можно не ждать: бесплатный пробный доступ на {days} дня открывает наставников в полную силу прямо сейчас, одна кнопка ниже.",
         "question_limit_trial": "Пробные разговоры на сегодня закончились. Завтра будут новые, либо откройте Primus.",
         "question_limit_pro": "Разговоры на сегодня закончились. Завтра наставники снова с Вами.",
-        "council_usage": "Добавьте один важный вопрос после команды:\n/council Стоит ли мне сменить профессию?",
-        "council_thinking": "Марк Аврелий, Макиавелли и Карл Юнг рассматривают Ваш вопрос...",
-        "council_prompt": (
-            "Совет трёх\n\nОтправьте одно важное решение или ситуацию. "
-            "Вы получите три разных взгляда и один конкретный следующий шаг."
+        "council_usage": "Добавьте одну тему после команды:\n/discussion Стоит ли мне сменить профессию?",
+        "council_thinking": "Марк Аврелий, Макиавелли и Карл Юнг начинают дискуссию...",
+        "discussion_prompt": (
+            "Дискуссия\n\nОтправьте одно важное решение или ситуацию. "
+            "Три советника будут оспаривать позиции друг друга."
         ),
-        "council_limit_free": "Совет трёх собирается в Primus.",
-        "council_limit_trial": "Пробный Совет уже состоялся. В Primus Совет собирается каждый день.",
-        "council_limit_pro": "Советы на сегодня состоялись. Завтра снова.",
+        "council_limit_free": "Дискуссия доступна в Primus.",
+        "council_limit_trial": "Пробная Дискуссия уже состоялась. В Primus можно начинать новые дискуссии каждый день.",
+        "council_limit_pro": "Лимит Дискуссий на сегодня использован. Новая будет доступна завтра.",
+        "discussion_thinking": "Три советника готовят свои позиции...",
+        "discussion_continuing": "Советники обдумывают аргументы друг друга...",
+        "discussion_continue_button": "Продолжить дискуссию",
+        "discussion_summary_button": "Подвести итог",
+        "discussion_summary_title": "Итог дискуссии",
+        "discussion_goal_button": "Превратить в цель",
+        "discussion_new_button": "Новая дискуссия",
+        "discussion_not_found": "Эта дискуссия больше недоступна. Начните новую.",
         # Agent dialogue
         "agent_mode_closed": "Диалог завершён. Выберите, что хотите сделать дальше.",
         "agent_intro_suffix": (
@@ -468,14 +484,14 @@ MESSAGES: dict[str, dict[str, str]] = {
         "dialog_menu_title": "Что Вы хотите сделать?",
         "open_mini_app": "Открыть Aeon",
         "open_aeon": "Открыть Aeon",
-        "council_button": "Совет трёх",
+        "discussion_button": "Дискуссия",
         "settings_button": "Настройки",
         "back_home": "← Главное меню",
         "back_settings": "← Настройки",
         "switch_agent_button": "Сменить советника",
         "upgrade_pro_button": "Открыть Primus",
         "trial_start_button": "Попробовать бесплатно",
-        "trial_started": "Пробный доступ открыт до {date}. Наставники отвечают по своим книгам, Совет трёх собирается.",
+        "trial_started": "Пробный доступ открыт до {date}. Наставники отвечают по своим книгам, Дискуссия доступна.",
         "chat_menu_button": "Открыть Aeon",
         # Settings
         "settings_title": (

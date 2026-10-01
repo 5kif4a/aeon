@@ -7,7 +7,7 @@ import { TopBar } from "./components/TopBar";
 import {
   useNotificationSettings,
   useProfile,
-  useStartCouncil,
+  useStartDiscussion,
   useStartDialog,
   useUpdateNotificationSettings,
 } from "./hooks/queries";
@@ -29,7 +29,7 @@ interface AppShellValue {
   activeAgentId: string;
   selectAgent: (agentId: string) => void;
   beginDialog: (message?: string) => void;
-  beginCouncil: (message: string) => void;
+  beginDiscussion: (message: string) => void;
   showMessage: (text: string, canStartDialog?: boolean) => void;
 }
 
@@ -54,7 +54,7 @@ export function AppShell() {
   const { data: notifications } = useNotificationSettings();
   const updateNotifications = useUpdateNotificationSettings();
   const startDialog = useStartDialog();
-  const startCouncil = useStartCouncil();
+  const startDiscussion = useStartDiscussion();
   const closeTimer = useRef<number | null>(null);
   const zoneSent = useRef(false);
 
@@ -126,8 +126,8 @@ export function AppShell() {
     );
   };
 
-  const beginCouncil = (message: string) => {
-    startCouncil.mutate(message, {
+  const beginDiscussion = (message: string) => {
+    startDiscussion.mutate(message, {
       onSuccess: (response) => confirmAndClose(response.agentName),
       onError: (error) => showMessage(t(dialogErrorKey(error))),
     });
@@ -137,7 +137,7 @@ export function AppShell() {
     activeAgentId,
     selectAgent: setActiveAgentId,
     beginDialog,
-    beginCouncil,
+    beginDiscussion,
     showMessage,
   };
 

@@ -84,7 +84,7 @@ def language_keyboard(prefix: str, *, detected: str) -> InlineKeyboardMarkup:
 
 
 def agent_picker_keyboard(language: str, *, prefix: str = "agent") -> InlineKeyboardMarkup:
-    # The bot offers only the three advisors; the council lives in the Mini App.
+    # This picker contains individual advisors; Discussion is a separate main-menu action.
     return InlineKeyboardMarkup(
         [
             [
@@ -101,6 +101,11 @@ def home_keyboard(language: str) -> InlineKeyboardMarkup:
     return _markup(
         [
             [_mini_app_button(language, "open_aeon", "home")],
+            [
+                InlineKeyboardButton(
+                    t(language, "discussion_button"), callback_data="discussion:new"
+                )
+            ],
             [
                 InlineKeyboardButton(
                     t(language, "switch_agent_button"), callback_data="agent:picker"
@@ -132,6 +137,36 @@ def post_answer_keyboard(language: str, *, offer_app: bool = False) -> InlineKey
                 )
             ],
             [_mini_app_button(language, "open_aeon", "home")] if offer_app else [],
+        ]
+    )
+
+
+def discussion_keyboard(language: str, conversation_id: str) -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(
+                    t(language, "discussion_continue_button"),
+                    callback_data=f"discussion:continue:{conversation_id}",
+                ),
+                InlineKeyboardButton(
+                    t(language, "discussion_summary_button"),
+                    callback_data=f"discussion:summary:{conversation_id}",
+                ),
+            ]
+        ]
+    )
+
+
+def discussion_summary_keyboard(language: str) -> InlineKeyboardMarkup:
+    return _markup(
+        [
+            [_mini_app_button(language, "discussion_goal_button", "calendar", tab="goal")],
+            [
+                InlineKeyboardButton(
+                    t(language, "discussion_new_button"), callback_data="discussion:new"
+                )
+            ],
         ]
     )
 

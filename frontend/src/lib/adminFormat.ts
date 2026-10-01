@@ -5,14 +5,15 @@ import { AGENTS } from "./agents";
 import type { Lang, TranslationKey } from "./i18n";
 
 /**
- * Council answers are stored with `agent_id = "council"` - it is a mode, not an agent, so it
+ * Discussions are stored with `agent_id = "council"` for database compatibility. It is a mode,
+ * not an agent, so it
  * has no entry in `AGENTS` and needs its own label.
  */
-const COUNCIL_LABEL: Record<Lang, string> = { en: "Council", ru: "Совет" };
+const DISCUSSION_LABEL: Record<Lang, string> = { en: "Discussion", ru: "Дискуссия" };
 
 /** Agent display name; an unknown id is shown as-is. */
 export function agentLabel(agentId: string, lang: Lang): string {
-  if (agentId === "council") return COUNCIL_LABEL[lang];
+  if (agentId === "council") return DISCUSSION_LABEL[lang];
   return AGENTS[agentId]?.name[lang] ?? agentId;
 }
 

@@ -6,7 +6,12 @@ from telegram.error import Forbidden, TelegramError
 
 from app.agents import AGENTS, agent_name, agent_role
 from app.api.deps import CurrentUser, SessionDep
-from app.api.schemas import AgentOut, StartCouncilRequest, StartDialogRequest, StartDialogResponse
+from app.api.schemas import (
+    AgentOut,
+    StartDialogRequest,
+    StartDialogResponse,
+    StartDiscussionRequest,
+)
 from app.bot import chat, runtime
 from app.core.ratelimit import DIALOG_LIMITER
 from app.db.models import User
@@ -35,21 +40,24 @@ def _throttle(user: User) -> None:
         raise HTTPException(status_code=429, detail=t(user.language, "error_too_many_requests"))
 
 
-@router.post("/agents/council/dialog", response_model=StartDialogResponse)
-async def start_council_dialog(
-    payload: StartCouncilRequest, user: CurrentUser
+@router.post("/agents/discussion/dialog", response_model=StartDialogResponse)
+@router.post(
+    "/agents/council/dialog", response_model=StartDialogResponse, include_in_schema=False
+)
+async def start_discussion_dialog(
+    payload: StartDiscussionRequest, user: CurrentUser
 ) -> StartDialogResponse:
     _throttle(user)
     application = runtime.get_application()
     if application is None:
         raise HTTPException(status_code=503, detail="Telegram bot is not running")
     task = asyncio.create_task(
-        chat.process_council_message(application.bot, user.id, payload.message.strip())
+        chat.process_discussion_message(application.bot, user.id, payload.message.strip())
     )
     task.add_done_callback(_log_dialog_task_error)
     return StartDialogResponse(
         ok=True,
-        agentName="Council of Three" if user.language == "en" else "Совет трёх",
+        agentName="Discussion" if user.language == "en" else "Дискуссия",
         botUsername=application.bot.username or "",
     )
 

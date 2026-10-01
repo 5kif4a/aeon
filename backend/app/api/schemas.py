@@ -221,7 +221,7 @@ class StartDialogRequest(BaseModel):
     message: str = Field(default="", max_length=2000)
 
 
-class StartCouncilRequest(BaseModel):
+class StartDiscussionRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
 
 
