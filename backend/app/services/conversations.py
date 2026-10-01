@@ -94,6 +94,22 @@ async def get_active_session_id(
     )
 
 
+async def get_session_for_user(
+    session: AsyncSession,
+    conversation_id: uuid.UUID,
+    user_id: int,
+    *,
+    agent_id: str | None = None,
+) -> Conversation | None:
+    query = select(Conversation).where(
+        Conversation.id == conversation_id,
+        Conversation.user_id == user_id,
+    )
+    if agent_id is not None:
+        query = query.where(Conversation.agent_id == agent_id)
+    return await session.scalar(query)
+
+
 async def list_session_history(
     session: AsyncSession, conversation_id: uuid.UUID, limit: int
 ) -> list[dict[str, str]]:
@@ -172,6 +188,8 @@ async def append_completed_session(
     agent_id: str,
     user_text: str,
     agent_text: str,
+    *,
+    summary: str = "",
 ) -> Conversation:
     now = datetime.now(UTC)
     conversation = Conversation(
@@ -179,10 +197,48 @@ async def append_completed_session(
         agent_id=agent_id,
         status="closed",
         closed_at=now,
+        summary=summary,
     )
     session.add(conversation)
     await session.flush()
     _append_messages(session, conversation, user_text, agent_text)
+    await session.commit()
+    await session.refresh(conversation)
+    return conversation
+
+
+async def append_closed_agent_turn(
+    session: AsyncSession,
+    conversation_id: uuid.UUID,
+    user_id: int,
+    agent_text: str,
+    *,
+    summary: str = "",
+) -> Conversation | None:
+    """Append another generated round to a closed mode session without making it active."""
+    conversation = await session.scalar(
+        select(Conversation)
+        .where(
+            Conversation.id == conversation_id,
+            Conversation.user_id == user_id,
+            Conversation.status == "closed",
+        )
+        .with_for_update()
+    )
+    if conversation is None:
+        return None
+    position = conversation.message_count + 1
+    session.add(
+        ConversationMessage(
+            conversation_id=conversation.id,
+            position=position,
+            role="agent",
+            text=str(agent_text or ""),
+        )
+    )
+    conversation.message_count = position
+    conversation.summary = summary
+    conversation.updated_at = datetime.now(UTC)
     await session.commit()
     await session.refresh(conversation)
     return conversation

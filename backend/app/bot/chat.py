@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import time
+import uuid
 from collections import defaultdict
 
 from telegram import Bot
@@ -209,44 +210,61 @@ async def _checkin_footer(chat_id: int, language: str) -> str:
 
 
 async def process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
+    """Backward-compatible alias for old Mini App builds and the /council command."""
+    return await process_discussion_message(bot, chat_id, text)
+
+
+async def process_discussion_message(bot: Bot, chat_id: int, text: str) -> bool:
     if await _reject_if_generating(bot, chat_id):
         return False
     async with _generation_locks[chat_id]:
-        return await _process_council_message(bot, chat_id, text)
+        return await _process_discussion_message(bot, chat_id, text)
 
 
-async def _process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
+async def _process_discussion_message(bot: Bot, chat_id: int, text: str) -> bool:
     settings = get_settings()
+    grant: billing.CouncilGrant | None = None
+    limit_error: billing.CouncilUnavailable | None = None
+    can_start_trial = False
+    active_goal = None
+    diary_entries = []
     async with SessionFactory() as session:
         user = await users.get_or_create_user(session, chat_id)
         language = user.language
-        if not settings.gemini_api_key:
-            await bot.send_message(chat_id, t(language, "gemini_not_configured"))
-            return False
-        try:
-            grant = await billing.reserve_council(session, chat_id)
-        except billing.CouncilUnavailable as error:
-            events.record(
-                session, events.QUESTION_LIMIT_HIT, chat_id, kind="council", plan=error.plan
-            )
-            await session.commit()
-            await bot.send_message(
-                chat_id,
-                t(language, f"council_limit_{error.plan.lower()}"),
-                reply_markup=ui.limit_keyboard(
-                    language,
-                    error.plan,
-                    can_start_trial=billing.trial_available(user, error.plan),
-                ),
-            )
-            return False
-        user.plan = grant.plan
-        active_goal = await goals.get_active_goal(session, chat_id)
-        diary_entries = await diary.list_entries(session, chat_id, limit=3)
+        if settings.gemini_api_key:
+            try:
+                grant = await billing.reserve_council(session, chat_id)
+            except billing.CouncilUnavailable as error:
+                limit_error = error
+                can_start_trial = billing.trial_available(user, error.plan)
+                events.record(
+                    session, events.QUESTION_LIMIT_HIT, chat_id, kind="discussion", plan=error.plan
+                )
+                await session.commit()
+            else:
+                user.plan = grant.plan
+                active_goal = await goals.get_active_goal(session, chat_id)
+                diary_entries = await diary.list_entries(session, chat_id, limit=3)
 
-    progress = await bot.send_message(chat_id, t(language, "council_thinking"))
+    if not settings.gemini_api_key:
+        await bot.send_message(chat_id, t(language, "gemini_not_configured"))
+        return False
+    if limit_error is not None:
+        await bot.send_message(
+            chat_id,
+            t(language, f"council_limit_{limit_error.plan.lower()}"),
+            reply_markup=ui.limit_keyboard(
+                language,
+                limit_error.plan,
+                can_start_trial=can_start_trial,
+            ),
+        )
+        return False
+    assert grant is not None
+
+    progress = await bot.send_message(chat_id, t(language, "discussion_thinking"))
     try:
-        answer = await agent_chat.generate_council_answer(
+        result = await agent_chat.generate_discussion_round(
             text,
             user,
             language,
@@ -254,26 +272,201 @@ async def _process_council_message(bot: Bot, chat_id: int, text: str) -> bool:
             active_goal=active_goal.text if active_goal else "",
         )
     except Exception as error:
-        logger.warning("Council generation error: %s", error)
+        logger.warning("Discussion generation error: %s", error)
         async with SessionFactory() as session:
             await billing.release_council(session, chat_id, grant)
-            await _record_generation_failure(session, chat_id, "council", error)
-        ops.generation_failed("council", user, error, mode="council")
+            await _record_generation_failure(session, chat_id, "discussion", error)
+        ops.generation_failed("discussion", user, error, mode="council")
         await messaging.send_or_edit(
             bot, chat_id, progress.message_id, _build_error_message(error, language)
         )
         return False
 
-    await agent_chat.store_completed_session(chat_id, "council", text, answer)
-    await messaging.send_or_edit(
+    transcript = agent_chat.discussion_transcript(result.turns, language)
+    async with SessionFactory() as session:
+        conversation = await conversations.append_completed_session(
+            session,
+            chat_id,
+            "council",
+            text,
+            transcript,
+            summary=result.summary,
+        )
+        conversation_id = conversation.id
+    await _send_discussion_round(
+        bot, chat_id, language, result, conversation_id, progress.message_id
+    )
+    return True
+
+
+async def continue_discussion(bot: Bot, chat_id: int, conversation_id: str) -> bool:
+    if await _reject_if_generating(bot, chat_id):
+        return False
+    async with _generation_locks[chat_id]:
+        return await _continue_discussion(bot, chat_id, conversation_id)
+
+
+async def _continue_discussion(bot: Bot, chat_id: int, conversation_id: str) -> bool:
+    try:
+        parsed_id = uuid.UUID(conversation_id)
+    except ValueError:
+        return False
+
+    settings = get_settings()
+    grant: billing.CouncilGrant | None = None
+    limit_error: billing.CouncilUnavailable | None = None
+    can_start_trial = False
+    active_goal = None
+    diary_entries = []
+    topic = ""
+    previous = ""
+    conversation_found = False
+    async with SessionFactory() as session:
+        user = await users.get_or_create_user(session, chat_id)
+        language = user.language
+        conversation = await conversations.get_session_for_user(
+            session, parsed_id, chat_id, agent_id="council"
+        )
+        if conversation is not None:
+            conversation_found = True
+            history = await conversations.list_session_history(session, parsed_id, limit=20)
+            topic = next((item["text"] for item in history if item["role"] == "user"), "")
+            previous = "\n\n".join(
+                item["text"] for item in history if item["role"] == "agent"
+            )
+            if settings.gemini_api_key:
+                try:
+                    grant = await billing.reserve_council(session, chat_id)
+                except billing.CouncilUnavailable as error:
+                    limit_error = error
+                    can_start_trial = billing.trial_available(user, error.plan)
+                    events.record(
+                        session,
+                        events.QUESTION_LIMIT_HIT,
+                        chat_id,
+                        kind="discussion",
+                        plan=error.plan,
+                    )
+                    await session.commit()
+                else:
+                    user.plan = grant.plan
+                    active_goal = await goals.get_active_goal(session, chat_id)
+                    diary_entries = await diary.list_entries(session, chat_id, limit=3)
+
+    if not conversation_found:
+        await bot.send_message(chat_id, t(language, "discussion_not_found"))
+        return False
+    if not settings.gemini_api_key:
+        await bot.send_message(chat_id, t(language, "gemini_not_configured"))
+        return False
+    if limit_error is not None:
+        await bot.send_message(
+            chat_id,
+            t(language, f"council_limit_{limit_error.plan.lower()}"),
+            reply_markup=ui.limit_keyboard(
+                language,
+                limit_error.plan,
+                can_start_trial=can_start_trial,
+            ),
+        )
+        return False
+    assert grant is not None
+
+    progress = await bot.send_message(chat_id, t(language, "discussion_continuing"))
+    try:
+        result = await agent_chat.generate_discussion_round(
+            topic,
+            user,
+            language,
+            previous_transcript=previous,
+            diary=[entry.text for entry in diary_entries],
+            active_goal=active_goal.text if active_goal else "",
+        )
+    except Exception as error:
+        logger.warning("Discussion continuation error: %s", error)
+        async with SessionFactory() as session:
+            await billing.release_council(session, chat_id, grant)
+            await _record_generation_failure(session, chat_id, "discussion", error)
+        ops.generation_failed("discussion", user, error, mode="council")
+        await messaging.send_or_edit(
+            bot, chat_id, progress.message_id, _build_error_message(error, language)
+        )
+        return False
+
+    transcript = agent_chat.discussion_transcript(result.turns, language)
+    async with SessionFactory() as session:
+        conversation = await conversations.append_closed_agent_turn(
+            session,
+            parsed_id,
+            chat_id,
+            transcript,
+            summary=result.summary,
+        )
+        if conversation is None:
+            await billing.release_council(session, chat_id, grant)
+    if conversation is None:
+        await messaging.send_or_edit(
+            bot, chat_id, progress.message_id, t(language, "discussion_not_found")
+        )
+        return False
+    await _send_discussion_round(bot, chat_id, language, result, parsed_id, progress.message_id)
+    return True
+
+
+async def send_discussion_summary(bot: Bot, chat_id: int, conversation_id: str) -> bool:
+    try:
+        parsed_id = uuid.UUID(conversation_id)
+    except ValueError:
+        return False
+    async with SessionFactory() as session:
+        user = await users.get_or_create_user(session, chat_id)
+        conversation = await conversations.get_session_for_user(
+            session, parsed_id, chat_id, agent_id="council"
+        )
+        language = user.language
+    if conversation is None or not conversation.summary.strip():
+        await bot.send_message(chat_id, t(language, "discussion_not_found"))
+        return False
+    await messaging.send_chunked(
         bot,
         chat_id,
-        progress.message_id,
-        answer,
-        reply_markup=ui.post_answer_keyboard(language),
+        f"**{t(language, 'discussion_summary_title')}**\n\n{conversation.summary}",
+        reply_markup=ui.discussion_summary_keyboard(language),
         markdown=True,
     )
     return True
+
+
+async def _send_discussion_round(
+    bot: Bot,
+    chat_id: int,
+    language: str,
+    result: agent_chat.DiscussionResult,
+    conversation_id: uuid.UUID,
+    progress_message_id: int,
+) -> None:
+    for index, turn in enumerate(result.turns):
+        text = f"**{agent_name(turn.agent_id, language)}**\n\n{turn.text}"
+        markup = (
+            ui.discussion_keyboard(language, str(conversation_id))
+            if index == len(result.turns) - 1
+            else None
+        )
+        if index == 0:
+            await messaging.send_or_edit(
+                bot,
+                chat_id,
+                progress_message_id,
+                text,
+                reply_markup=markup,
+                markdown=True,
+            )
+        else:
+            await bot.send_chat_action(chat_id, "typing")
+            await asyncio.sleep(0.6)
+            await messaging.send_chunked(
+                bot, chat_id, text, reply_markup=markup, markdown=True
+            )
 
 
 def _create_stream_editor(bot: Bot, chat_id: int, message_id: int, language: str):

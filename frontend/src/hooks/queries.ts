@@ -97,8 +97,8 @@ export function useStartDialog() {
   });
 }
 
-export function useStartCouncil() {
-  return useMutation({ mutationFn: (message: string) => api.startCouncil(message) });
+export function useStartDiscussion() {
+  return useMutation({ mutationFn: (message: string) => api.startDiscussion(message) });
 }
 
 /**

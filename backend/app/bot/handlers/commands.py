@@ -1,4 +1,4 @@
-"""Bot navigation, advisor dialogue, Council, and notification settings."""
+"""Bot navigation, advisor dialogue, Discussion, and notification settings."""
 
 from telegram import InlineKeyboardMarkup, Update
 from telegram.ext import CallbackQueryHandler, CommandHandler, ContextTypes, MessageHandler, filters
@@ -81,13 +81,18 @@ async def stop_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def council_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Legacy /council alias; the feature is presented as Discussion."""
+    await discussion_command(update, context)
+
+
+async def discussion_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     question = " ".join(context.args).strip()
     if question:
-        await chat.process_council_message(context.bot, update.effective_chat.id, question)
+        await chat.process_discussion_message(context.bot, update.effective_chat.id, question)
         return
-    context.user_data["awaiting_council"] = True
+    context.user_data["awaiting_discussion"] = True
     language = await _user_language(update.effective_chat.id)
-    await context.bot.send_message(update.effective_chat.id, t(language, "council_prompt"))
+    await context.bot.send_message(update.effective_chat.id, t(language, "discussion_prompt"))
 
 
 async def agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -103,6 +108,7 @@ async def agent_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     pending_question = context.user_data.pop("pending_question", "")
     context.user_data.pop("awaiting_council", None)
+    context.user_data.pop("awaiting_discussion", None)
     await chat.set_active_agent(context.bot, chat_id, agent_id, announce=False)
     language = await _user_language(chat_id)
     await messaging.try_edit(
@@ -142,14 +148,31 @@ async def navigation_callback(update: Update, context: ContextTypes.DEFAULT_TYPE
         pending_question = context.user_data.pop("pending_question", "")
         if pending_question:
             context.user_data.pop("awaiting_council", None)
-            await chat.process_council_message(context.bot, user.id, pending_question)
+            context.user_data.pop("awaiting_discussion", None)
+            await chat.process_discussion_message(context.bot, user.id, pending_question)
             return
-        context.user_data["awaiting_council"] = True
+        context.user_data["awaiting_discussion"] = True
         await context.bot.send_message(
             user.id,
-            t(user.language, "council_prompt"),
+            t(user.language, "discussion_prompt"),
             reply_markup=ui.back_home_keyboard(user.language),
         )
+        return
+    if data == "discussion:new":
+        context.user_data["awaiting_discussion"] = True
+        await context.bot.send_message(
+            user.id,
+            t(user.language, "discussion_prompt"),
+            reply_markup=ui.back_home_keyboard(user.language),
+        )
+        return
+    if data.startswith("discussion:continue:"):
+        await _clear_callback_keyboard(query)
+        await chat.continue_discussion(context.bot, user.id, data.rsplit(":", 1)[1])
+        return
+    if data.startswith("discussion:summary:"):
+        await _clear_callback_keyboard(query)
+        await chat.send_discussion_summary(context.bot, user.id, data.rsplit(":", 1)[1])
         return
     if data == "billing:subscribe":
         await subscribe_command(update, context)
@@ -314,6 +337,13 @@ async def _drop_button(query, callback_data: str) -> None:
         return
 
 
+async def _clear_callback_keyboard(query) -> None:
+    try:
+        await query.edit_message_reply_markup(None)
+    except Exception:
+        return
+
+
 def _settings_text(user) -> str:
     reminder_hour = user.reminder_hour if user.reminder_hour is not None else 9
     evening_hour = user.evening_hour if user.evening_hour is not None else 21
@@ -354,8 +384,10 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     text = (update.message.text or "").strip()
     if not text:
         return
-    if context.user_data.pop("awaiting_council", False):
-        await chat.process_council_message(context.bot, chat_id, text)
+    awaiting_discussion = context.user_data.pop("awaiting_discussion", False)
+    awaiting_council = context.user_data.pop("awaiting_council", False)
+    if awaiting_discussion or awaiting_council:
+        await chat.process_discussion_message(context.bot, chat_id, text)
         return
     if await chat.process_agent_message(context.bot, chat_id, text):
         return
@@ -392,6 +424,7 @@ def build_command_handlers() -> list:
         CommandHandler("settings", settings_command, filters=private),
         CommandHandler("language", language_command, filters=private),
         CommandHandler(["stop", "reset_agent"], stop_command, filters=private),
+        CommandHandler("discussion", discussion_command, filters=private),
         CommandHandler("council", council_command, filters=private),
         CommandHandler("subscribe", subscribe_command, filters=private),
         CommandHandler("cancel_subscription", cancel_subscription_command, filters=private),
@@ -402,7 +435,7 @@ def build_command_handlers() -> list:
         CallbackQueryHandler(agent_callback, pattern=r"^agent:"),
         CallbackQueryHandler(
             navigation_callback,
-            pattern=r"^(menu:home|lang:|council:start|billing:subscribe|billing:trial|daily:done|notify:|settings:|marketing:off)",
+            pattern=r"^(menu:home|lang:|council:start|discussion:|billing:subscribe|billing:trial|daily:done|notify:|settings:|marketing:off)",
         ),
         MessageHandler(private & filters.TEXT & ~filters.COMMAND, text_message),
         MessageHandler(UNSUPPORTED_MESSAGE_FILTER, unsupported_message),

@@ -9,6 +9,7 @@ import json
 import logging
 import re
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from datetime import date
 
 from app.agents import (
@@ -33,6 +34,19 @@ OnText = Callable[[str], Awaitable[None]]
 logger = logging.getLogger(__name__)
 
 NOT_SPECIFIED = "not specified"
+DISCUSSION_AGENT_IDS = ("aurelius", "machiavelli", "jung")
+
+
+@dataclass(frozen=True)
+class DiscussionTurn:
+    agent_id: str
+    text: str
+
+
+@dataclass(frozen=True)
+class DiscussionResult:
+    turns: tuple[DiscussionTurn, ...]
+    summary: str
 
 # --- prompt building ---------------------------------------------------------
 
@@ -394,8 +408,10 @@ async def generate_answer(
     language: str,
     diary: list[str] | None = None,
     active_goal: str = "",
+    *,
+    retrieval_query: str = "",
 ) -> str:
-    book_context = await _book_context(agent_id, message, user, language)
+    book_context = await _book_context(agent_id, retrieval_query or message, user, language)
     prompt = _build_user_prompt(
         agent_id,
         message,
@@ -516,6 +532,110 @@ async def generate_council_answer(
     if not text:
         raise gemini.GeminiError("Gemini returned an empty council answer")
     return text
+
+
+def discussion_transcript(turns: tuple[DiscussionTurn, ...], language: str) -> str:
+    """Durable plain-text form used in the conversation history and later rounds."""
+    return "\n\n".join(
+        f"{agent_name(turn.agent_id, language)}:\n{turn.text}" for turn in turns
+    )
+
+
+def _discussion_turn_prompt(
+    topic: str,
+    agent_id: str,
+    language: str,
+    transcript: str,
+) -> str:
+    previous = transcript.strip()[-9000:]
+    if previous:
+        situation = (
+            "The discussion so far is below. Address at least one concrete claim made by "
+            "another participant: agree, challenge it, or expose what it misses.\n\n"
+            f"{previous}"
+        )
+    else:
+        situation = "You speak first. State a clear position that the others can challenge."
+    return (
+        "You are taking part in a structured discussion with Marcus Aurelius, Niccolo "
+        "Machiavelli, and Carl Jung. The goal is not three isolated answers but a real exchange "
+        "that helps the user make a decision.\n\n"
+        f"Topic from the user:\n{topic}\n\n"
+        f"{situation}\n\n"
+        f"Write only the next contribution by {agent_name(agent_id, language)}. Do not add a "
+        "heading or signature. Do not summarize the whole discussion or declare a winner. "
+        "Keep it focused, concrete, and between 90 and 170 words."
+    )
+
+
+def _discussion_summary_body(topic: str, transcript: str, language: str) -> dict:
+    settings = get_settings()
+    prompt = (
+        "The user asked the three advisors to discuss this topic:\n"
+        f"{topic}\n\n"
+        "Discussion transcript:\n"
+        f"{transcript[-14000:]}\n\n"
+        "Write a compact practical conclusion for the user. Preserve the central disagreement "
+        "instead of pretending that all three advisors agree. End with one concrete next action. "
+        "Do not invent quotations or sources and do not add an advisor signature."
+    )
+    return {
+        "systemInstruction": {
+            "parts": [
+                {
+                    "text": (
+                        "You are the neutral editor of a three-way philosophical discussion. "
+                        "Synthesize without flattening disagreement. "
+                        f"{_language_directive(language)}"
+                    )
+                }
+            ]
+        },
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": 0.45,
+            "maxOutputTokens": min(settings.gemini_max_output_tokens, 900),
+            "thinkingConfig": {"thinkingBudget": 0},
+        },
+    }
+
+
+async def generate_discussion_round(
+    topic: str,
+    user: User,
+    language: str,
+    *,
+    previous_transcript: str = "",
+    diary: list[str] | None = None,
+    active_goal: str = "",
+) -> DiscussionResult:
+    """Generate one real exchange: every advisor reads the turns before their own."""
+    turns: list[DiscussionTurn] = []
+    transcript = previous_transcript.strip()
+    for agent_id in DISCUSSION_AGENT_IDS:
+        prompt = _discussion_turn_prompt(topic, agent_id, language, transcript)
+        answer = await generate_answer(
+            agent_id,
+            prompt,
+            user,
+            [],
+            language,
+            diary=diary,
+            active_goal=active_goal,
+            retrieval_query=topic,
+        )
+        turn = DiscussionTurn(agent_id=agent_id, text=answer)
+        turns.append(turn)
+        addition = discussion_transcript((turn,), language)
+        transcript = f"{transcript}\n\n{addition}".strip()
+
+    result = await gemini.generate_content(
+        _discussion_summary_body(topic, transcript, language), timeout=45
+    )
+    summary = sanitize_answer(gemini.extract_text(result))
+    if not summary:
+        raise gemini.GeminiError("Gemini returned an empty discussion summary")
+    return DiscussionResult(turns=tuple(turns), summary=summary)
 
 
 # --- Dialogue history --------------------------------------------------------

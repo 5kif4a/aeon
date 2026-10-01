@@ -83,8 +83,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ message }),
     }),
-  startCouncil: (message: string) =>
-    request<StartDialogResponse>("/api/agents/council/dialog", {
+  startDiscussion: (message: string) =>
+    request<StartDialogResponse>("/api/agents/discussion/dialog", {
       method: "POST",
       body: JSON.stringify({ message }),
     }),

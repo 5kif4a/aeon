@@ -24,7 +24,7 @@ const STARTERS: Record<string, TranslationKey[]> = {
   aurelius: ["starter_aurelius_1", "starter_aurelius_2", "starter_aurelius_3"],
   machiavelli: ["starter_machiavelli_1", "starter_machiavelli_2", "starter_machiavelli_3"],
   jung: ["starter_jung_1", "starter_jung_2", "starter_jung_3"],
-  council: ["starter_council_1", "starter_council_2", "starter_council_3"],
+  discussion: ["starter_discussion_1", "starter_discussion_2", "starter_discussion_3"],
 };
 
 const chipBase =
@@ -36,19 +36,19 @@ export function HomeView({
   activeAgentId,
   onSelectAgent,
   onStartDialog,
-  onStartCouncil,
+  onStartDiscussion,
 }: {
   activeAgentId: string;
   onSelectAgent: (agentId: string) => void;
   onStartDialog: (message?: string) => void;
-  onStartCouncil: (message: string) => void;
+  onStartDiscussion: (message: string) => void;
 }) {
   const { t, lang } = useT();
   const { data: profile } = useProfile();
   const { data: goal } = useGoal();
   const { data: conversation } = useActiveConversation();
   const [question, setQuestion] = useState("");
-  const [mode, setMode] = useState<"agent" | "council">("agent");
+  const [mode, setMode] = useState<"agent" | "discussion">("agent");
   // Which advisor's biography is open; the info button on any card opens it, not only the
   // active one, so the dialog also offers to switch.
   const [biographyAgentId, setBiographyAgentId] = useState<string | null>(null);
@@ -57,7 +57,8 @@ export function HomeView({
   const activeAgent = agentMeta(activeAgentId, lang);
   const biography = biographyAgentId ? BIOGRAPHIES[biographyAgentId]?.[lang] : undefined;
   const biographyAgent = biographyAgentId ? agentMeta(biographyAgentId, lang) : null;
-  const starters = mode === "council" ? STARTERS.council : (STARTERS[activeAgentId] ?? []);
+  const starters =
+    mode === "discussion" ? STARTERS.discussion : (STARTERS[activeAgentId] ?? []);
   const activeGoal = goal?.status === "active" ? goal : null;
   const lifeWeeks = profile?.birthDate ? calculateLifeStats(profile.birthDate).weeksLived : null;
 
@@ -67,7 +68,7 @@ export function HomeView({
     if (!message) return;
     setQuestion("");
     haptic("impact");
-    if (mode === "council") onStartCouncil(message);
+    if (mode === "discussion") onStartDiscussion(message);
     else onStartDialog(message);
   };
 
@@ -85,37 +86,39 @@ export function HomeView({
         week={profile?.checkinWeek}
       />
 
-      {/* The heading names who answers; the council is a modifier of that, not a place to go. */}
+      {/* Discussion is a response mode; individual advisor selection remains available below. */}
       <section className="mt-5" aria-labelledby="ask-title">
         <div className="mb-2 flex items-center justify-between gap-3">
-          <h2 id="ask-title" className="min-w-0 truncate font-serif text-[20px] leading-tight">
-            {t("home_ask_addressee", {
-              name: mode === "council" ? t("home_council") : activeAgent.name,
-            })}
+          <h2 id="ask-title" className="min-w-0 font-serif text-[20px] leading-tight">
+            {mode === "discussion"
+              ? t("home_discussion_title")
+              : t("home_ask_addressee", { name: activeAgent.name })}
           </h2>
           <button
             type="button"
             role="switch"
-            aria-checked={mode === "council"}
-            aria-label={t("home_council")}
+            aria-checked={mode === "discussion"}
+            aria-label={t("home_discussion")}
             onClick={() => {
-              setMode(mode === "council" ? "agent" : "council");
+              setMode(mode === "discussion" ? "agent" : "discussion");
               haptic("selection");
             }}
             className="flex min-h-11 shrink-0 items-center gap-2 text-[12px] font-[750]"
           >
-            <span className={mode === "council" ? "text-text" : "text-muted"}>
-              {t("home_council")}
+            <span className={mode === "discussion" ? "text-text" : "text-muted"}>
+              {t("home_discussion")}
             </span>
             <span
               aria-hidden="true"
               className={`relative block h-[26px] w-[44px] rounded-full transition-colors duration-200 motion-reduce:transition-none ${
-                mode === "council" ? "bg-gold-strong" : "border-line bg-surface-strong border"
+                mode === "discussion"
+                  ? "bg-gold-strong"
+                  : "border-line bg-surface-strong border"
               }`}
             >
               <i
                 className={`absolute top-[3px] block h-5 w-5 rounded-full transition-transform duration-200 motion-reduce:transition-none ${
-                  mode === "council"
+                  mode === "discussion"
                     ? "translate-x-[21px] bg-[#1b1510]"
                     : "bg-soft translate-x-[3px]"
                 }`}
@@ -132,7 +135,9 @@ export function HomeView({
               rows={4}
               autoComplete="off"
               placeholder={t(
-                mode === "council" ? "home_council_placeholder" : "home_ask_placeholder",
+                mode === "discussion"
+                  ? "home_discussion_placeholder"
+                  : "home_ask_placeholder",
               )}
               value={question}
               onChange={(event) => setQuestion(event.target.value)}

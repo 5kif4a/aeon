@@ -52,6 +52,30 @@ def test_post_answer_keyboard_only_switches_advisor():
     assert _callbacks(ui.post_answer_keyboard("en")) == ["agent:picker"]
 
 
+def test_discussion_keyboard_continues_or_summarizes_the_same_session():
+    keyboard = ui.discussion_keyboard("en", "conversation-id")
+
+    assert _callbacks(keyboard) == [
+        "discussion:continue:conversation-id",
+        "discussion:summary:conversation-id",
+    ]
+
+
+def test_discussion_summary_keyboard_offers_goal_and_new_discussion(monkeypatch):
+    monkeypatch.setattr(
+        webapp,
+        "build_webapp_url",
+        lambda view="home", **params: f"https://aeon.test/{view}?tab={params.get('tab', '')}",
+    )
+
+    keyboard = ui.discussion_summary_keyboard("ru")
+    web_buttons = [button for row in keyboard.inline_keyboard for button in row if button.web_app]
+
+    assert len(web_buttons) == 1
+    assert web_buttons[0].web_app.url == "https://aeon.test/calendar?tab=goal"
+    assert _callbacks(keyboard) == ["discussion:new"]
+
+
 def test_language_keyboard_puts_the_detected_language_first():
     keyboard = ui.language_keyboard("lang", detected="ru")
 
@@ -70,7 +94,8 @@ def test_home_keyboard_opens_the_mini_app_and_switches_advisor(monkeypatch):
 
     assert len(web_buttons) == 1
     assert web_buttons[0].web_app.url == "https://aeon.test/home"
-    assert _callbacks(keyboard) == ["agent:picker"]
+    assert _callbacks(keyboard) == ["discussion:new", "agent:picker"]
+    assert keyboard.inline_keyboard[1][0].text == "Discussion"
 
 
 def test_home_keyboard_does_not_emit_empty_rows_without_mini_app(monkeypatch):
@@ -80,7 +105,8 @@ def test_home_keyboard_does_not_emit_empty_rows_without_mini_app(monkeypatch):
 
     assert keyboard.inline_keyboard
     assert all(row for row in keyboard.inline_keyboard)
-    assert _callbacks(keyboard) == ["agent:picker"]
+    assert _callbacks(keyboard) == ["discussion:new", "agent:picker"]
+    assert keyboard.inline_keyboard[0][0].text == "Discussion"
 
 
 @pytest.mark.parametrize(
